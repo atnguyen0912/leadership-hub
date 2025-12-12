@@ -18,6 +18,16 @@ function ManageStudents({ user, onLogout }) {
   // Lead type loading state
   const [leadLoading, setLeadLoading] = useState(null);
 
+  // CSV save/download state
+  const [savingCSV, setSavingCSV] = useState(false);
+
+  // Student ID validation: 6 digits + M/F/X + 3 digits (e.g., 123456M789)
+  const STUDENT_ID_REGEX = /^\d{6}[MFX]\d{3}$/;
+
+  const validateStudentId = (id) => {
+    return STUDENT_ID_REGEX.test(id);
+  };
+
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -43,6 +53,13 @@ function ManageStudents({ user, onLogout }) {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Validate student ID format
+    if (!validateStudentId(newStudentId)) {
+      setError('Invalid Student ID format. Must be 6 digits + M/F/X + 3 digits (e.g., 123456M789)');
+      return;
+    }
+
     setAddLoading(true);
 
     try {
@@ -170,6 +187,36 @@ function ManageStudents({ user, onLogout }) {
     return '#666';
   };
 
+  // Save students to CSV file on server
+  const handleSaveToCSV = async () => {
+    setSavingCSV(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch('/api/students/save-to-csv', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save CSV');
+      }
+
+      setSuccess(data.message);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingCSV(false);
+    }
+  };
+
+  // Download students as CSV file
+  const handleDownloadCSV = () => {
+    window.open('/api/students/csv', '_blank');
+  };
+
   if (loading) {
     return (
       <div>
@@ -202,8 +249,10 @@ function ManageStudents({ user, onLogout }) {
                   id="studentId"
                   className="input"
                   value={newStudentId}
-                  onChange={(e) => setNewStudentId(e.target.value)}
-                  placeholder="e.g., 12345"
+                  onChange={(e) => setNewStudentId(e.target.value.toUpperCase())}
+                  placeholder="e.g., 123456M789"
+                  pattern="\d{6}[MFX]\d{3}"
+                  maxLength={10}
                   required
                 />
               </div>
@@ -249,6 +298,30 @@ function ManageStudents({ user, onLogout }) {
               </ul>
             </div>
           )}
+        </div>
+
+        {/* Save/Export CSV */}
+        <div className="card">
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Export Students</h2>
+          <p style={{ marginBottom: '12px', color: '#4ade80', fontSize: '14px' }}>
+            Save students to CSV to persist data between deployments, or download for backup.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={handleSaveToCSV}
+              disabled={savingCSV}
+            >
+              {savingCSV ? 'Saving...' : 'Save to Server CSV'}
+            </button>
+            <button
+              className="btn"
+              onClick={handleDownloadCSV}
+              style={{ background: '#4a7c59' }}
+            >
+              Download CSV
+            </button>
+          </div>
         </div>
 
         {/* Students Table */}

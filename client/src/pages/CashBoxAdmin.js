@@ -52,6 +52,10 @@ function CashBoxAdmin({ user, onLogout }) {
   // Drag and drop for menu items
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
+  const [dropIndicator, setDropIndicator] = useState(null); // { itemId, position: 'before'|'after'|'into', parentId }
+
+  // Collapsed categories
+  const [collapsedCategories, setCollapsedCategories] = useState(new Set());
 
   // CSV operations
   const [savingCSV, setSavingCSV] = useState(false);
@@ -528,78 +532,161 @@ function CashBoxAdmin({ user, onLogout }) {
   };
 
   // Drag and drop handlers for menu items
-  const handleDragStart = (e, item, isSubItem = false, parentId = null) => {
-    setDraggedItem({ ...item, isSubItem, parent_id: parentId || item.parent_id });
+  // parentId is passed for sub-items to identify their parent category
+  const handleDragStart = (e, item, parentId = null) => {
+    e.stopPropagation();
+    const itemParentId = parentId !== null ? parentId : item.parent_id;
+    setDraggedItem({ ...item, parent_id: itemParentId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e, item, isSubItem = false) => {
+  const handleDragOver = (e, item, parentId = null) => {
     e.preventDefault();
-    // Allow drag over any item (for moving into categories)
-    if (draggedItem) {
-      setDragOverItem({ ...item, isSubItem });
+    e.stopPropagation();
+    if (!draggedItem || draggedItem.id === item.id) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const height = rect.height;
+
+    let position;
+    const targetIsCategory = item.price === null;
+    const isCollapsed = targetIsCategory && collapsedCategories.has(item.id);
+    const targetIsSubItem = parentId !== null;
+    const draggedIsCategory = draggedItem.price === null;
+
+    // If dragging a category, never allow 'into' another category
+    if (draggedIsCategory && targetIsCategory) {
+      // Categories can only go before/after other categories, not into
+      position = y < height / 2 ? 'before' : 'after';
+    } else if (targetIsCategory && isCollapsed) {
+      // Hovering over a collapsed category - always 'into'
+      position = 'into';
+    } else if (targetIsCategory && !targetIsSubItem) {
+      // Expanded category - can drop into it or before/after
+      if (y < height * 0.25) {
+        position = 'before';
+      } else if (y > height * 0.75) {
+        position = 'after';
+      } else {
+        position = 'into';
+      }
+    } else {
+      // Regular item - before or after
+      position = y < height / 2 ? 'before' : 'after';
+    }
+
+    setDropIndicator({ itemId: item.id, position, parentId });
+    setDragOverItem(item);
+  };
+
+  const handleDragLeave = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setDragOverItem(null);
+      setDropIndicator(null);
     }
   };
 
-  const handleDragLeave = () => {
-    setDragOverItem(null);
-  };
-
-  const handleDrop = async (e, targetItem, isSubItem = false, targetParentId = null) => {
+  const handleDrop = async (e, targetItem, targetParentId = null) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverItem(null);
+
+    const currentDropIndicator = dropIndicator;
+    setDropIndicator(null);
 
     if (!draggedItem || draggedItem.id === targetItem.id) {
       setDraggedItem(null);
       return;
     }
 
-    // Get the actual parent_id for the target
-    const actualTargetParentId = targetParentId || targetItem.parent_id;
+    const position = currentDropIndicator?.position || 'after';
+    const draggedParentId = draggedItem.parent_id;
+    const targetIsCategory = targetItem.price === null;
+    const targetIsTopLevel = targetParentId === null && targetItem.parent_id === null;
+    const draggedIsCategory = draggedItem.price === null;
+
+    console.log('handleDrop:', {
+      position,
+      draggedItem: draggedItem.name,
+      targetItem: targetItem.name,
+      draggedIsCategory,
+      targetIsCategory,
+      targetIsTopLevel,
+      draggedParentId,
+      targetParentId
+    });
 
     try {
-      // Case 1: Dropping a top-level item onto a category (move into category)
-      if (!draggedItem.isSubItem && !isSubItem && targetItem.price === null && draggedItem.price !== null) {
-        const response = await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
+      // Case 1: Dropping INTO a category (position is 'into')
+      // Prevent categories from being nested inside other categories
+      if (position === 'into' && targetIsCategory) {
+        if (draggedIsCategory) {
+          setError('Categories cannot be placed inside other categories');
+          setDraggedItem(null);
+          return;
+        }
+
+        await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ parentId: targetItem.id })
         });
-
-        const data = await response.json();
-        if (!response.ok) {
-          setError(data.error || 'Failed to move item');
-        } else {
-          setSuccess(data.message);
-        }
         fetchData();
         setDraggedItem(null);
         return;
       }
 
-      // Case 2: Dropping a sub-item to top level (make it top-level)
-      if (draggedItem.isSubItem && !isSubItem && targetItem.price !== null) {
-        // If dropping onto another top-level item with price, make dragged item top-level
-        const response = await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
+      // Case 2: Dragged item is a sub-item, dropping on a top-level item (promote to top level)
+      if (draggedParentId !== null && targetIsTopLevel && !targetIsCategory) {
+        // First promote to top level
+        await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ parentId: null })
         });
 
-        const data = await response.json();
-        if (!response.ok) {
-          setError(data.error || 'Failed to move item');
-        } else {
-          setSuccess(data.message);
+        // Then reorder
+        const updatedItems = await fetch('/api/menu/all').then(r => r.json());
+        const items = [...updatedItems];
+        const dragIndex = items.findIndex(i => i.id === draggedItem.id);
+        let dropIndex = items.findIndex(i => i.id === targetItem.id);
+
+        if (dragIndex !== -1 && dropIndex !== -1) {
+          items.splice(dragIndex, 1);
+          dropIndex = items.findIndex(i => i.id === targetItem.id);
+          if (position === 'after') dropIndex++;
+          items.splice(dropIndex, 0, { ...draggedItem, parent_id: null });
+
+          await fetch('/api/menu/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+          });
         }
         fetchData();
         setDraggedItem(null);
         return;
       }
 
-      // Case 3: Reordering sub-items within same parent
-      if (draggedItem.isSubItem && isSubItem && draggedItem.parent_id === actualTargetParentId) {
-        const parentItem = menuItems.find(item => item.id === draggedItem.parent_id);
+      // Case 3: Dropping a top-level item onto a sub-item (add to that category)
+      if (draggedParentId === null && targetParentId !== null && !draggedIsCategory) {
+        await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: targetParentId })
+        });
+        fetchData();
+        setDraggedItem(null);
+        return;
+      }
+
+      // Case 4: Both items are sub-items of the same parent (reorder within category)
+      if (draggedParentId !== null && targetParentId !== null && draggedParentId === targetParentId) {
+        const parentItem = menuItems.find(item => item.id === draggedParentId);
         if (!parentItem || !parentItem.subItems) {
           setDraggedItem(null);
           return;
@@ -607,7 +694,7 @@ function CashBoxAdmin({ user, onLogout }) {
 
         const subItems = [...parentItem.subItems];
         const dragIndex = subItems.findIndex(i => i.id === draggedItem.id);
-        const dropIndex = subItems.findIndex(i => i.id === targetItem.id);
+        let dropIndex = subItems.findIndex(i => i.id === targetItem.id);
 
         if (dragIndex === -1 || dropIndex === -1) {
           setDraggedItem(null);
@@ -615,24 +702,29 @@ function CashBoxAdmin({ user, onLogout }) {
         }
 
         subItems.splice(dragIndex, 1);
+        dropIndex = subItems.findIndex(i => i.id === targetItem.id);
+        if (dropIndex === -1) {
+          dropIndex = subItems.length;
+        } else if (position === 'after') {
+          dropIndex++;
+        }
         subItems.splice(dropIndex, 0, { ...draggedItem });
 
         await fetch('/api/menu/reorder-subitems', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parentId: draggedItem.parent_id, items: subItems })
+          body: JSON.stringify({ parentId: draggedParentId, items: subItems })
         });
-
         fetchData();
         setDraggedItem(null);
         return;
       }
 
-      // Case 4: Reordering top-level items
-      if (!draggedItem.isSubItem && !isSubItem) {
+      // Case 5: Both are top-level items (reorder at top level)
+      if (draggedParentId === null && targetIsTopLevel) {
         const items = [...menuItems];
         const dragIndex = items.findIndex(i => i.id === draggedItem.id);
-        const dropIndex = items.findIndex(i => i.id === targetItem.id);
+        let dropIndex = items.findIndex(i => i.id === targetItem.id);
 
         if (dragIndex === -1 || dropIndex === -1) {
           setDraggedItem(null);
@@ -640,6 +732,12 @@ function CashBoxAdmin({ user, onLogout }) {
         }
 
         items.splice(dragIndex, 1);
+        dropIndex = items.findIndex(i => i.id === targetItem.id);
+        if (dropIndex === -1) {
+          dropIndex = items.length;
+        } else if (position === 'after') {
+          dropIndex++;
+        }
         items.splice(dropIndex, 0, draggedItem);
 
         await fetch('/api/menu/reorder', {
@@ -647,7 +745,6 @@ function CashBoxAdmin({ user, onLogout }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items })
         });
-
         fetchData();
       }
     } catch (err) {
@@ -657,34 +754,23 @@ function CashBoxAdmin({ user, onLogout }) {
     setDraggedItem(null);
   };
 
+  // Toggle category collapse
+  const toggleCategoryCollapse = (categoryId) => {
+    setCollapsedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
   const handleDragEnd = () => {
     setDraggedItem(null);
     setDragOverItem(null);
-  };
-
-  // Move sub-item to top level
-  const handleMoveToTopLevel = async (item) => {
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await fetch(`/api/menu/${item.id}/set-parent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parentId: null })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to move item');
-      }
-
-      setSuccess(data.message);
-      fetchData();
-    } catch (err) {
-      setError(err.message);
-    }
+    setDropIndicator(null);
   };
 
   // Save menu to CSV file on server
@@ -1360,26 +1446,35 @@ function CashBoxAdmin({ user, onLogout }) {
               <p style={{ textAlign: 'center', color: '#4ade80' }}>No menu items yet.</p>
             ) : (
               <div>
-                {menuItems.map((item) => (
-                  <div
-                    key={item.id}
-                    draggable={editingMenuItemId !== item.id}
-                    onDragStart={(e) => handleDragStart(e, item, false)}
-                    onDragOver={(e) => handleDragOver(e, item, false)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, item, false)}
-                    onDragEnd={handleDragEnd}
-                    style={{
-                      background: dragOverItem?.id === item.id && !draggedItem?.isSubItem ? '#2a3a2a' : '#1a1a1a',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      marginBottom: '8px',
-                      cursor: editingMenuItemId === item.id ? 'default' : 'grab',
-                      opacity: draggedItem?.id === item.id ? 0.5 : 1,
-                      border: dragOverItem?.id === item.id && !draggedItem?.isSubItem ? '2px dashed #22c55e' : '2px solid transparent',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
+                {menuItems.map((item, index) => (
+                  <div key={item.id} style={{ position: 'relative', marginBottom: '8px' }}>
+                    {/* Drop indicator before item */}
+                    {dropIndicator?.itemId === item.id && dropIndicator?.position === 'before' && dropIndicator?.parentId === null && (
+                      <div style={{
+                        height: '4px',
+                        background: '#22c55e',
+                        borderRadius: '2px',
+                        marginBottom: '4px',
+                        boxShadow: '0 0 8px rgba(34, 197, 94, 0.5)'
+                      }} />
+                    )}
+                    <div
+                      draggable={editingMenuItemId !== item.id}
+                      onDragStart={(e) => handleDragStart(e, item, null)}
+                      onDragOver={(e) => handleDragOver(e, item, null)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, item, null)}
+                      onDragEnd={handleDragEnd}
+                      style={{
+                        background: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? '#2a4a2a' : '#1a1a1a',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        cursor: editingMenuItemId === item.id ? 'default' : 'grab',
+                        opacity: draggedItem?.id === item.id ? 0.5 : 1,
+                        border: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? '2px dashed #22c55e' : '2px solid transparent',
+                        transition: 'background 0.15s ease, border 0.15s ease'
+                      }}
+                    >
                     {editingMenuItemId === item.id ? (
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <input
@@ -1428,9 +1523,28 @@ function CashBoxAdmin({ user, onLogout }) {
                             </span>
                           )}
                           {item.price === null && (
-                            <span style={{ color: '#4a7c59', marginLeft: '12px', fontSize: '12px' }}>
-                              (Category)
-                            </span>
+                            <>
+                              <span style={{ color: '#4a7c59', marginLeft: '12px', fontSize: '12px' }}>
+                                (Category - {item.subItems?.length || 0} items)
+                              </span>
+                              {item.subItems && item.subItems.length > 0 && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); toggleCategoryCollapse(item.id); }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#4ade80',
+                                    cursor: 'pointer',
+                                    marginLeft: '8px',
+                                    fontSize: '14px',
+                                    padding: '2px 6px'
+                                  }}
+                                  title={collapsedCategories.has(item.id) ? 'Expand' : 'Collapse'}
+                                >
+                                  {collapsedCategories.has(item.id) ? '▶' : '▼'}
+                                </button>
+                              )}
+                            </>
                           )}
                           {!item.active && (
                             <span style={{ color: '#666', marginLeft: '12px', fontSize: '12px' }}>
@@ -1481,32 +1595,42 @@ function CashBoxAdmin({ user, onLogout }) {
                         </div>
                       </div>
                     )}
-                    {item.subItems && item.subItems.length > 0 && (
+                    {item.subItems && item.subItems.length > 0 && !collapsedCategories.has(item.id) && (
                       <div style={{ marginTop: '8px', paddingLeft: '20px' }}>
-                        {item.subItems.map((sub) => (
-                          <div
-                            key={sub.id}
-                            draggable={editingMenuItemId !== sub.id}
-                            onDragStart={(e) => handleDragStart(e, sub, true, item.id)}
-                            onDragOver={(e) => handleDragOver(e, sub, true)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, sub, true, item.id)}
-                            onDragEnd={handleDragEnd}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: '6px 8px',
-                              borderBottom: '1px solid #2a2a2a',
-                              flexWrap: 'wrap',
-                              gap: '6px',
-                              cursor: editingMenuItemId === sub.id ? 'default' : 'grab',
-                              opacity: draggedItem?.id === sub.id ? 0.5 : 1,
-                              background: dragOverItem?.id === sub.id && dragOverItem?.isSubItem ? '#2a3a2a' : 'transparent',
-                              borderRadius: '4px',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
+                        {item.subItems.map((sub, subIndex) => (
+                          <div key={sub.id} style={{ position: 'relative' }}>
+                            {/* Drop indicator before sub-item */}
+                            {dropIndicator?.itemId === sub.id && dropIndicator?.position === 'before' && dropIndicator?.parentId === item.id && (
+                              <div style={{
+                                height: '3px',
+                                background: '#22c55e',
+                                borderRadius: '2px',
+                                marginBottom: '2px',
+                                boxShadow: '0 0 6px rgba(34, 197, 94, 0.5)'
+                              }} />
+                            )}
+                            <div
+                              draggable={editingMenuItemId !== sub.id}
+                              onDragStart={(e) => handleDragStart(e, sub, item.id)}
+                              onDragOver={(e) => handleDragOver(e, sub, item.id)}
+                              onDragLeave={handleDragLeave}
+                              onDrop={(e) => handleDrop(e, sub, item.id)}
+                              onDragEnd={handleDragEnd}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 8px',
+                                borderBottom: '1px solid #2a2a2a',
+                                flexWrap: 'wrap',
+                                gap: '6px',
+                                cursor: editingMenuItemId === sub.id ? 'default' : 'grab',
+                                opacity: draggedItem?.id === sub.id ? 0.5 : 1,
+                                background: 'transparent',
+                                borderRadius: '4px',
+                                transition: 'background 0.15s ease'
+                              }}
+                            >
                             {editingMenuItemId === sub.id ? (
                               <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
                                 <input
@@ -1552,14 +1676,6 @@ function CashBoxAdmin({ user, onLogout }) {
                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                   <button
                                     className="btn btn-small"
-                                    onClick={() => handleMoveToTopLevel(sub)}
-                                    style={{ padding: '4px 8px', fontSize: '11px', background: '#4a7c59' }}
-                                    title="Move to top level"
-                                  >
-                                    ↑ Top
-                                  </button>
-                                  <button
-                                    className="btn btn-small"
                                     onClick={() => startEditingMenuItem(sub)}
                                     style={{ padding: '4px 8px', fontSize: '12px' }}
                                   >
@@ -1603,9 +1719,32 @@ function CashBoxAdmin({ user, onLogout }) {
                                 </div>
                               </>
                             )}
+                            </div>
+                            {/* Drop indicator after sub-item */}
+                            {dropIndicator?.itemId === sub.id && dropIndicator?.position === 'after' && dropIndicator?.parentId === item.id && (
+                              <div style={{
+                                height: '3px',
+                                background: '#22c55e',
+                                borderRadius: '2px',
+                                marginTop: '2px',
+                                boxShadow: '0 0 6px rgba(34, 197, 94, 0.5)'
+                              }} />
+                            )}
                           </div>
                         ))}
                       </div>
+                    )}
+                    </div>
+                    {/* Drop indicator after top-level item */}
+                    {dropIndicator?.itemId === item.id && dropIndicator?.position === 'after' && dropIndicator?.parentId === null && (
+                      <div style={{
+                        height: '4px',
+                        background: '#22c55e',
+                        borderRadius: '2px',
+                        marginTop: '4px',
+                        marginBottom: '4px',
+                        boxShadow: '0 0 8px rgba(34, 197, 94, 0.5)'
+                      }} />
                     )}
                   </div>
                 ))}

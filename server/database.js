@@ -10,6 +10,7 @@ const DATA_DIR = process.env.NODE_ENV === 'production' && fs.existsSync('/data')
   : __dirname;
 const DB_PATH = path.join(DATA_DIR, 'leadership.db');
 const MENU_CSV_PATH = path.join(__dirname, 'menu-items.csv');
+const STUDENTS_CSV_PATH = path.join(__dirname, 'students.csv');
 
 let db;
 
@@ -106,6 +107,57 @@ const insertChildItems = (database, childItems, parentMap) => {
       }
     );
   });
+};
+
+// Load students from CSV file
+const loadStudentsFromCSV = (database) => {
+  try {
+    if (!fs.existsSync(STUDENTS_CSV_PATH)) {
+      console.log('No students.csv found, using default student');
+      database.run(
+        'INSERT INTO students (student_id, name, is_lead, lead_type) VALUES (?, ?, ?, ?)',
+        ['09121999X314', 'Alex Nguyen', 0, null]
+      );
+      return;
+    }
+
+    const csvContent = fs.readFileSync(STUDENTS_CSV_PATH, 'utf-8');
+    const records = parse(csvContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    if (records.length === 0) {
+      console.log('Empty students.csv, using default student');
+      database.run(
+        'INSERT INTO students (student_id, name, is_lead, lead_type) VALUES (?, ?, ?, ?)',
+        ['09121999X314', 'Alex Nguyen', 0, null]
+      );
+      return;
+    }
+
+    console.log(`Loading ${records.length} students from CSV...`);
+
+    records.forEach((record) => {
+      const isLead = record.is_lead === '1' || record.is_lead === 'true' ? 1 : 0;
+      const leadType = record.lead_type && record.lead_type.trim() !== '' ? record.lead_type.trim() : null;
+
+      database.run(
+        'INSERT INTO students (student_id, name, is_lead, lead_type) VALUES (?, ?, ?, ?)',
+        [record.student_id, record.name, isLead, leadType],
+        function(err) {
+          if (err) {
+            console.error(`Error inserting student ${record.name}:`, err);
+          }
+        }
+      );
+    });
+
+    console.log('Students loaded from CSV successfully');
+  } catch (err) {
+    console.error('Error loading students from CSV:', err);
+  }
 };
 
 // Fallback hardcoded menu items
@@ -369,20 +421,14 @@ const initialize = () => {
             }
           });
 
-          // Insert default test student if none exist
+          // Load students from CSV if none exist
           db.get('SELECT COUNT(*) as count FROM students', [], (err, row) => {
             if (err) {
               console.error('Error checking students:', err);
               return;
             }
             if (row.count === 0) {
-              db.run('INSERT INTO students (student_id, name) VALUES (?, ?)', ['09121999X314', 'Alex Nguyen'], (err) => {
-                if (err) {
-                  console.error('Error inserting default student:', err);
-                } else {
-                  console.log('Default test student created: Alex Nguyen (09121999X314)');
-                }
-              });
+              loadStudentsFromCSV(db);
             }
           });
 

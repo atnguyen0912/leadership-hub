@@ -1,14 +1,19 @@
 name,price,parent,grid_row,grid_col
 Beef,2.00,Cup Noodles,-1,-1
-Cheese,0.50,Toppings,0,0
-Chicken,2.00,Cup Noodles,0,0
-Chili Chicken,2.00,Cup Noodles,0,0
+Cheese,0.50,Additional Toppings,0,0
+Dr. Pepper,1.50,Soda,-1,-1
+Hot Dog,2.50,,-1,-1
+Jalapenos,0.50,Additional Toppings,0,0
+Coke,1.50,Soda,-1,-1
+Nachos (With Toppings),3.00,,-1,-1
+Shrimp,2.00,Cup Noodles,-1,-1
+Chicken,2.00,Cup Noodles,-1,-1
+Gatorade,2.50,,-1,-1
+Pepsi,1.50,Soda,-1,-1
 Chili Shrimp,2.00,Cup Noodles,0,0
-Hot Dog,2.50,,1,2
-Jalapenos,0.50,Toppings,0,0
-Shrimp,2.00,Cup Noodles,0,0
-Cup Noodles,,,0,0
-Soda,1.50,,0,0
-Nachos,3.00,,1,1
+Soda,,,0,0
+Chili Chicken,2.00,Cup Noodles,-1,-1
+Hot Chocolate,1.50,,0,0
 Bottled Water,1.00,,1,3
-Toppings,,,1,0
+Cup Noodles,,,0,0
+Additional Toppings,,,1,0

@@ -1,10 +1,20 @@
 const express = require('express');
 const multer = require('multer');
 const { parse } = require('csv-parse');
+const fs = require('fs');
+const path = require('path');
 const { getDb } = require('../database');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const STUDENTS_CSV_PATH = path.join(__dirname, '..', 'students.csv');
+
+// Student ID validation: 6 digits + M/F/X + 3 digits (e.g., 123456M789)
+const STUDENT_ID_REGEX = /^\d{6}[MFX]\d{3}$/;
+
+const validateStudentId = (id) => {
+  return STUDENT_ID_REGEX.test(id);
+};
 
 // Get all students
 router.get('/', (req, res) => {
@@ -25,6 +35,11 @@ router.post('/', (req, res) => {
 
   if (!studentId || !name) {
     return res.status(400).json({ error: 'Student ID and name are required' });
+  }
+
+  // Validate student ID format
+  if (!validateStudentId(studentId)) {
+    return res.status(400).json({ error: 'Invalid Student ID format. Must be 6 digits + M/F/X + 3 digits (e.g., 123456M789)' });
   }
 
   db.run(
@@ -81,9 +96,20 @@ router.post('/upload-csv', upload.single('file'), (req, res) => {
         return;
       }
 
+      // Validate student ID format
+      const studentIdStr = studentId.toString().toUpperCase();
+      if (!validateStudentId(studentIdStr)) {
+        errors.push(`Invalid Student ID format: ${studentId} (must be 6 digits + M/F/X + 3 digits)`);
+        processed++;
+        if (processed === total) {
+          res.json({ success: true, added: results.length, errors });
+        }
+        return;
+      }
+
       db.run(
         'INSERT INTO students (student_id, name) VALUES (?, ?)',
-        [studentId.toString(), name],
+        [studentIdStr, name],
         function(err) {
           if (err) {
             if (err.message.includes('UNIQUE constraint failed')) {
@@ -211,6 +237,111 @@ router.delete('/:studentId', (req, res) => {
       res.json({ success: true });
     });
   });
+});
+
+// Save students to CSV file on server
+router.post('/save-to-csv', (req, res) => {
+  const db = getDb();
+
+  db.all('SELECT student_id, name, is_lead, lead_type FROM students ORDER BY name', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Build CSV content
+    let csvContent = 'student_id,name,is_lead,lead_type\n';
+    rows.forEach(row => {
+      const leadType = row.lead_type || '';
+      csvContent += `${row.student_id},${row.name},${row.is_lead},${leadType}\n`;
+    });
+
+    try {
+      fs.writeFileSync(STUDENTS_CSV_PATH, csvContent);
+      res.json({ success: true, message: `Saved ${rows.length} students to CSV` });
+    } catch (writeErr) {
+      console.error('Error writing students CSV:', writeErr);
+      res.status(500).json({ error: 'Failed to write CSV file' });
+    }
+  });
+});
+
+// Get students as CSV (for download)
+router.get('/csv', (req, res) => {
+  const db = getDb();
+
+  db.all('SELECT student_id, name, is_lead, lead_type FROM students ORDER BY name', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Build CSV content
+    let csvContent = 'student_id,name,is_lead,lead_type\n';
+    rows.forEach(row => {
+      const leadType = row.lead_type || '';
+      csvContent += `${row.student_id},${row.name},${row.is_lead},${leadType}\n`;
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="students.csv"');
+    res.send(csvContent);
+  });
+});
+
+// Reset students from CSV file
+router.post('/reset-from-csv', (req, res) => {
+  const db = getDb();
+
+  if (!fs.existsSync(STUDENTS_CSV_PATH)) {
+    return res.status(404).json({ error: 'No students.csv file found' });
+  }
+
+  try {
+    const csvContent = fs.readFileSync(STUDENTS_CSV_PATH, 'utf-8');
+    const { parse: parseSync } = require('csv-parse/sync');
+    const records = parseSync(csvContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    // Clear existing students (this will also cascade delete hours)
+    db.run('DELETE FROM hours', [], (err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to clear hours' });
+      }
+
+      db.run('DELETE FROM students', [], (err) => {
+        if (err) {
+          return res.status(500).json({ error: 'Failed to clear students' });
+        }
+
+        // Insert students from CSV
+        let inserted = 0;
+        records.forEach((record) => {
+          const isLead = record.is_lead === '1' || record.is_lead === 'true' ? 1 : 0;
+          const leadType = record.lead_type && record.lead_type.trim() !== '' ? record.lead_type.trim() : null;
+
+          db.run(
+            'INSERT INTO students (student_id, name, is_lead, lead_type) VALUES (?, ?, ?, ?)',
+            [record.student_id, record.name, isLead, leadType],
+            function(err) {
+              if (!err) inserted++;
+              if (inserted === records.length) {
+                res.json({ success: true, message: `Loaded ${inserted} students from CSV` });
+              }
+            }
+          );
+        });
+
+        if (records.length === 0) {
+          res.json({ success: true, message: 'No students in CSV file' });
+        }
+      });
+    });
+  } catch (readErr) {
+    console.error('Error reading students CSV:', readErr);
+    res.status(500).json({ error: 'Failed to read CSV file' });
+  }
 });
 
 module.exports = router;
