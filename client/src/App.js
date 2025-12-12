@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
@@ -14,13 +14,19 @@ import CashBoxAdmin from './pages/CashBoxAdmin';
 import ConcessionSession from './pages/ConcessionSession';
 
 function App() {
-  const [user, setUser] = useState(null);
+  // Load user from localStorage on initial render
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
   const handleLogin = (userData) => {
+    localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('user');
     setUser(null);
   };
 
