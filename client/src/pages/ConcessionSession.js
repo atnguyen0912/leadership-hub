@@ -486,8 +486,15 @@ function ConcessionSession({ user, onLogout }) {
       <div>
         <Navbar user={user} onLogout={onLogout} />
         <div className="container">
+          <button
+            className="btn"
+            onClick={() => navigate('/cashbox')}
+            style={{ marginBottom: '16px' }}
+          >
+            ← Back to CashBox
+          </button>
           <div className="card">
-            <div className="error-message">Session not found</div>
+            <div className="error-message">{error || 'Session not found'}</div>
           </div>
         </div>
       </div>
