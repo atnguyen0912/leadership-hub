@@ -1524,6 +1524,16 @@ textarea.input {
   color: var(--color-primary);
 }
 
+.modal-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
 /* Stat Card Primary Variant */
 .stat-card-primary {
   background: linear-gradient(145deg, rgba(34, 197, 94, 0.2) 0%, rgba(21, 128, 61, 0.15) 100%);
@@ -1914,6 +1924,129 @@ textarea.input {
 
   .pos-submenu-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Hours List - Desktop vs Mobile */
+.hours-table-mobile {
+  display: none;
+}
+
+.hours-table-desktop {
+  display: block;
+}
+
+/* Mobile Hours List Card View */
+@media (max-width: 767px) {
+  .hours-table-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+
+  .hours-table-desktop {
+    display: none;
+  }
+
+  .hours-entry-card {
+    background: var(--color-bg-input);
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-md);
+    border: var(--border-subtle);
+  }
+
+  .hours-entry-card:active {
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  .hours-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .hours-entry-date {
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+  }
+
+  .hours-entry-duration {
+    background: var(--gradient-primary);
+    color: var(--color-bg);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+
+  .hours-entry-times {
+    color: var(--color-primary-light);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .hours-entry-item {
+    color: var(--color-primary-muted);
+    font-size: var(--font-size-xs);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .hours-entry-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid rgba(34, 197, 94, 0.1);
+  }
+
+  .hours-entry-actions .btn {
+    flex: 1;
+    min-height: 40px;
+    font-size: var(--font-size-sm);
+  }
+
+  /* Modal improvements for mobile */
+  .modal-overlay {
+    padding: var(--spacing-sm);
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-height: 85vh;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    padding: var(--spacing-md);
+    width: 100%;
+    max-width: none;
+  }
+
+  .modal h2 {
+    font-size: var(--font-size-lg);
+  }
+
+  .modal .form-group {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .modal .form-group label {
+    font-size: var(--font-size-xs);
+    margin-bottom: 4px;
+  }
+
+  .modal .input {
+    font-size: var(--font-size-base);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+    min-height: 48px;
   }
 }
 

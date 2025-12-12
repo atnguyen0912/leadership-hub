@@ -294,7 +294,9 @@ function ViewHours({ user, onLogout }) {
                 <span>{monthName}</span>
                 <span className="month-total">{formatMinutes(monthTotal)}</span>
               </div>
-              <div style={{ overflowX: 'auto' }}>
+
+              {/* Desktop Table View */}
+              <div className="hours-table-desktop" style={{ overflowX: 'auto' }}>
                 <table>
                   <thead>
                     <tr>
@@ -302,7 +304,7 @@ function ViewHours({ user, onLogout }) {
                       <th>Time In</th>
                       <th>Time Out</th>
                       <th>Hours</th>
-                      <th style={{ width: '100px' }}>Actions</th>
+                      <th style={{ width: '120px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,6 +336,38 @@ function ViewHours({ user, onLogout }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="hours-table-mobile">
+                {entries.map((entry) => (
+                  <div key={entry.id} className="hours-entry-card">
+                    <div className="hours-entry-header">
+                      <span className="hours-entry-date">{formatDate(entry.date)}</span>
+                      <span className="hours-entry-duration">{calculateHours(entry.time_in, entry.time_out)}</span>
+                    </div>
+                    <div className="hours-entry-times">
+                      {formatTime(entry.time_in)} - {formatTime(entry.time_out)}
+                    </div>
+                    {entry.item && (
+                      <div className="hours-entry-item">{entry.item}</div>
+                    )}
+                    <div className="hours-entry-actions">
+                      <button
+                        className="btn btn-small"
+                        onClick={() => handleEdit(entry)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger btn-small"
+                        onClick={() => handleDelete(entry)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           );
@@ -415,11 +449,10 @@ function ViewHours({ user, onLogout }) {
                   placeholder="What did you work on?"
                 />
               </div>
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <div className="modal-actions">
                 <button
-                  className="btn"
+                  className="btn btn-secondary"
                   onClick={handleCancelEdit}
-                  style={{ flex: 1, background: '#333' }}
                 >
                   Cancel
                 </button>
@@ -427,7 +460,6 @@ function ViewHours({ user, onLogout }) {
                   className="btn btn-primary"
                   onClick={handleSaveEdit}
                   disabled={saving}
-                  style={{ flex: 1 }}
                 >
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
