@@ -5,6 +5,10 @@ const db = require('./database');
 const authRoutes = require('./routes/auth');
 const studentsRoutes = require('./routes/students');
 const hoursRoutes = require('./routes/hours');
+const cashboxRoutes = require('./routes/cashbox');
+const menuRoutes = require('./routes/menu');
+const ordersRoutes = require('./routes/orders');
+const eventsRoutes = require('./routes/events');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,6 +21,10 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentsRoutes);
 app.use('/api/hours', hoursRoutes);
+app.use('/api/cashbox', cashboxRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/events', eventsRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

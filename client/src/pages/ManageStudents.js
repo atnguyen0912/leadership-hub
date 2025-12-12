@@ -15,6 +15,9 @@ function ManageStudents({ user, onLogout }) {
   // CSV upload
   const [uploadResult, setUploadResult] = useState(null);
 
+  // Lead type loading state
+  const [leadLoading, setLeadLoading] = useState(null);
+
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -125,6 +128,48 @@ function ManageStudents({ user, onLogout }) {
     e.target.value = '';
   };
 
+  const handleSetLeadType = async (studentId, leadType) => {
+    setLeadLoading(studentId);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/students/${studentId}/set-lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadType }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update lead status');
+      }
+
+      const typeLabel = leadType === 'events' ? 'Events Lead' :
+                        leadType === 'concessions' ? 'Concessions Lead' : 'Regular Student';
+      setSuccess(`Updated to ${typeLabel} successfully!`);
+      fetchStudents();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLeadLoading(null);
+    }
+  };
+
+  const getLeadTypeLabel = (student) => {
+    if (!student.is_lead || !student.lead_type) return null;
+    if (student.lead_type === 'events') return 'Events';
+    if (student.lead_type === 'concessions') return 'Concessions';
+    return student.lead_type;
+  };
+
+  const getLeadTypeColor = (leadType) => {
+    if (leadType === 'events') return '#3b82f6';
+    if (leadType === 'concessions') return '#22c55e';
+    return '#666';
+  };
+
   if (loading) {
     return (
       <div>
@@ -147,7 +192,7 @@ function ManageStudents({ user, onLogout }) {
 
         {/* Add Student Form */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px' }}>Add Student</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Add Student</h2>
           <form onSubmit={handleAddStudent}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -183,8 +228,8 @@ function ManageStudents({ user, onLogout }) {
 
         {/* CSV Upload */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px' }}>Upload CSV Roster</h2>
-          <p style={{ marginBottom: '12px', color: '#6b7280', fontSize: '14px' }}>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Upload CSV Roster</h2>
+          <p style={{ marginBottom: '12px', color: '#4ade80', fontSize: '14px' }}>
             CSV file should have columns: student_id, name
           </p>
           <input
@@ -195,9 +240,9 @@ function ManageStudents({ user, onLogout }) {
             style={{ padding: '8px' }}
           />
           {uploadResult && uploadResult.errors.length > 0 && (
-            <div style={{ marginTop: '12px', padding: '12px', background: '#fef3c7', borderRadius: '8px' }}>
-              <p style={{ fontWeight: 500, marginBottom: '8px' }}>Warnings:</p>
-              <ul style={{ marginLeft: '20px', fontSize: '14px' }}>
+            <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a1a', border: '1px solid #eab308', borderRadius: '8px' }}>
+              <p style={{ fontWeight: 500, marginBottom: '8px', color: '#eab308' }}>Warnings:</p>
+              <ul style={{ marginLeft: '20px', fontSize: '14px', color: '#eab308' }}>
                 {uploadResult.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -208,9 +253,9 @@ function ManageStudents({ user, onLogout }) {
 
         {/* Students Table */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px' }}>All Students ({students.length})</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>All Students ({students.length})</h2>
           {students.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#6b7280' }}>No students registered yet.</p>
+            <p style={{ textAlign: 'center', color: '#4ade80' }}>No students registered yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
@@ -218,24 +263,62 @@ function ManageStudents({ user, onLogout }) {
                   <tr>
                     <th>Student ID</th>
                     <th>Name</th>
+                    <th style={{ width: '180px' }}>Lead Role</th>
                     <th style={{ width: '100px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
-                    <tr key={student.student_id}>
-                      <td>{student.student_id}</td>
-                      <td>{student.name}</td>
-                      <td>
-                        <button
-                          className="btn btn-danger btn-small"
-                          onClick={() => handleDeleteStudent(student.student_id)}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {students.map((student) => {
+                    const leadLabel = getLeadTypeLabel(student);
+                    return (
+                      <tr key={student.student_id}>
+                        <td>{student.student_id}</td>
+                        <td>
+                          {student.name}
+                          {leadLabel && (
+                            <span style={{
+                              marginLeft: '8px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: getLeadTypeColor(student.lead_type),
+                              color: '#fff'
+                            }}>
+                              {leadLabel}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <select
+                            className="input"
+                            value={student.lead_type || ''}
+                            onChange={(e) => handleSetLeadType(student.student_id, e.target.value || null)}
+                            disabled={leadLoading === student.student_id}
+                            style={{
+                              padding: '6px 8px',
+                              minHeight: '36px',
+                              fontSize: '13px',
+                              background: student.lead_type ? getLeadTypeColor(student.lead_type) + '20' : undefined,
+                              borderColor: student.lead_type ? getLeadTypeColor(student.lead_type) : undefined
+                            }}
+                          >
+                            <option value="">None</option>
+                            <option value="events">Events Lead</option>
+                            <option value="concessions">Concessions Lead</option>
+                          </select>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-danger btn-small"
+                            onClick={() => handleDeleteStudent(student.student_id)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

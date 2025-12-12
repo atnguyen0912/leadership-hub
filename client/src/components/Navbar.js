@@ -7,7 +7,7 @@ function Navbar({ user, onLogout }) {
   return (
     <nav className="nav">
       <div>
-        <div className="nav-brand">Leadership Hub</div>
+        <div className="nav-brand">Hawkins Leadership Hub</div>
         {user.name && <div className="welcome-text">Welcome, {user.name}</div>}
       </div>
       <div className="nav-links">
@@ -22,6 +22,9 @@ function Navbar({ user, onLogout }) {
             <Link to="/view-hours" className={`nav-link ${location.pathname === '/view-hours' ? 'active' : ''}`}>
               View My Hours
             </Link>
+            <Link to="/cashbox" className={`nav-link ${location.pathname === '/cashbox' || location.pathname.startsWith('/concession-session') ? 'active' : ''}`}>
+              Concessions
+            </Link>
           </>
         ) : (
           <>
@@ -30,6 +33,9 @@ function Navbar({ user, onLogout }) {
             </Link>
             <Link to="/view-all-hours" className={`nav-link ${location.pathname === '/view-all-hours' ? 'active' : ''}`}>
               View All Hours
+            </Link>
+            <Link to="/cashbox-admin" className={`nav-link ${location.pathname === '/cashbox-admin' ? 'active' : ''}`}>
+              CashBox
             </Link>
           </>
         )}

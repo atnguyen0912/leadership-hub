@@ -105,6 +105,88 @@ router.post('/upload-csv', upload.single('file'), (req, res) => {
   });
 });
 
+// Set student lead status and type
+router.post('/:studentId/set-lead', (req, res) => {
+  const { studentId } = req.params;
+  const { leadType } = req.body; // 'events', 'concessions', or null to remove
+  const db = getDb();
+
+  db.get('SELECT * FROM students WHERE student_id = ?', [studentId], (err, student) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const isLead = leadType ? 1 : 0;
+    const type = leadType || null;
+
+    db.run(
+      'UPDATE students SET is_lead = ?, lead_type = ? WHERE student_id = ?',
+      [isLead, type, studentId],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, isLead: isLead === 1, leadType: type });
+      }
+    );
+  });
+});
+
+// Toggle student lead status (legacy - still works but set-lead is preferred)
+router.post('/:studentId/toggle-lead', (req, res) => {
+  const { studentId } = req.params;
+  const db = getDb();
+
+  db.get('SELECT is_lead, lead_type FROM students WHERE student_id = ?', [studentId], (err, student) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // If currently a lead, remove lead status
+    // If not a lead, make them an events lead by default
+    const newStatus = student.is_lead ? 0 : 1;
+    const newType = newStatus ? 'events' : null;
+
+    db.run(
+      'UPDATE students SET is_lead = ?, lead_type = ? WHERE student_id = ?',
+      [newStatus, newType, studentId],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, isLead: newStatus === 1, leadType: newType });
+      }
+    );
+  });
+});
+
+// Search students by name or ID
+router.get('/search', (req, res) => {
+  const { q } = req.query;
+  const db = getDb();
+
+  if (!q || q.length < 2) {
+    return res.json([]);
+  }
+
+  db.all(
+    `SELECT * FROM students WHERE name LIKE ? OR student_id LIKE ? ORDER BY name LIMIT 10`,
+    [`%${q}%`, `%${q}%`],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows);
+    }
+  );
+});
+
 // Delete a student
 router.delete('/:studentId', (req, res) => {
   const { studentId } = req.params;

@@ -23,7 +23,9 @@ router.post('/student-login', (req, res) => {
       user: {
         type: 'student',
         studentId: row.student_id,
-        name: row.name
+        name: row.name,
+        isLead: row.is_lead === 1,
+        leadType: row.lead_type || null  // 'events', 'concessions', or null
       }
     });
   });

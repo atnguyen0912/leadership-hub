@@ -1,0 +1,365 @@
+const express = require('express');
+const router = express.Router();
+const { getDb } = require('../database');
+
+// GET /api/menu - Get all menu items (hierarchical)
+router.get('/', (req, res) => {
+  const db = getDb();
+  db.all(
+    'SELECT * FROM menu_items WHERE active = 1 ORDER BY display_order, name',
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      // Build hierarchical structure
+      const topLevel = rows.filter(item => item.parent_id === null);
+      const subItems = rows.filter(item => item.parent_id !== null);
+
+      const menuItems = topLevel.map(item => ({
+        ...item,
+        hasSubMenu: item.price === null,
+        subItems: subItems.filter(sub => sub.parent_id === item.id)
+      }));
+
+      res.json(menuItems);
+    }
+  );
+});
+
+// GET /api/menu/all - Get all menu items including inactive (Admin)
+router.get('/all', (req, res) => {
+  const db = getDb();
+  db.all(
+    'SELECT * FROM menu_items ORDER BY display_order, name',
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      const topLevel = rows.filter(item => item.parent_id === null);
+      const subItems = rows.filter(item => item.parent_id !== null);
+
+      const menuItems = topLevel.map(item => ({
+        ...item,
+        hasSubMenu: item.price === null,
+        subItems: subItems.filter(sub => sub.parent_id === item.id)
+      }));
+
+      res.json(menuItems);
+    }
+  );
+});
+
+// POST /api/menu - Create a new menu item (Admin)
+router.post('/', (req, res) => {
+  const { name, price, parentId, displayOrder } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Item name is required' });
+  }
+
+  // If no parentId and no price, it's a category with sub-menu
+  // If parentId provided, price is required
+  if (parentId && (price === undefined || price === null)) {
+    return res.status(400).json({ error: 'Price is required for sub-items' });
+  }
+
+  const db = getDb();
+
+  // If parentId provided, verify parent exists and has no price (is a category)
+  if (parentId) {
+    db.get('SELECT * FROM menu_items WHERE id = ?', [parentId], (err, parent) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (!parent) {
+        return res.status(400).json({ error: 'Parent item not found' });
+      }
+      if (parent.price !== null) {
+        return res.status(400).json({ error: 'Cannot add sub-item to an item with a price' });
+      }
+
+      insertMenuItem();
+    });
+  } else {
+    insertMenuItem();
+  }
+
+  function insertMenuItem() {
+    db.run(
+      'INSERT INTO menu_items (name, price, parent_id, display_order) VALUES (?, ?, ?, ?)',
+      [name.trim(), price || null, parentId || null, displayOrder || 0],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true, id: this.lastID });
+      }
+    );
+  }
+});
+
+// PUT /api/menu/:id - Update a menu item (Admin)
+router.put('/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, price, displayOrder, active } = req.body;
+
+  const db = getDb();
+
+  // First get the current item
+  db.get('SELECT * FROM menu_items WHERE id = ?', [id], (err, item) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!item) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+
+    // Build update query dynamically
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined) {
+      updates.push('name = ?');
+      params.push(name.trim());
+    }
+    if (price !== undefined) {
+      updates.push('price = ?');
+      params.push(price);
+    }
+    if (displayOrder !== undefined) {
+      updates.push('display_order = ?');
+      params.push(displayOrder);
+    }
+    if (active !== undefined) {
+      updates.push('active = ?');
+      params.push(active ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(id);
+
+    db.run(
+      `UPDATE menu_items SET ${updates.join(', ')} WHERE id = ?`,
+      params,
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true });
+      }
+    );
+  });
+});
+
+// DELETE /api/menu/:id - Deactivate a menu item (Admin)
+router.delete('/:id', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  // Also deactivate any sub-items
+  db.run(
+    'UPDATE menu_items SET active = 0 WHERE id = ? OR parent_id = ?',
+    [id, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Menu item not found' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// DELETE /api/menu/:id/permanent - Permanently delete a menu item (Admin)
+router.delete('/:id/permanent', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  // Check if item has been used in any orders
+  db.get(
+    'SELECT COUNT(*) as count FROM order_items WHERE menu_item_id = ?',
+    [id],
+    (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      if (row.count > 0) {
+        return res.status(400).json({
+          error: 'Cannot delete item that has been used in orders. Deactivate it instead.'
+        });
+      }
+
+      // Check for sub-items used in orders
+      db.get(
+        'SELECT COUNT(*) as count FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id WHERE mi.parent_id = ?',
+        [id],
+        (err, subRow) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+
+          if (subRow.count > 0) {
+            return res.status(400).json({
+              error: 'Cannot delete item with sub-items that have been used in orders. Deactivate it instead.'
+            });
+          }
+
+          // Delete sub-items first, then the item
+          db.run('DELETE FROM menu_items WHERE parent_id = ?', [id], (err) => {
+            if (err) {
+              return res.status(500).json({ error: 'Database error' });
+            }
+
+            db.run('DELETE FROM menu_items WHERE id = ?', [id], function (err) {
+              if (err) {
+                return res.status(500).json({ error: 'Database error' });
+              }
+              if (this.changes === 0) {
+                return res.status(404).json({ error: 'Menu item not found' });
+              }
+              res.json({ success: true, message: 'Item permanently deleted' });
+            });
+          });
+        }
+      );
+    }
+  );
+});
+
+// POST /api/menu/:id/reactivate - Reactivate a menu item (Admin)
+router.post('/:id/reactivate', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  // Reactivate item and its sub-items
+  db.run(
+    'UPDATE menu_items SET active = 1 WHERE id = ? OR parent_id = ?',
+    [id, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Menu item not found' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// POST /api/menu/reorder - Batch update display order for menu items
+router.post('/reorder', (req, res) => {
+  const { items } = req.body;
+
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Items array is required' });
+  }
+
+  const db = getDb();
+
+  // Use serialize to ensure all updates happen in order
+  db.serialize(() => {
+    const stmt = db.prepare('UPDATE menu_items SET display_order = ? WHERE id = ?');
+
+    items.forEach((item, index) => {
+      stmt.run(index, item.id);
+    });
+
+    stmt.finalize((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ success: true });
+    });
+  });
+});
+
+// POST /api/menu/reorder-subitems - Batch update display order for sub-items
+router.post('/reorder-subitems', (req, res) => {
+  const { parentId, items } = req.body;
+
+  if (!parentId || !items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Parent ID and items array are required' });
+  }
+
+  const db = getDb();
+
+  db.serialize(() => {
+    const stmt = db.prepare('UPDATE menu_items SET display_order = ? WHERE id = ? AND parent_id = ?');
+
+    items.forEach((item, index) => {
+      stmt.run(index, item.id, parentId);
+    });
+
+    stmt.finalize((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ success: true });
+    });
+  });
+});
+
+// POST /api/menu/:id/position - Update grid position for a menu item
+router.post('/:id/position', (req, res) => {
+  const { id } = req.params;
+  const { gridRow, gridCol } = req.body;
+
+  if (gridRow === undefined || gridCol === undefined) {
+    return res.status(400).json({ error: 'Grid row and column are required' });
+  }
+
+  const db = getDb();
+
+  db.run(
+    'UPDATE menu_items SET grid_row = ?, grid_col = ? WHERE id = ?',
+    [gridRow, gridCol, id],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Menu item not found' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// POST /api/menu/grid-positions - Batch update grid positions for menu items
+router.post('/grid-positions', (req, res) => {
+  const { items } = req.body;
+
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Items array is required' });
+  }
+
+  const db = getDb();
+
+  db.serialize(() => {
+    const stmt = db.prepare('UPDATE menu_items SET grid_row = ?, grid_col = ? WHERE id = ?');
+
+    items.forEach((item) => {
+      stmt.run(item.gridRow, item.gridCol, item.id);
+    });
+
+    stmt.finalize((err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ success: true });
+    });
+  });
+});
+
+module.exports = router;
