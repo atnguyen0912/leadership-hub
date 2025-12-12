@@ -1,7 +1,7 @@
 # fly.toml - Fly.io configuration for Leadership Hub
 
 app = "leadership-hub"
-primary_region = "sjc"
+primary_region = "iad"
 
 [build]
 
