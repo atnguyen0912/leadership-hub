@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const { getDb } = require('../database');
+
+const MENU_CSV_PATH = path.join(__dirname, '..', 'menu-items.csv');
 
 // GET /api/menu - Get all menu items (hierarchical)
 router.get('/', (req, res) => {
@@ -358,6 +362,205 @@ router.post('/grid-positions', (req, res) => {
         return res.status(500).json({ error: 'Database error' });
       }
       res.json({ success: true });
+    });
+  });
+});
+
+// POST /api/menu/save-to-csv - Export current menu items to CSV file (Admin)
+router.post('/save-to-csv', (req, res) => {
+  const db = getDb();
+
+  db.all(
+    'SELECT * FROM menu_items WHERE active = 1 ORDER BY display_order, name',
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      // Build parent name lookup
+      const idToName = {};
+      rows.forEach(row => {
+        idToName[row.id] = row.name;
+      });
+
+      // Build CSV content
+      const csvLines = ['name,price,parent,grid_row,grid_col'];
+
+      rows.forEach(row => {
+        const name = row.name;
+        const price = row.price !== null ? row.price.toFixed(2) : '';
+        const parent = row.parent_id ? idToName[row.parent_id] || '' : '';
+        const gridRow = row.grid_row !== null ? row.grid_row : -1;
+        const gridCol = row.grid_col !== null ? row.grid_col : -1;
+
+        // Escape name if it contains commas
+        const escapedName = name.includes(',') ? `"${name}"` : name;
+
+        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol}`);
+      });
+
+      const csvContent = csvLines.join('\n');
+
+      try {
+        fs.writeFileSync(MENU_CSV_PATH, csvContent, 'utf-8');
+        res.json({
+          success: true,
+          message: `Saved ${rows.length} menu items to CSV`,
+          itemCount: rows.length
+        });
+      } catch (writeErr) {
+        console.error('Error writing CSV:', writeErr);
+        res.status(500).json({ error: 'Failed to write CSV file' });
+      }
+    }
+  );
+});
+
+// GET /api/menu/csv - Download current menu as CSV (Admin)
+router.get('/csv', (req, res) => {
+  const db = getDb();
+
+  db.all(
+    'SELECT * FROM menu_items WHERE active = 1 ORDER BY display_order, name',
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      // Build parent name lookup
+      const idToName = {};
+      rows.forEach(row => {
+        idToName[row.id] = row.name;
+      });
+
+      // Build CSV content
+      const csvLines = ['name,price,parent,grid_row,grid_col'];
+
+      rows.forEach(row => {
+        const name = row.name;
+        const price = row.price !== null ? row.price.toFixed(2) : '';
+        const parent = row.parent_id ? idToName[row.parent_id] || '' : '';
+        const gridRow = row.grid_row !== null ? row.grid_row : -1;
+        const gridCol = row.grid_col !== null ? row.grid_col : -1;
+
+        const escapedName = name.includes(',') ? `"${name}"` : name;
+        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol}`);
+      });
+
+      const csvContent = csvLines.join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="menu-items.csv"');
+      res.send(csvContent);
+    }
+  );
+});
+
+// POST /api/menu/reset-from-csv - Clear menu and reload from CSV file (Admin)
+router.post('/reset-from-csv', (req, res) => {
+  const db = getDb();
+
+  // Check if any orders exist
+  db.get('SELECT COUNT(*) as count FROM order_items', [], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    if (row.count > 0) {
+      return res.status(400).json({
+        error: 'Cannot reset menu - orders exist. This would break order history.'
+      });
+    }
+
+    // Delete all menu items and reload from CSV
+    db.run('DELETE FROM menu_items', [], (err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to clear menu items' });
+      }
+
+      // Load from CSV
+      try {
+        if (!fs.existsSync(MENU_CSV_PATH)) {
+          return res.status(400).json({ error: 'No menu-items.csv file found' });
+        }
+
+        const { parse } = require('csv-parse/sync');
+        const csvContent = fs.readFileSync(MENU_CSV_PATH, 'utf-8');
+        const records = parse(csvContent, {
+          columns: true,
+          skip_empty_lines: true,
+          trim: true
+        });
+
+        if (records.length === 0) {
+          return res.status(400).json({ error: 'CSV file is empty' });
+        }
+
+        // Insert items (simplified - top level first)
+        const parentMap = {};
+        let displayOrder = 0;
+        let inserted = 0;
+
+        const topLevelItems = records.filter(r => !r.parent || r.parent.trim() === '');
+        const childItems = records.filter(r => r.parent && r.parent.trim() !== '');
+
+        // Insert top-level items synchronously using serialize
+        db.serialize(() => {
+          topLevelItems.forEach((record) => {
+            displayOrder++;
+            const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
+            const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
+            const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+
+            db.run(
+              'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)',
+              [record.name, price, displayOrder, gridRow, gridCol],
+              function(err) {
+                if (!err && this.lastID) {
+                  parentMap[record.name] = this.lastID;
+                  inserted++;
+                }
+              }
+            );
+          });
+
+          // After top-level items, insert children
+          setTimeout(() => {
+            let childOrder = 0;
+            childItems.forEach((record) => {
+              childOrder++;
+              const parentId = parentMap[record.parent];
+              if (!parentId) return;
+
+              const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
+              const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
+              const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+
+              db.run(
+                'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)',
+                [record.name, price, parentId, childOrder, gridRow, gridCol],
+                function(err) {
+                  if (!err) inserted++;
+                }
+              );
+            });
+
+            setTimeout(() => {
+              res.json({
+                success: true,
+                message: `Loaded ${records.length} menu items from CSV`,
+                itemCount: records.length
+              });
+            }, 100);
+          }, 100);
+        });
+
+      } catch (loadErr) {
+        console.error('Error loading CSV:', loadErr);
+        res.status(500).json({ error: 'Failed to load CSV file' });
+      }
     });
   });
 });

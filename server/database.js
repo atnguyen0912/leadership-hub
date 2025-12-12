@@ -2,14 +2,129 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const { parse } = require('csv-parse/sync');
 
 // Use /data directory for persistent storage on Fly.io, otherwise use local directory
 const DATA_DIR = process.env.NODE_ENV === 'production' && fs.existsSync('/data')
   ? '/data'
   : __dirname;
 const DB_PATH = path.join(DATA_DIR, 'leadership.db');
+const MENU_CSV_PATH = path.join(__dirname, 'menu-items.csv');
 
 let db;
+
+// Load menu items from CSV file
+const loadMenuItemsFromCSV = (database) => {
+  try {
+    // Check if CSV file exists
+    if (!fs.existsSync(MENU_CSV_PATH)) {
+      console.log('No menu-items.csv found, using hardcoded defaults');
+      loadDefaultMenuItems(database);
+      return;
+    }
+
+    const csvContent = fs.readFileSync(MENU_CSV_PATH, 'utf-8');
+    const records = parse(csvContent, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    if (records.length === 0) {
+      console.log('Empty menu-items.csv, using hardcoded defaults');
+      loadDefaultMenuItems(database);
+      return;
+    }
+
+    console.log(`Loading ${records.length} menu items from CSV...`);
+
+    // First pass: insert all top-level items (no parent)
+    const parentMap = {}; // Maps parent name to ID
+    let displayOrder = 0;
+
+    const topLevelItems = records.filter(r => !r.parent || r.parent.trim() === '');
+    const childItems = records.filter(r => r.parent && r.parent.trim() !== '');
+
+    // Insert top-level items
+    topLevelItems.forEach((record) => {
+      displayOrder++;
+      const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
+      const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
+      const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+
+      database.run(
+        'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)',
+        [record.name, price, displayOrder, gridRow, gridCol],
+        function(err) {
+          if (!err && this.lastID) {
+            parentMap[record.name] = this.lastID;
+
+            // After all top-level items are inserted, insert children
+            if (Object.keys(parentMap).length === topLevelItems.length) {
+              insertChildItems(database, childItems, parentMap);
+            }
+          } else if (err) {
+            console.error(`Error inserting menu item ${record.name}:`, err);
+          }
+        }
+      );
+    });
+
+    // If no top-level items, just insert children (edge case)
+    if (topLevelItems.length === 0 && childItems.length > 0) {
+      console.warn('CSV has child items but no parents');
+    }
+
+  } catch (err) {
+    console.error('Error loading menu from CSV:', err);
+    loadDefaultMenuItems(database);
+  }
+};
+
+// Insert child menu items after parents are created
+const insertChildItems = (database, childItems, parentMap) => {
+  let childOrder = 0;
+  childItems.forEach((record) => {
+    childOrder++;
+    const parentId = parentMap[record.parent];
+    if (!parentId) {
+      console.warn(`Parent "${record.parent}" not found for item "${record.name}"`);
+      return;
+    }
+
+    const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
+    const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
+    const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+
+    database.run(
+      'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)',
+      [record.name, price, parentId, childOrder, gridRow, gridCol],
+      function(err) {
+        if (err) {
+          console.error(`Error inserting child menu item ${record.name}:`, err);
+        }
+      }
+    );
+  });
+};
+
+// Fallback hardcoded menu items
+const loadDefaultMenuItems = (database) => {
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Hot Dog', 3.00, 1, 0, 0]);
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Nachos', 4.00, 2, 0, 1]);
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Popcorn', 2.50, 3, 0, 2]);
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Candy', 2.00, 4, 0, 3]);
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Bottled Water', 1.00, 6, 1, 0]);
+
+  database.run('INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)', ['Drinks', null, 5, 1, 1], function(err) {
+    if (!err && this.lastID) {
+      const drinksId = this.lastID;
+      database.run('INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)', ['Small', 1.50, drinksId, 1, -1, -1]);
+      database.run('INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)', ['Medium', 2.00, drinksId, 2, -1, -1]);
+      database.run('INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)', ['Large', 2.50, drinksId, 3, -1, -1]);
+    }
+  });
+};
 
 const initialize = () => {
   return new Promise((resolve, reject) => {
@@ -243,29 +358,14 @@ const initialize = () => {
             }
           });
 
-          // Insert default menu items if none exist
+          // Insert default menu items from CSV if none exist
           db.get('SELECT COUNT(*) as count FROM menu_items', [], (err, row) => {
             if (err) {
               reject(err);
               return;
             }
             if (row.count === 0) {
-              // Top-level items
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Hot Dog', 3.00, 1]);
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Nachos', 4.00, 2]);
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Popcorn', 2.50, 3]);
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Candy', 2.00, 4]);
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Bottled Water', 1.00, 6]);
-
-              // Drinks (parent with sub-items)
-              db.run('INSERT INTO menu_items (name, price, display_order) VALUES (?, ?, ?)', ['Drinks', null, 5], function(err) {
-                if (!err && this.lastID) {
-                  const drinksId = this.lastID;
-                  db.run('INSERT INTO menu_items (name, price, parent_id, display_order) VALUES (?, ?, ?, ?)', ['Small', 1.50, drinksId, 1]);
-                  db.run('INSERT INTO menu_items (name, price, parent_id, display_order) VALUES (?, ?, ?, ?)', ['Medium', 2.00, drinksId, 2]);
-                  db.run('INSERT INTO menu_items (name, price, parent_id, display_order) VALUES (?, ?, ?, ?)', ['Large', 2.50, drinksId, 3]);
-                }
-              });
+              loadMenuItemsFromCSV(db);
             }
           });
 

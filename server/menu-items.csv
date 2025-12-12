@@ -1,0 +1,12 @@
+name,price,parent,grid_row,grid_col
+Hot Dog,3.00,,0,0
+Nachos,4.00,,0,1
+Popcorn,2.50,,0,2
+Candy,2.00,,0,3
+Bottled Water,1.00,,1,0
+Drinks,,,1,1
+Small Drink,1.50,Drinks,-1,-1
+Medium Drink,2.00,Drinks,-1,-1
+Large Drink,2.50,Drinks,-1,-1
+Chips,1.50,,1,2
+Cookie,1.00,,1,3
