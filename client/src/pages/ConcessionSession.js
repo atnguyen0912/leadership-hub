@@ -512,49 +512,52 @@ function ConcessionSession({ user, onLogout }) {
           alignItems: 'center',
           padding: '12px 16px',
           background: '#111',
-          borderBottom: '1px solid #2a2a2a'
+          borderBottom: '1px solid #2a2a2a',
+          flexWrap: 'wrap',
+          gap: '8px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div>
-              <h1 style={{ color: '#22c55e', fontSize: '20px', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 auto' }}>
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ color: '#22c55e', fontSize: '18px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {session.name}
               </h1>
-              <p style={{ color: '#4ade80', fontSize: '12px', margin: 0 }}>
-                Concessions Counter - {session.program_name}
+              <p className="pos-header-subtitle" style={{ color: '#4ade80', fontSize: '11px', margin: 0 }}>
+                {session.program_name}
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Stats - Hidden on mobile */}
+          <div className="pos-header-stats" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#4a7c59', fontSize: '11px' }}>CashBox - Start:</div>
-              <div style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold' }}>
+              <div style={{ color: '#4a7c59', fontSize: '10px' }}>Start:</div>
+              <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold' }}>
                 {formatCurrency(session.start_total)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#4a7c59', fontSize: '11px' }}>Expected Total:</div>
-              <div style={{ color: '#22c55e', fontSize: '14px', fontWeight: 'bold' }}>
+              <div style={{ color: '#4a7c59', fontSize: '10px' }}>Expected:</div>
+              <div style={{ color: '#22c55e', fontSize: '13px', fontWeight: 'bold' }}>
                 {formatCurrency(expectedCashInBox)}
               </div>
             </div>
+          </div>
+          {/* Action buttons */}
+          <div className="pos-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
-              className={`btn ${editMode ? 'btn-primary' : ''}`}
+              className={`btn btn-small ${editMode ? 'btn-primary' : ''}`}
               onClick={() => setEditMode(!editMode)}
-              style={{ padding: '8px 16px' }}
             >
-              {editMode ? 'Done' : 'Edit Menu'}
+              {editMode ? 'Done' : 'Edit'}
             </button>
             <button
-              className="btn btn-danger"
+              className="btn btn-danger btn-small"
               onClick={() => setShowCheckout(true)}
-              style={{ padding: '8px 16px' }}
             >
-              Check Out
+              Close
             </button>
             <button
-              className="btn"
+              className="btn btn-small"
               onClick={() => navigate('/cashbox')}
-              style={{ padding: '8px 16px' }}
             >
               Exit
             </button>
@@ -567,89 +570,17 @@ function ConcessionSession({ user, onLogout }) {
         <div className="pos-main">
           {/* Edit mode - show grid with item bank */}
           {editMode ? (
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                {/* Item Bank - Compact sidebar */}
-                <div
-                  style={{
-                    width: '140px',
-                    minWidth: '140px',
-                    background: '#1a1a1a',
-                    borderRight: '1px solid #2a2a2a',
-                    padding: '8px',
-                    overflowY: 'auto',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px'
-                  }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleBankDrop}
-                >
-                  <div style={{
-                    color: '#4a7c59',
-                    fontSize: '10px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    marginBottom: '4px',
-                    textAlign: 'center'
-                  }}>
-                    Available
-                  </div>
-                  {getItemsInBank().length === 0 ? (
-                    <p style={{ color: '#4a7c59', fontSize: '10px', textAlign: 'center', margin: 0 }}>
-                      Drag here to remove
-                    </p>
-                  ) : (
-                    getItemsInBank().map((item) => (
-                      <div
-                        key={item.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, item)}
-                        onDragEnd={handleDragEnd}
-                        style={{
-                          padding: '6px 8px',
-                          background: '#0a0a0a',
-                          border: '1px solid #3a5a3a',
-                          borderRadius: '4px',
-                          cursor: 'grab',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '4px'
-                        }}
-                      >
-                        <span style={{
-                          color: '#4ade80',
-                          fontSize: '11px',
-                          fontWeight: '500',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          flex: 1
-                        }}>
-                          {item.name}
-                        </span>
-                        {item.price !== null ? (
-                          <span style={{ color: '#4a7c59', fontSize: '10px', flexShrink: 0 }}>
-                            ${item.price.toFixed(2)}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#4a7c59', fontSize: '9px', flexShrink: 0 }}>▼</span>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-
+            <div className="pos-edit-container">
                 {/* Menu Grid */}
-                <div className="pos-menu" style={{ flex: 1 }}>
+                <div className="pos-menu pos-edit-grid-area" style={{ flex: 1 }}>
                   <div
-                    className="pos-menu-grid"
+                    className="pos-menu-grid pos-edit-grid"
                     style={{
                       display: 'grid',
                       gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
                       gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
-                      gap: '12px',
-                      padding: '16px',
+                      gap: '8px',
+                      padding: '12px',
                       height: '100%'
                     }}
                   >
@@ -661,7 +592,7 @@ function ConcessionSession({ user, onLogout }) {
                         onDragLeave={handleCellDragLeave}
                         onDrop={(e) => handleCellDrop(e, row, col)}
                         style={{
-                          minHeight: '100px',
+                          minHeight: '70px',
                           border: '2px dashed #4a7c59',
                           borderRadius: '8px',
                           background: isDropTarget ? 'rgba(34, 197, 94, 0.3)' : 'rgba(74, 124, 89, 0.1)',
@@ -680,31 +611,68 @@ function ConcessionSession({ user, onLogout }) {
                             style={{
                               width: '100%',
                               height: '100%',
-                              cursor: 'grab'
+                              cursor: 'grab',
+                              minHeight: '60px'
                             }}
                           >
                             <div style={{
                               position: 'absolute',
-                              top: '4px',
+                              top: '2px',
                               left: '4px',
-                              fontSize: '12px',
+                              fontSize: '10px',
                               color: '#22c55e'
                             }}>
                               ☰
                             </div>
-                            <div className="pos-item-name">{item.name}</div>
+                            <div className="pos-item-name" style={{ fontSize: '11px' }}>{item.name}</div>
                             {item.price !== null && (
-                              <div className="pos-item-price">{formatCurrency(item.price)}</div>
+                              <div className="pos-item-price" style={{ fontSize: '12px' }}>{formatCurrency(item.price)}</div>
                             )}
                             {item.hasSubMenu && (
-                              <div className="pos-item-submenu-indicator">...</div>
+                              <div className="pos-item-submenu-indicator" style={{ fontSize: '14px' }}>...</div>
                             )}
                           </button>
                         ) : (
-                          <span style={{ color: '#4a7c59', fontSize: '12px' }}>Drop here</span>
+                          <span style={{ color: '#4a7c59', fontSize: '10px' }}>Drop</span>
                         )}
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Item Bank - Bottom drawer on mobile, sidebar on desktop */}
+                <div
+                  className="pos-item-bank"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleBankDrop}
+                >
+                  <div className="pos-item-bank-header">
+                    <span>Available Items</span>
+                    <span style={{ fontSize: '10px', color: '#4a7c59' }}>Drag to grid</span>
+                  </div>
+                  <div className="pos-item-bank-items">
+                    {getItemsInBank().length === 0 ? (
+                      <p style={{ color: '#4a7c59', fontSize: '11px', textAlign: 'center', margin: 0, padding: '8px' }}>
+                        Drag items here to remove from grid
+                      </p>
+                    ) : (
+                      getItemsInBank().map((item) => (
+                        <div
+                          key={item.id}
+                          className="pos-bank-item"
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, item)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <span className="pos-bank-item-name">{item.name}</span>
+                          {item.price !== null ? (
+                            <span className="pos-bank-item-price">${item.price.toFixed(2)}</span>
+                          ) : (
+                            <span className="pos-bank-item-price">▼</span>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
             </div>

@@ -1479,6 +1479,90 @@ textarea.input {
   gap: var(--spacing-md);
 }
 
+/* POS Edit Mode */
+.pos-edit-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  flex-direction: row;
+}
+
+.pos-edit-grid-area {
+  flex: 1;
+  overflow: auto;
+}
+
+.pos-item-bank {
+  width: 160px;
+  min-width: 160px;
+  background: #1a1a1a;
+  border-left: 1px solid #2a2a2a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pos-item-bank-header {
+  padding: 8px 12px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #2a2a2a;
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pos-item-bank-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pos-bank-item {
+  padding: 8px 10px;
+  background: #0a0a0a;
+  border: 1px solid #3a5a3a;
+  border-radius: 6px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.pos-bank-item:hover {
+  border-color: var(--color-primary);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.pos-bank-item:active {
+  cursor: grabbing;
+}
+
+.pos-bank-item-name {
+  color: #4ade80;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.pos-bank-item-price {
+  color: #4a7c59;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
 .time-inputs {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1810,14 +1894,30 @@ textarea.input {
 
   .pos-header {
     padding: var(--spacing-sm) var(--spacing-md);
+    flex-wrap: wrap;
   }
 
   .pos-header h1 {
-    font-size: var(--font-size-base) !important;
+    font-size: var(--font-size-sm) !important;
   }
 
   .pos-header p {
-    font-size: var(--font-size-xs) !important;
+    font-size: 10px !important;
+  }
+
+  .pos-header-stats {
+    display: none !important;
+  }
+
+  .pos-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .pos-header-actions .btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-height: 32px;
   }
 
   .pos-main {
@@ -1924,6 +2024,62 @@ textarea.input {
 
   .pos-submenu-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* POS Edit Mode Mobile */
+  .pos-edit-container {
+    flex-direction: column;
+  }
+
+  .pos-edit-grid-area {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pos-edit-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+
+  .pos-item-bank {
+    width: 100%;
+    min-width: auto;
+    max-height: 30vh;
+    border-left: none;
+    border-top: 1px solid #2a2a2a;
+  }
+
+  .pos-item-bank-header {
+    padding: 6px 12px;
+  }
+
+  .pos-item-bank-items {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-bank-item {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    min-width: 80px;
+  }
+
+  .pos-bank-item-name {
+    font-size: 11px;
+  }
+
+  .pos-bank-item-price {
+    font-size: 10px;
+  }
+
+  .pos-grid-cell {
+    min-height: 60px !important;
   }
 }
 
