@@ -1,12 +1,14 @@
 name,price,parent,grid_row,grid_col
-Hot Dog,3.00,,0,0
-Nachos,4.00,,0,1
-Popcorn,2.50,,0,2
-Candy,2.00,,0,3
-Bottled Water,1.00,,1,0
-Drinks,,,1,1
-Small Drink,1.50,Drinks,-1,-1
-Medium Drink,2.00,Drinks,-1,-1
-Large Drink,2.50,Drinks,-1,-1
-Chips,1.50,,1,2
-Cookie,1.00,,1,3
+Beef,2.00,Cup Noodles,-1,-1
+Cheese,0.50,Toppings,0,0
+Chicken,2.00,Cup Noodles,0,0
+Chili Chicken,2.00,Cup Noodles,0,0
+Chili Shrimp,2.00,Cup Noodles,0,0
+Hot Dog,2.50,,1,2
+Jalapenos,0.50,Toppings,0,0
+Shrimp,2.00,Cup Noodles,0,0
+Cup Noodles,,,0,0
+Soda,1.50,,0,0
+Nachos,3.00,,1,1
+Bottled Water,1.00,,1,3
+Toppings,,,1,0

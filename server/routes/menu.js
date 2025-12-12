@@ -106,6 +106,69 @@ router.post('/', (req, res) => {
   }
 });
 
+// POST /api/menu/:id/set-parent - Move an item to a new parent (make it a sub-item)
+router.post('/:id/set-parent', (req, res) => {
+  const { id } = req.params;
+  const { parentId } = req.body;
+
+  const db = getDb();
+
+  // First get the item being moved
+  db.get('SELECT * FROM menu_items WHERE id = ?', [id], (err, item) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!item) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+
+    // If setting to top-level (no parent)
+    if (!parentId) {
+      db.run(
+        'UPDATE menu_items SET parent_id = NULL, grid_row = -1, grid_col = -1 WHERE id = ?',
+        [id],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+          res.json({ success: true, message: 'Item moved to top level' });
+        }
+      );
+      return;
+    }
+
+    // Verify parent exists and is a category (has no price)
+    db.get('SELECT * FROM menu_items WHERE id = ?', [parentId], (err, parent) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (!parent) {
+        return res.status(400).json({ error: 'Parent item not found' });
+      }
+      if (parent.price !== null) {
+        return res.status(400).json({ error: 'Cannot add sub-item to an item with a price. Target must be a category.' });
+      }
+
+      // Prevent circular reference
+      if (parent.parent_id === parseInt(id)) {
+        return res.status(400).json({ error: 'Cannot create circular reference' });
+      }
+
+      // Move item to new parent, reset grid position
+      db.run(
+        'UPDATE menu_items SET parent_id = ?, grid_row = -1, grid_col = -1 WHERE id = ?',
+        [parentId, id],
+        function (err) {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+          res.json({ success: true, message: `Item moved under ${parent.name}` });
+        }
+      );
+    });
+  });
+});
+
 // PUT /api/menu/:id - Update a menu item (Admin)
 router.put('/:id', (req, res) => {
   const { id } = req.params;

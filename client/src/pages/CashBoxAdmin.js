@@ -53,6 +53,9 @@ function CashBoxAdmin({ user, onLogout }) {
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItem, setDragOverItem] = useState(null);
 
+  // CSV operations
+  const [savingCSV, setSavingCSV] = useState(false);
+
   // Edit main cashbox
   const [editingCashbox, setEditingCashbox] = useState(false);
   const [editQuarters, setEditQuarters] = useState(0);
@@ -525,15 +528,16 @@ function CashBoxAdmin({ user, onLogout }) {
   };
 
   // Drag and drop handlers for menu items
-  const handleDragStart = (e, item, isSubItem = false) => {
-    setDraggedItem({ ...item, isSubItem });
+  const handleDragStart = (e, item, isSubItem = false, parentId = null) => {
+    setDraggedItem({ ...item, isSubItem, parent_id: parentId || item.parent_id });
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e, item, isSubItem = false) => {
     e.preventDefault();
-    if (draggedItem && draggedItem.isSubItem === isSubItem) {
-      setDragOverItem(item);
+    // Allow drag over any item (for moving into categories)
+    if (draggedItem) {
+      setDragOverItem({ ...item, isSubItem });
     }
   };
 
@@ -541,7 +545,7 @@ function CashBoxAdmin({ user, onLogout }) {
     setDragOverItem(null);
   };
 
-  const handleDrop = async (e, targetItem, isSubItem = false) => {
+  const handleDrop = async (e, targetItem, isSubItem = false, targetParentId = null) => {
     e.preventDefault();
     setDragOverItem(null);
 
@@ -550,40 +554,90 @@ function CashBoxAdmin({ user, onLogout }) {
       return;
     }
 
-    // Only allow reordering within same level (top-level or same parent)
-    if (draggedItem.isSubItem !== isSubItem) {
-      setDraggedItem(null);
-      return;
-    }
-
-    if (isSubItem && draggedItem.parent_id !== targetItem.parent_id) {
-      setDraggedItem(null);
-      return;
-    }
+    // Get the actual parent_id for the target
+    const actualTargetParentId = targetParentId || targetItem.parent_id;
 
     try {
-      if (isSubItem) {
-        // Reorder sub-items
+      // Case 1: Dropping a top-level item onto a category (move into category)
+      if (!draggedItem.isSubItem && !isSubItem && targetItem.price === null && draggedItem.price !== null) {
+        const response = await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: targetItem.id })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          setError(data.error || 'Failed to move item');
+        } else {
+          setSuccess(data.message);
+        }
+        fetchData();
+        setDraggedItem(null);
+        return;
+      }
+
+      // Case 2: Dropping a sub-item to top level (make it top-level)
+      if (draggedItem.isSubItem && !isSubItem && targetItem.price !== null) {
+        // If dropping onto another top-level item with price, make dragged item top-level
+        const response = await fetch(`/api/menu/${draggedItem.id}/set-parent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: null })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          setError(data.error || 'Failed to move item');
+        } else {
+          setSuccess(data.message);
+        }
+        fetchData();
+        setDraggedItem(null);
+        return;
+      }
+
+      // Case 3: Reordering sub-items within same parent
+      if (draggedItem.isSubItem && isSubItem && draggedItem.parent_id === actualTargetParentId) {
         const parentItem = menuItems.find(item => item.id === draggedItem.parent_id);
-        if (!parentItem) return;
+        if (!parentItem || !parentItem.subItems) {
+          setDraggedItem(null);
+          return;
+        }
 
         const subItems = [...parentItem.subItems];
         const dragIndex = subItems.findIndex(i => i.id === draggedItem.id);
         const dropIndex = subItems.findIndex(i => i.id === targetItem.id);
 
+        if (dragIndex === -1 || dropIndex === -1) {
+          setDraggedItem(null);
+          return;
+        }
+
         subItems.splice(dragIndex, 1);
-        subItems.splice(dropIndex, 0, draggedItem);
+        subItems.splice(dropIndex, 0, { ...draggedItem });
 
         await fetch('/api/menu/reorder-subitems', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ parentId: draggedItem.parent_id, items: subItems })
         });
-      } else {
-        // Reorder top-level items
+
+        fetchData();
+        setDraggedItem(null);
+        return;
+      }
+
+      // Case 4: Reordering top-level items
+      if (!draggedItem.isSubItem && !isSubItem) {
         const items = [...menuItems];
         const dragIndex = items.findIndex(i => i.id === draggedItem.id);
         const dropIndex = items.findIndex(i => i.id === targetItem.id);
+
+        if (dragIndex === -1 || dropIndex === -1) {
+          setDraggedItem(null);
+          return;
+        }
 
         items.splice(dragIndex, 1);
         items.splice(dropIndex, 0, draggedItem);
@@ -593,11 +647,11 @@ function CashBoxAdmin({ user, onLogout }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items })
         });
-      }
 
-      fetchData();
+        fetchData();
+      }
     } catch (err) {
-      setError('Failed to reorder items');
+      setError('Failed to move/reorder items');
     }
 
     setDraggedItem(null);
@@ -606,6 +660,60 @@ function CashBoxAdmin({ user, onLogout }) {
   const handleDragEnd = () => {
     setDraggedItem(null);
     setDragOverItem(null);
+  };
+
+  // Move sub-item to top level
+  const handleMoveToTopLevel = async (item) => {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/menu/${item.id}/set-parent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parentId: null })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to move item');
+      }
+
+      setSuccess(data.message);
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Save menu to CSV file on server
+  const handleSaveMenuToCSV = async () => {
+    setSavingCSV(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch('/api/menu/save-to-csv', {
+        method: 'POST'
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save menu to CSV');
+      }
+
+      setSuccess(data.message);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingCSV(false);
+    }
+  };
+
+  // Download menu as CSV file
+  const handleDownloadMenuCSV = () => {
+    window.open('/api/menu/csv', '_blank');
   };
 
   const handleUpdateCashbox = async (e) => {
@@ -1171,9 +1279,27 @@ function CashBoxAdmin({ user, onLogout }) {
         {/* Menu Tab */}
         {activeTab === 'menu' && (
           <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Manage Menu Items
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <h2 style={{ fontSize: '18px', color: '#22c55e', margin: 0 }}>
+                Manage Menu Items
+              </h2>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn btn-small"
+                  onClick={handleDownloadMenuCSV}
+                  style={{ background: '#4a7c59' }}
+                >
+                  Download CSV
+                </button>
+                <button
+                  className="btn btn-small btn-primary"
+                  onClick={handleSaveMenuToCSV}
+                  disabled={savingCSV}
+                >
+                  {savingCSV ? 'Saving...' : 'Save to CSV'}
+                </button>
+              </div>
+            </div>
 
             <form onSubmit={handleAddMenuItem} style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -1227,7 +1353,7 @@ function CashBoxAdmin({ user, onLogout }) {
             </form>
 
             <p style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '12px' }}>
-              Drag items to reorder them
+              Drag items to reorder. Drag an item onto a category (no price) to make it a sub-item.
             </p>
 
             {menuItems.length === 0 ? (
@@ -1361,10 +1487,10 @@ function CashBoxAdmin({ user, onLogout }) {
                           <div
                             key={sub.id}
                             draggable={editingMenuItemId !== sub.id}
-                            onDragStart={(e) => handleDragStart(e, sub, true)}
+                            onDragStart={(e) => handleDragStart(e, sub, true, item.id)}
                             onDragOver={(e) => handleDragOver(e, sub, true)}
                             onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, sub, true)}
+                            onDrop={(e) => handleDrop(e, sub, true, item.id)}
                             onDragEnd={handleDragEnd}
                             style={{
                               display: 'flex',
@@ -1376,7 +1502,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               gap: '6px',
                               cursor: editingMenuItemId === sub.id ? 'default' : 'grab',
                               opacity: draggedItem?.id === sub.id ? 0.5 : 1,
-                              background: dragOverItem?.id === sub.id && draggedItem?.isSubItem ? '#2a3a2a' : 'transparent',
+                              background: dragOverItem?.id === sub.id && dragOverItem?.isSubItem ? '#2a3a2a' : 'transparent',
                               borderRadius: '4px',
                               transition: 'all 0.2s ease'
                             }}
@@ -1423,7 +1549,15 @@ function CashBoxAdmin({ user, onLogout }) {
                                   {sub.name} - {formatCurrency(sub.price)}
                                   {!sub.active && <span style={{ color: '#666', marginLeft: '8px' }}>(Inactive)</span>}
                                 </span>
-                                <div style={{ display: 'flex', gap: '4px' }}>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  <button
+                                    className="btn btn-small"
+                                    onClick={() => handleMoveToTopLevel(sub)}
+                                    style={{ padding: '4px 8px', fontSize: '11px', background: '#4a7c59' }}
+                                    title="Move to top level"
+                                  >
+                                    ↑ Top
+                                  </button>
                                   <button
                                     className="btn btn-small"
                                     onClick={() => startEditingMenuItem(sub)}

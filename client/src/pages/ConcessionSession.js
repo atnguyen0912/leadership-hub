@@ -442,25 +442,6 @@ function ConcessionSession({ user, onLogout }) {
     );
   };
 
-  // Save menu to CSV file
-  const handleSaveMenuToCSV = async () => {
-    try {
-      const response = await fetch('/api/menu/save-to-csv', {
-        method: 'POST'
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to save menu');
-      }
-
-      setSuccess(data.message);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   // Get responsive grid settings based on screen width
   const getGridSettings = () => {
     const width = window.innerWidth;
@@ -562,15 +543,6 @@ function ConcessionSession({ user, onLogout }) {
           </div>
           {/* Action buttons */}
           <div className="pos-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {editMode && (
-              <button
-                className="btn btn-small"
-                onClick={handleSaveMenuToCSV}
-                style={{ background: '#065f46' }}
-              >
-                Save CSV
-              </button>
-            )}
             <button
               className={`btn btn-small ${editMode ? 'btn-primary' : ''}`}
               onClick={() => setEditMode(!editMode)}
