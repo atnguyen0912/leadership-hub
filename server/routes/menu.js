@@ -439,6 +439,45 @@ router.post('/grid-positions', (req, res) => {
   });
 });
 
+// POST /api/menu/:id/span - Update item span (Admin)
+router.post('/:id/span', (req, res) => {
+  const { id } = req.params;
+  const { rowSpan, colSpan } = req.body;
+
+  if (rowSpan === undefined && colSpan === undefined) {
+    return res.status(400).json({ error: 'rowSpan or colSpan is required' });
+  }
+
+  const db = getDb();
+
+  const updates = [];
+  const values = [];
+
+  if (rowSpan !== undefined) {
+    updates.push('row_span = ?');
+    values.push(Math.max(1, Math.min(3, parseInt(rowSpan) || 1)));
+  }
+  if (colSpan !== undefined) {
+    updates.push('col_span = ?');
+    values.push(Math.max(1, Math.min(4, parseInt(colSpan) || 1)));
+  }
+  values.push(id);
+
+  db.run(
+    `UPDATE menu_items SET ${updates.join(', ')} WHERE id = ?`,
+    values,
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
 // POST /api/menu/save-to-csv - Export current menu items to CSV file (Admin)
 router.post('/save-to-csv', (req, res) => {
   const db = getDb();
@@ -458,7 +497,7 @@ router.post('/save-to-csv', (req, res) => {
       });
 
       // Build CSV content
-      const csvLines = ['name,price,parent,grid_row,grid_col'];
+      const csvLines = ['name,price,parent,grid_row,grid_col,row_span,col_span'];
 
       rows.forEach(row => {
         const name = row.name;
@@ -466,11 +505,13 @@ router.post('/save-to-csv', (req, res) => {
         const parent = row.parent_id ? idToName[row.parent_id] || '' : '';
         const gridRow = row.grid_row !== null ? row.grid_row : -1;
         const gridCol = row.grid_col !== null ? row.grid_col : -1;
+        const rowSpan = row.row_span !== null ? row.row_span : 1;
+        const colSpan = row.col_span !== null ? row.col_span : 1;
 
         // Escape name if it contains commas
         const escapedName = name.includes(',') ? `"${name}"` : name;
 
-        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol}`);
+        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol},${rowSpan},${colSpan}`);
       });
 
       const csvContent = csvLines.join('\n');
@@ -509,7 +550,7 @@ router.get('/csv', (req, res) => {
       });
 
       // Build CSV content
-      const csvLines = ['name,price,parent,grid_row,grid_col'];
+      const csvLines = ['name,price,parent,grid_row,grid_col,row_span,col_span'];
 
       rows.forEach(row => {
         const name = row.name;
@@ -517,9 +558,11 @@ router.get('/csv', (req, res) => {
         const parent = row.parent_id ? idToName[row.parent_id] || '' : '';
         const gridRow = row.grid_row !== null ? row.grid_row : -1;
         const gridCol = row.grid_col !== null ? row.grid_col : -1;
+        const rowSpan = row.row_span !== null ? row.row_span : 1;
+        const colSpan = row.col_span !== null ? row.col_span : 1;
 
         const escapedName = name.includes(',') ? `"${name}"` : name;
-        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol}`);
+        csvLines.push(`${escapedName},${price},${parent},${gridRow},${gridCol},${rowSpan},${colSpan}`);
       });
 
       const csvContent = csvLines.join('\n');
@@ -586,10 +629,12 @@ router.post('/reset-from-csv', (req, res) => {
             const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
             const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
             const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+            const rowSpan = record.row_span && record.row_span.trim() !== '' ? parseInt(record.row_span) : 1;
+            const colSpan = record.col_span && record.col_span.trim() !== '' ? parseInt(record.col_span) : 1;
 
             db.run(
-              'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)',
-              [record.name, price, displayOrder, gridRow, gridCol],
+              'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col, row_span, col_span) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [record.name, price, displayOrder, gridRow, gridCol, rowSpan, colSpan],
               function(err) {
                 if (!err && this.lastID) {
                   parentMap[record.name] = this.lastID;
@@ -610,10 +655,12 @@ router.post('/reset-from-csv', (req, res) => {
               const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
               const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
               const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+              const rowSpan = record.row_span && record.row_span.trim() !== '' ? parseInt(record.row_span) : 1;
+              const colSpan = record.col_span && record.col_span.trim() !== '' ? parseInt(record.col_span) : 1;
 
               db.run(
-                'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)',
-                [record.name, price, parentId, childOrder, gridRow, gridCol],
+                'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col, row_span, col_span) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [record.name, price, parentId, childOrder, gridRow, gridCol, rowSpan, colSpan],
                 function(err) {
                   if (!err) inserted++;
                 }

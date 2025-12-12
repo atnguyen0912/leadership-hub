@@ -39,6 +39,7 @@ function ConcessionSession({ user, onLogout }) {
   const [editMode, setEditMode] = useState(false);
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverCell, setDragOverCell] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
   // Grid configuration
   const GRID_COLS = 4;
@@ -405,6 +406,34 @@ function ConcessionSession({ user, onLogout }) {
     setDragOverCell(null);
   };
 
+  // Handle updating item span
+  const handleSpanChange = async (itemId, rowSpan, colSpan) => {
+    // Update locally
+    const newItems = menuItems.map(item => {
+      if (item.id === itemId) {
+        return { ...item, row_span: rowSpan, col_span: colSpan };
+      }
+      return item;
+    });
+    setMenuItems(newItems);
+
+    // Update selected item if it's the one being changed
+    if (selectedItem && selectedItem.id === itemId) {
+      setSelectedItem({ ...selectedItem, row_span: rowSpan, col_span: colSpan });
+    }
+
+    // Save to backend
+    try {
+      await fetch(`/api/menu/${itemId}/span`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rowSpan, colSpan })
+      });
+    } catch (err) {
+      console.error('Failed to update span:', err);
+    }
+  };
+
   // Get items that are on the grid (have valid positions)
   const getItemsOnGrid = () => {
     return menuItems.filter(item =>
@@ -611,15 +640,20 @@ function ConcessionSession({ user, onLogout }) {
                       >
                         {item ? (
                           <button
-                            className="pos-item-btn edit-mode"
+                            className={`pos-item-btn edit-mode ${selectedItem?.id === item.id ? 'selected' : ''}`}
                             draggable
                             onDragStart={(e) => handleDragStart(e, item)}
                             onDragEnd={handleDragEnd}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedItem(selectedItem?.id === item.id ? null : item);
+                            }}
                             style={{
                               width: '100%',
                               height: '100%',
                               cursor: 'grab',
-                              minHeight: '60px'
+                              minHeight: '60px',
+                              outline: selectedItem?.id === item.id ? '3px solid #22c55e' : 'none'
                             }}
                           >
                             <div style={{
@@ -631,6 +665,20 @@ function ConcessionSession({ user, onLogout }) {
                             }}>
                               ☰
                             </div>
+                            {((item.row_span || 1) > 1 || (item.col_span || 1) > 1) && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '2px',
+                                right: '4px',
+                                fontSize: '9px',
+                                color: '#4ade80',
+                                background: '#1a1a1a',
+                                padding: '1px 3px',
+                                borderRadius: '3px'
+                              }}>
+                                {item.col_span || 1}x{item.row_span || 1}
+                              </div>
+                            )}
                             <div className="pos-item-name" style={{ fontSize: '11px' }}>{item.name}</div>
                             {item.price !== null && (
                               <div className="pos-item-price" style={{ fontSize: '12px' }}>{formatCurrency(item.price)}</div>
@@ -682,63 +730,139 @@ function ConcessionSession({ user, onLogout }) {
                     )}
                   </div>
                 </div>
-            </div>
-          ) : (
-            /* Normal mode - responsive grid with minimum button sizes and scrolling */
-            (() => {
-              const activeItems = getActiveGridItems();
-              const { minButtonSize, gap } = getGridSettings();
-              const cols = getOptimalCols(activeItems.length);
 
-              return (
-                <div className="pos-menu" style={{ overflow: 'auto' }}>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${cols}, minmax(${minButtonSize}px, 1fr))`,
-                      gridAutoRows: `minmax(${minButtonSize}px, auto)`,
-                      gap: `${gap}px`,
-                      padding: '16px'
-                    }}
-                  >
-                    {activeItems.length === 0 ? (
-                      <div style={{
-                        gridColumn: '1 / -1',
-                        textAlign: 'center',
-                        padding: '40px',
-                        color: '#4a7c59'
-                      }}>
-                        <p>No menu items configured.</p>
-                        <p style={{ fontSize: '14px' }}>Click "Edit Menu" to add items to the grid.</p>
-                      </div>
-                    ) : (
-                      activeItems.map((item) => (
+                {/* Span Controls - shown when item is selected */}
+                {selectedItem && (
+                  <div style={{
+                    background: '#1a1a1a',
+                    padding: '12px',
+                    borderTop: '1px solid #2a2a2a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <div style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '14px' }}>
+                      {selectedItem.name}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#4ade80', fontSize: '12px' }}>Width:</span>
+                      {[1, 2, 3, 4].map(n => (
                         <button
-                          key={item.id}
-                          className={`pos-item-btn ${item.hasSubMenu ? 'has-submenu' : ''}`}
-                          onClick={() => handleItemClick(item)}
+                          key={`col-${n}`}
+                          onClick={() => handleSpanChange(selectedItem.id, selectedItem.row_span || 1, n)}
                           style={{
-                            minHeight: `${minButtonSize}px`,
-                            height: '100%'
+                            width: '28px',
+                            height: '28px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            background: (selectedItem.col_span || 1) === n ? '#22c55e' : '#333',
+                            color: (selectedItem.col_span || 1) === n ? '#000' : '#4ade80',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
                           }}
                         >
-                          <div className="pos-item-name">{item.name}</div>
-                          {item.price !== null && (
-                            <div className="pos-item-price">{formatCurrency(item.price)}</div>
-                          )}
-                          {item.hasSubMenu && (
-                            <div className="pos-item-submenu-indicator">...</div>
-                          )}
-                          {getItemQuantity(item.id) > 0 && (
-                            <div className="pos-item-qty">{getItemQuantity(item.id)}</div>
-                          )}
+                          {n}
                         </button>
-                      ))
-                    )}
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#4ade80', fontSize: '12px' }}>Height:</span>
+                      {[1, 2, 3].map(n => (
+                        <button
+                          key={`row-${n}`}
+                          onClick={() => handleSpanChange(selectedItem.id, n, selectedItem.col_span || 1)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            border: 'none',
+                            borderRadius: '4px',
+                            background: (selectedItem.row_span || 1) === n ? '#22c55e' : '#333',
+                            color: (selectedItem.row_span || 1) === n ? '#000' : '#4ade80',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setSelectedItem(null)}
+                      style={{
+                        marginLeft: 'auto',
+                        padding: '4px 12px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: '#333',
+                        color: '#4ade80',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Done
+                    </button>
                   </div>
-                </div>
-              );
-            })()
+                )}
+            </div>
+          ) : (
+            /* Normal mode - fixed grid matching edit mode positions */
+            <div className="pos-menu" style={{ overflow: 'auto' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+                  gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
+                  gap: '8px',
+                  padding: '12px',
+                  height: '100%',
+                  minHeight: '300px'
+                }}
+              >
+                {getActiveGridItems().length === 0 ? (
+                  <div style={{
+                    gridColumn: '1 / -1',
+                    gridRow: '1 / -1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4a7c59'
+                  }}>
+                    <p>No menu items configured.</p>
+                    <p style={{ fontSize: '14px' }}>Click "Edit" to add items to the grid.</p>
+                  </div>
+                ) : (
+                  getActiveGridItems().map((item) => {
+                    const rowSpan = item.row_span || 1;
+                    const colSpan = item.col_span || 1;
+                    return (
+                      <button
+                        key={item.id}
+                        className={`pos-item-btn ${item.hasSubMenu ? 'has-submenu' : ''}`}
+                        onClick={() => handleItemClick(item)}
+                        style={{
+                          gridRow: `${item.grid_row + 1} / span ${rowSpan}`,
+                          gridColumn: `${item.grid_col + 1} / span ${colSpan}`,
+                          minHeight: '80px'
+                        }}
+                      >
+                        <div className="pos-item-name">{item.name}</div>
+                        {item.price !== null && (
+                          <div className="pos-item-price">{formatCurrency(item.price)}</div>
+                        )}
+                        {item.hasSubMenu && (
+                          <div className="pos-item-submenu-indicator">...</div>
+                        )}
+                        {getItemQuantity(item.id) > 0 && (
+                          <div className="pos-item-qty">{getItemQuantity(item.id)}</div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
 
           {/* Order Summary */}

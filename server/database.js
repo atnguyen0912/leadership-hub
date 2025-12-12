@@ -52,10 +52,12 @@ const loadMenuItemsFromCSV = (database) => {
       const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
       const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
       const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+      const rowSpan = record.row_span && record.row_span.trim() !== '' ? parseInt(record.row_span) : 1;
+      const colSpan = record.col_span && record.col_span.trim() !== '' ? parseInt(record.col_span) : 1;
 
       database.run(
-        'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?)',
-        [record.name, price, displayOrder, gridRow, gridCol],
+        'INSERT INTO menu_items (name, price, display_order, grid_row, grid_col, row_span, col_span) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [record.name, price, displayOrder, gridRow, gridCol, rowSpan, colSpan],
         function(err) {
           if (!err && this.lastID) {
             parentMap[record.name] = this.lastID;
@@ -96,10 +98,12 @@ const insertChildItems = (database, childItems, parentMap) => {
     const price = record.price && record.price.trim() !== '' ? parseFloat(record.price) : null;
     const gridRow = record.grid_row && record.grid_row.trim() !== '' ? parseInt(record.grid_row) : -1;
     const gridCol = record.grid_col && record.grid_col.trim() !== '' ? parseInt(record.grid_col) : -1;
+    const rowSpan = record.row_span && record.row_span.trim() !== '' ? parseInt(record.row_span) : 1;
+    const colSpan = record.col_span && record.col_span.trim() !== '' ? parseInt(record.col_span) : 1;
 
     database.run(
-      'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col) VALUES (?, ?, ?, ?, ?, ?)',
-      [record.name, price, parentId, childOrder, gridRow, gridCol],
+      'INSERT INTO menu_items (name, price, parent_id, display_order, grid_row, grid_col, row_span, col_span) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [record.name, price, parentId, childOrder, gridRow, gridCol, rowSpan, colSpan],
       function(err) {
         if (err) {
           console.error(`Error inserting child menu item ${record.name}:`, err);
@@ -316,6 +320,8 @@ const initialize = () => {
             display_order INTEGER DEFAULT 0,
             grid_row INTEGER DEFAULT 0,
             grid_col INTEGER DEFAULT 0,
+            row_span INTEGER DEFAULT 1,
+            col_span INTEGER DEFAULT 1,
             active INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (parent_id) REFERENCES menu_items(id)
@@ -325,6 +331,8 @@ const initialize = () => {
         // Add grid columns if they don't exist (migration for existing DBs)
         db.run(`ALTER TABLE menu_items ADD COLUMN grid_row INTEGER DEFAULT 0`, [], () => {});
         db.run(`ALTER TABLE menu_items ADD COLUMN grid_col INTEGER DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN row_span INTEGER DEFAULT 1`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN col_span INTEGER DEFAULT 1`, [], () => {});
 
         // Orders table
         db.run(`
