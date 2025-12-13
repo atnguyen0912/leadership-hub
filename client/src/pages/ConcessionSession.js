@@ -463,12 +463,71 @@ function ConcessionSession({ user, onLogout }) {
     return cells;
   };
 
-  // In normal mode, only show cells that have items
+  // In normal mode, get items with safe spans (no overlaps, no overflow)
   const getActiveGridItems = () => {
-    return menuItems.filter(item =>
+    const validItems = menuItems.filter(item =>
       item.grid_row >= 0 && item.grid_row < GRID_ROWS &&
       item.grid_col >= 0 && item.grid_col < GRID_COLS
     );
+
+    // Track which cells are occupied
+    const occupiedCells = new Set();
+    const safeItems = [];
+
+    // Sort by position (top-left first) to give priority to earlier items
+    const sortedItems = [...validItems].sort((a, b) => {
+      if (a.grid_row !== b.grid_row) return a.grid_row - b.grid_row;
+      return a.grid_col - b.grid_col;
+    });
+
+    for (const item of sortedItems) {
+      // Clamp spans to not exceed grid boundaries
+      const maxRowSpan = Math.min(item.row_span || 1, GRID_ROWS - item.grid_row);
+      const maxColSpan = Math.min(item.col_span || 1, GRID_COLS - item.grid_col);
+
+      // Find the largest span that doesn't overlap
+      let safeRowSpan = 1;
+      let safeColSpan = 1;
+
+      // Try to expand column span first, then row span
+      for (let cs = maxColSpan; cs >= 1; cs--) {
+        for (let rs = maxRowSpan; rs >= 1; rs--) {
+          let canPlace = true;
+
+          // Check all cells this item would occupy
+          for (let r = item.grid_row; r < item.grid_row + rs && canPlace; r++) {
+            for (let c = item.grid_col; c < item.grid_col + cs && canPlace; c++) {
+              const cellKey = `${r},${c}`;
+              if (occupiedCells.has(cellKey)) {
+                canPlace = false;
+              }
+            }
+          }
+
+          if (canPlace) {
+            safeRowSpan = rs;
+            safeColSpan = cs;
+            break;
+          }
+        }
+        if (safeRowSpan > 1 || safeColSpan > 1) break;
+      }
+
+      // Mark cells as occupied
+      for (let r = item.grid_row; r < item.grid_row + safeRowSpan; r++) {
+        for (let c = item.grid_col; c < item.grid_col + safeColSpan; c++) {
+          occupiedCells.add(`${r},${c}`);
+        }
+      }
+
+      safeItems.push({
+        ...item,
+        safe_row_span: safeRowSpan,
+        safe_col_span: safeColSpan
+      });
+    }
+
+    return safeItems;
   };
 
   // Get responsive grid settings based on screen width
@@ -806,19 +865,9 @@ function ConcessionSession({ user, onLogout }) {
                 )}
             </div>
           ) : (
-            /* Normal mode - fixed grid matching edit mode positions */
-            <div className="pos-menu" style={{ overflow: 'auto' }}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-                  gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
-                  gap: '8px',
-                  padding: '12px',
-                  height: '100%',
-                  minHeight: '300px'
-                }}
-              >
+            /* Normal mode - fixed 4x3 grid on all screen sizes */
+            <div className="pos-menu" style={{ overflow: 'auto', padding: '8px' }}>
+              <div className="pos-fixed-grid">
                 {getActiveGridItems().length === 0 ? (
                   <div style={{
                     gridColumn: '1 / -1',
@@ -834,8 +883,9 @@ function ConcessionSession({ user, onLogout }) {
                   </div>
                 ) : (
                   getActiveGridItems().map((item) => {
-                    const rowSpan = item.row_span || 1;
-                    const colSpan = item.col_span || 1;
+                    // Use safe spans that account for overlaps and boundaries
+                    const rowSpan = item.safe_row_span || 1;
+                    const colSpan = item.safe_col_span || 1;
                     return (
                       <button
                         key={item.id}
@@ -844,7 +894,8 @@ function ConcessionSession({ user, onLogout }) {
                         style={{
                           gridRow: `${item.grid_row + 1} / span ${rowSpan}`,
                           gridColumn: `${item.grid_col + 1} / span ${colSpan}`,
-                          minHeight: '80px'
+                          minHeight: '0',
+                          padding: '4px'
                         }}
                       >
                         <div className="pos-item-name">{item.name}</div>
