@@ -40,6 +40,12 @@ function ConcessionSession({ user, onLogout }) {
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverCell, setDragOverCell] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedBankItem, setSelectedBankItem] = useState(null); // For tap-to-place on mobile
+
+  // Detect touch device
+  const isTouchDevice = () => {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  };
 
   // Grid configuration
   const GRID_COLS = 4;
@@ -406,6 +412,101 @@ function ConcessionSession({ user, onLogout }) {
     setDragOverCell(null);
   };
 
+  // Handle tap-to-place: select a bank item
+  const handleBankItemTap = (item) => {
+    if (selectedBankItem?.id === item.id) {
+      // Deselect if tapping same item
+      setSelectedBankItem(null);
+    } else {
+      setSelectedBankItem(item);
+      setSelectedItem(null); // Clear grid item selection
+    }
+  };
+
+  // Handle tap-to-place: place selected item in grid cell
+  const handleCellTap = async (row, col) => {
+    if (!selectedBankItem) return;
+
+    const existingItem = getItemAtPosition(row, col);
+
+    // Update the selected bank item's position
+    const newItems = menuItems.map(item => {
+      if (item.id === selectedBankItem.id) {
+        return { ...item, grid_row: row, grid_col: col };
+      }
+      // If there was an item in this cell, move it to bank
+      if (existingItem && item.id === existingItem.id) {
+        return { ...item, grid_row: -1, grid_col: -1 };
+      }
+      return item;
+    });
+
+    setMenuItems(newItems);
+
+    // Save to backend
+    try {
+      const updates = [{ id: selectedBankItem.id, gridRow: row, gridCol: col }];
+      if (existingItem) {
+        updates.push({ id: existingItem.id, gridRow: -1, gridCol: -1 });
+      }
+      await fetch('/api/menu/grid-positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: updates })
+      });
+    } catch (err) {
+      console.error('Failed to save position:', err);
+    }
+
+    setSelectedBankItem(null);
+  };
+
+  // Handle tap on grid item: remove from grid (send to bank)
+  const handleGridItemTap = async (item) => {
+    // If tapping an already selected item, deselect
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(null);
+      return;
+    }
+
+    // If there's a selected bank item, swap positions
+    if (selectedBankItem) {
+      const newItems = menuItems.map(i => {
+        if (i.id === selectedBankItem.id) {
+          return { ...i, grid_row: item.grid_row, grid_col: item.grid_col };
+        }
+        if (i.id === item.id) {
+          return { ...i, grid_row: -1, grid_col: -1 };
+        }
+        return i;
+      });
+
+      setMenuItems(newItems);
+
+      try {
+        await fetch('/api/menu/grid-positions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: [
+              { id: selectedBankItem.id, gridRow: item.grid_row, gridCol: item.grid_col },
+              { id: item.id, gridRow: -1, gridCol: -1 }
+            ]
+          })
+        });
+      } catch (err) {
+        console.error('Failed to save position:', err);
+      }
+
+      setSelectedBankItem(null);
+      return;
+    }
+
+    // Otherwise select this item for span editing
+    setSelectedItem(item);
+    setSelectedBankItem(null);
+  };
+
   // Handle updating item span
   const handleSpanChange = async (itemId, rowSpan, colSpan) => {
     // Update locally
@@ -682,48 +783,56 @@ function ConcessionSession({ user, onLogout }) {
                     {generateGrid().map(({ row, col, item, isDropTarget }) => (
                       <div
                         key={`${row}-${col}`}
-                        className={`pos-grid-cell ${isDropTarget ? 'drag-over' : ''}`}
+                        className={`pos-grid-cell ${isDropTarget ? 'drag-over' : ''} ${selectedBankItem && !item ? 'tap-target' : ''}`}
                         onDragOver={(e) => handleCellDragOver(e, row, col)}
                         onDragLeave={handleCellDragLeave}
                         onDrop={(e) => handleCellDrop(e, row, col)}
+                        onClick={() => !item && handleCellTap(row, col)}
                         style={{
                           minHeight: '70px',
-                          border: '2px dashed #4a7c59',
+                          border: selectedBankItem && !item ? '2px solid #22c55e' : '2px dashed #4a7c59',
                           borderRadius: '8px',
-                          background: isDropTarget ? 'rgba(34, 197, 94, 0.3)' : 'rgba(74, 124, 89, 0.1)',
+                          background: selectedBankItem && !item
+                            ? 'rgba(34, 197, 94, 0.2)'
+                            : isDropTarget
+                              ? 'rgba(34, 197, 94, 0.3)'
+                              : 'rgba(74, 124, 89, 0.1)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          transition: 'all 0.2s ease'
+                          transition: 'all 0.2s ease',
+                          cursor: selectedBankItem && !item ? 'pointer' : 'default'
                         }}
                       >
                         {item ? (
                           <button
-                            className={`pos-item-btn edit-mode ${selectedItem?.id === item.id ? 'selected' : ''}`}
-                            draggable
+                            className={`pos-item-btn edit-mode ${selectedItem?.id === item.id ? 'selected' : ''} ${selectedBankItem ? 'swap-target' : ''}`}
+                            draggable={!isTouchDevice()}
                             onDragStart={(e) => handleDragStart(e, item)}
                             onDragEnd={handleDragEnd}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedItem(selectedItem?.id === item.id ? null : item);
+                              handleGridItemTap(item);
                             }}
                             style={{
                               width: '100%',
                               height: '100%',
-                              cursor: 'grab',
+                              cursor: isTouchDevice() ? 'pointer' : 'grab',
                               minHeight: '60px',
-                              outline: selectedItem?.id === item.id ? '3px solid #22c55e' : 'none'
+                              outline: selectedItem?.id === item.id ? '3px solid #22c55e' : selectedBankItem ? '2px dashed #f59e0b' : 'none'
                             }}
                           >
-                            <div style={{
-                              position: 'absolute',
-                              top: '2px',
-                              left: '4px',
-                              fontSize: '10px',
-                              color: '#22c55e'
-                            }}>
-                              ☰
-                            </div>
+                            {!isTouchDevice() && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '2px',
+                                left: '4px',
+                                fontSize: '10px',
+                                color: '#22c55e'
+                              }}>
+                                ☰
+                              </div>
+                            )}
                             {((item.row_span || 1) > 1 || (item.col_span || 1) > 1) && (
                               <div style={{
                                 position: 'absolute',
@@ -747,7 +856,13 @@ function ConcessionSession({ user, onLogout }) {
                             )}
                           </button>
                         ) : (
-                          <span style={{ color: '#4a7c59', fontSize: '10px' }}>Drop</span>
+                          <span style={{
+                            color: selectedBankItem ? '#22c55e' : '#4a7c59',
+                            fontSize: '10px',
+                            fontWeight: selectedBankItem ? 'bold' : 'normal'
+                          }}>
+                            {selectedBankItem ? 'Tap here' : (isTouchDevice() ? 'Tap' : 'Drop')}
+                          </span>
                         )}
                       </div>
                     ))}
@@ -762,21 +877,53 @@ function ConcessionSession({ user, onLogout }) {
                 >
                   <div className="pos-item-bank-header">
                     <span>Available Items</span>
-                    <span style={{ fontSize: '10px', color: '#4a7c59' }}>Drag to grid</span>
+                    <span style={{ fontSize: '10px', color: '#4a7c59' }}>
+                      {isTouchDevice() ? 'Tap to place' : 'Drag to grid'}
+                    </span>
                   </div>
+                  {selectedBankItem && (
+                    <div style={{
+                      padding: '6px 10px',
+                      background: 'rgba(34, 197, 94, 0.2)',
+                      borderBottom: '1px solid #22c55e',
+                      fontSize: '11px',
+                      color: '#22c55e'
+                    }}>
+                      Selected: <strong>{selectedBankItem.name}</strong> — tap a cell to place
+                      <button
+                        onClick={() => setSelectedBankItem(null)}
+                        style={{
+                          marginLeft: '8px',
+                          background: 'none',
+                          border: 'none',
+                          color: '#f59e0b',
+                          cursor: 'pointer',
+                          fontSize: '11px'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   <div className="pos-item-bank-items">
                     {getItemsInBank().length === 0 ? (
                       <p style={{ color: '#4a7c59', fontSize: '11px', textAlign: 'center', margin: 0, padding: '8px' }}>
-                        Drag items here to remove from grid
+                        {isTouchDevice() ? 'Tap grid items to remove' : 'Drag items here to remove from grid'}
                       </p>
                     ) : (
                       getItemsInBank().map((item) => (
                         <div
                           key={item.id}
-                          className="pos-bank-item"
-                          draggable
+                          className={`pos-bank-item ${selectedBankItem?.id === item.id ? 'selected' : ''}`}
+                          draggable={!isTouchDevice()}
                           onDragStart={(e) => handleDragStart(e, item)}
                           onDragEnd={handleDragEnd}
+                          onClick={() => handleBankItemTap(item)}
+                          style={{
+                            cursor: 'pointer',
+                            background: selectedBankItem?.id === item.id ? 'rgba(34, 197, 94, 0.3)' : undefined,
+                            borderColor: selectedBankItem?.id === item.id ? '#22c55e' : undefined
+                          }}
                         >
                           <span className="pos-bank-item-name">{item.name}</span>
                           {item.price !== null ? (
