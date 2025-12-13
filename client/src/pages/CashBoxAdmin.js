@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 function CashBoxAdmin({ user, onLogout }) {
   const navigate = useNavigate();
@@ -119,24 +120,6 @@ function CashBoxAdmin({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
   };
 
   const getStatusBadgeClass = (status) => {
@@ -1052,7 +1035,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     </span>
                   </div>
                   <div style={{ marginTop: '8px', color: '#4a7c59', fontSize: '14px' }}>
-                    Created: {formatDate(session.created_at)}
+                    Created: {formatDateTime(session.created_at)}
                     {session.start_total > 0 && (
                       <span style={{ marginLeft: '16px' }}>
                         Started: {formatCurrency(session.start_total)}
@@ -1286,7 +1269,7 @@ function CashBoxAdmin({ user, onLogout }) {
                       {programLog.map((entry, index) => (
                         <tr key={index}>
                           <td style={{ fontSize: '13px', color: '#4ade80' }}>
-                            {formatDate(entry.created_at)}
+                            {formatDateTime(entry.created_at)}
                           </td>
                           <td style={{ fontSize: '13px', color: '#4a7c59' }}>
                             {entry.session_id === 0 ? 'Manual Adjustment' : entry.session_name || `Session #${entry.session_id}`}
@@ -1778,7 +1761,7 @@ function CashBoxAdmin({ user, onLogout }) {
                   <tbody>
                     {sessions.filter(s => s.status === 'closed' || s.status === 'cancelled').map((session) => (
                       <tr key={session.id}>
-                        <td>{formatDate(session.closed_at || session.created_at)}</td>
+                        <td>{formatDateTime(session.closed_at || session.created_at)}</td>
                         <td>{session.name}</td>
                         <td>{session.program_name}</td>
                         <td>{formatCurrency(session.start_total)}</td>

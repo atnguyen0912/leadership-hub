@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { formatDateWithWeekday, formatTime, calculateHours } from '../utils/formatters';
 
 function ViewAllHours({ user, onLogout }) {
   const [hours, setHours] = useState([]);
@@ -30,33 +31,6 @@ function ViewAllHours({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateHours = (timeIn, timeOut) => {
-    const [inHours, inMinutes] = timeIn.split(':').map(Number);
-    const [outHours, outMinutes] = timeOut.split(':').map(Number);
-    const inTotal = inHours * 60 + inMinutes;
-    const outTotal = outHours * 60 + outMinutes;
-    const diff = outTotal - inTotal;
-    const hrs = Math.floor(diff / 60);
-    const mins = diff % 60;
-    return `${hrs}h ${mins}m`;
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString) => {
-    const [hours, minutes] = timeString.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
 
   const handleCSVUpload = async (e) => {
@@ -233,7 +207,7 @@ function ViewAllHours({ user, onLogout }) {
                   <div style={{ marginBottom: '12px' }}>
                     <strong style={{ color: '#22c55e' }}>{conflict.studentName}</strong>
                     <span style={{ color: '#4ade80', marginLeft: '8px' }}>({conflict.studentId})</span>
-                    <span style={{ color: '#888', marginLeft: '12px' }}>{formatDate(conflict.date)}</span>
+                    <span style={{ color: '#888', marginLeft: '12px' }}>{formatDateWithWeekday(conflict.date)}</span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -415,7 +389,7 @@ function ViewAllHours({ user, onLogout }) {
                         <div>{entry.name}</div>
                         <div style={{ fontSize: '12px', color: '#4ade80' }}>{entry.student_id}</div>
                       </td>
-                      <td>{formatDate(entry.date)}</td>
+                      <td>{formatDateWithWeekday(entry.date)}</td>
                       <td>{formatTime(entry.time_in)}</td>
                       <td>{formatTime(entry.time_out)}</td>
                       <td>{calculateHours(entry.time_in, entry.time_out)}</td>

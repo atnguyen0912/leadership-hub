@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 function CashBox({ user, onLogout }) {
   const [cashbox, setCashbox] = useState(null);
@@ -58,23 +59,6 @@ function CashBox({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
   };
 
   const getStatusInfo = (status) => {
@@ -302,7 +286,7 @@ function CashBox({ user, onLogout }) {
                           </span>
                         </div>
                         <div style={{ color: '#4a7c59', fontSize: '13px' }}>
-                          Created: {formatDate(session.created_at)}
+                          Created: {formatDateTime(session.created_at)}
                         </div>
                         <div style={{
                           marginTop: '12px',
@@ -365,7 +349,7 @@ function CashBox({ user, onLogout }) {
                           flexWrap: 'wrap'
                         }}>
                           <span>Started with: <strong>{formatCurrency(session.start_total)}</strong></span>
-                          <span style={{ color: '#4a7c59' }}>{formatDate(session.started_at)}</span>
+                          <span style={{ color: '#4a7c59' }}>{formatDateTime(session.started_at)}</span>
                         </div>
                         <div style={{
                           marginTop: '12px',

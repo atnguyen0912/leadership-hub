@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { formatDateWithWeekday, formatTime, calculateMinutes, formatMinutes, calculateHours } from '../utils/formatters';
 
 function ViewHours({ user, onLogout }) {
   const [hours, setHours] = useState([]);
@@ -35,23 +36,6 @@ function ViewHours({ user, onLogout }) {
     }
   };
 
-  const calculateMinutes = (timeIn, timeOut) => {
-    const [inHours, inMinutes] = timeIn.split(':').map(Number);
-    const [outHours, outMinutes] = timeOut.split(':').map(Number);
-    const inTotal = inHours * 60 + inMinutes;
-    const outTotal = outHours * 60 + outMinutes;
-    return outTotal - inTotal;
-  };
-
-  const formatMinutes = (totalMinutes) => {
-    const hrs = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    return `${hrs}h ${mins}m`;
-  };
-
-  const calculateHours = (timeIn, timeOut) => {
-    return formatMinutes(calculateMinutes(timeIn, timeOut));
-  };
 
   const getAggregateHours = () => {
     const now = new Date();
@@ -118,22 +102,6 @@ function ViewHours({ user, onLogout }) {
     });
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const formatTime = (timeString) => {
-    const [hours, minutes] = timeString.split(':');
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
-
   // Edit/Delete handlers
   const handleEdit = (entry) => {
     setEditingEntry(entry);
@@ -190,7 +158,7 @@ function ViewHours({ user, onLogout }) {
   };
 
   const handleDelete = async (entry) => {
-    if (!window.confirm(`Delete this entry from ${formatDate(entry.date)}?`)) {
+    if (!window.confirm(`Delete this entry from ${formatDateWithWeekday(entry.date)}?`)) {
       return;
     }
 
@@ -310,7 +278,7 @@ function ViewHours({ user, onLogout }) {
                   <tbody>
                     {entries.map((entry) => (
                       <tr key={entry.id}>
-                        <td>{formatDate(entry.date)}</td>
+                        <td>{formatDateWithWeekday(entry.date)}</td>
                         <td>{formatTime(entry.time_in)}</td>
                         <td>{formatTime(entry.time_out)}</td>
                         <td>{calculateHours(entry.time_in, entry.time_out)}</td>
@@ -343,7 +311,7 @@ function ViewHours({ user, onLogout }) {
                 {entries.map((entry) => (
                   <div key={entry.id} className="hours-entry-card">
                     <div className="hours-entry-header">
-                      <span className="hours-entry-date">{formatDate(entry.date)}</span>
+                      <span className="hours-entry-date">{formatDateWithWeekday(entry.date)}</span>
                       <span className="hours-entry-duration">{calculateHours(entry.time_in, entry.time_out)}</span>
                     </div>
                     <div className="hours-entry-times">

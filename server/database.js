@@ -395,7 +395,19 @@ const initialize = () => {
             FOREIGN KEY (student_id) REFERENCES students(student_id),
             UNIQUE(event_id, student_id)
           )
-        `, [], (err) => {
+        `);
+
+        // Create indexes for better query performance
+        db.run(`CREATE INDEX IF NOT EXISTS idx_hours_student_id ON hours(student_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_hours_date ON hours(date)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_events_created_by ON events(created_by)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_event_attendees_student ON event_attendees(student_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_event_attendees_event ON event_attendees(event_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_status ON concession_sessions(status)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_program ON concession_sessions(program_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)`, [], (err) => {
           if (err) {
             reject(err);
             return;

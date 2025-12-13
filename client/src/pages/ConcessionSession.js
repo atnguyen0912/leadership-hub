@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { formatCurrency, formatDateTime } from '../utils/formatters';
 
 function ConcessionSession({ user, onLogout }) {
   const { id } = useParams();
@@ -100,24 +101,6 @@ function ConcessionSession({ user, onLogout }) {
       bills50 * 50 +
       bills100 * 100
     );
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value);
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
   };
 
   const handleStartSession = async (e) => {
@@ -1317,7 +1300,7 @@ function ConcessionSession({ user, onLogout }) {
                 {session.program_name}
               </h2>
               <p style={{ color: '#4a7c59', fontSize: '14px' }}>
-                Created: {formatDate(session.created_at)}
+                Created: {formatDateTime(session.created_at)}
               </p>
             </div>
             <span className={`status-badge ${session.status === 'created' ? 'pending' : session.status === 'active' ? 'approved' : session.status === 'closed' ? 'completed' : 'rejected'}`}>
