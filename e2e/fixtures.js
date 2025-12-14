@@ -14,7 +14,7 @@ exports.test = base.extend({
   studentPage: async ({ page }, use) => {
     await page.goto('/');
     await page.getByPlaceholder(/enter your student id/i).fill(TEST_STUDENT.studentId);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Login' }).click();
 
     // Wait for either dashboard or error
     try {
@@ -32,7 +32,7 @@ exports.test = base.extend({
     await page.goto('/');
     await page.getByRole('button', { name: /admin/i }).click();
     await page.getByPlaceholder(/enter admin password/i).fill(TEST_ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByRole('button', { name: 'Login' }).click();
 
     try {
       await page.waitForURL('**/admin/**', { timeout: 10000 });
