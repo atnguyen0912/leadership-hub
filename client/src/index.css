@@ -501,6 +501,113 @@ body {
   }
 }
 
+/* ==================== DASHBOARD LAYOUT ==================== */
+.dashboard-layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-lg);
+}
+
+@media (min-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 280px 1fr;
+    align-items: start;
+  }
+}
+
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.dashboard-main {
+  min-width: 0; /* Prevent overflow */
+}
+
+/* Compact Stats */
+.compact-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) !important;
+}
+
+.compact-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-sm);
+  border-radius: 8px;
+  background: var(--color-background);
+}
+
+.compact-stat.primary {
+  background: var(--color-primary);
+  color: var(--color-background);
+}
+
+.compact-stat.primary .compact-stat-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.compact-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.compact-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Quick Actions */
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+}
+
+.quick-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  gap: 6px;
+}
+
+.quick-action-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.quick-action-icon {
+  font-size: 1.5rem;
+}
+
+.quick-action-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 /* Card width variants */
 .card.card-narrow {
   max-width: 600px;
