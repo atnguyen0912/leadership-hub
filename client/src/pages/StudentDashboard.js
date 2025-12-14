@@ -30,7 +30,7 @@ function StudentDashboard() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="container-narrow">
         <h1 className="page-title">Student Dashboard</h1>
 
         {/* Stats Cards */}

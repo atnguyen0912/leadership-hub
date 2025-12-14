@@ -385,7 +385,7 @@ function ViewHours() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="container-narrow">
           <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
@@ -397,7 +397,7 @@ function ViewHours() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="container-narrow">
         <h1 className="page-title">My Hours</h1>
 
         {error && <div className="card"><div className="error-message">{error}</div></div>}

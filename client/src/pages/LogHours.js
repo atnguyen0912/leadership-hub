@@ -201,7 +201,7 @@ function LogHours() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="container-narrow">
         <h1 className="page-title">Log Hours</h1>
 
         {/* Mode Toggle */}
