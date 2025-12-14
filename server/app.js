@@ -63,11 +63,13 @@ app.use('/api/cashapp', authenticateToken, requireAdmin, cashappRoutes);
 app.use('/api/losses', authenticateToken, requireAdmin, lossesRoutes);
 app.use('/api/reports', authenticateToken, requireAdmin, reportsRoutes);
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
+// Serve static files from React build
+const buildPath = path.join(__dirname, '../client/build');
+const fs = require('fs');
+if (fs.existsSync(buildPath)) {
+  app.use(express.static(buildPath));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+    res.sendFile(path.join(buildPath, 'index.html'));
   });
 }
 

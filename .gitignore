@@ -3,3 +3,9 @@ node_modules/
 *.db
 client/build/
 .DS_Store
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
