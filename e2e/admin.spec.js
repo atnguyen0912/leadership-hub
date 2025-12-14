@@ -31,26 +31,26 @@ test.describe('Admin Dashboard', () => {
 
 test.describe('Admin - Manage Students', () => {
   test('displays student list', async ({ adminPage }) => {
-    await adminPage.goto('/admin/students');
+    await adminPage.goto('/manage-students');
 
-    await expect(adminPage.getByRole('heading', { name: /manage students/i })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: 'Manage Students' })).toBeVisible();
   });
 
   test('has add student form', async ({ adminPage }) => {
-    await adminPage.goto('/admin/students');
+    await adminPage.goto('/manage-students');
 
-    await expect(adminPage.getByLabel(/student id/i)).toBeVisible();
-    await expect(adminPage.getByLabel(/name/i)).toBeVisible();
+    await expect(adminPage.getByLabel('Student ID')).toBeVisible();
+    await expect(adminPage.getByLabel('Full Name')).toBeVisible();
   });
 
   test('has CSV upload option', async ({ adminPage }) => {
-    await adminPage.goto('/admin/students');
+    await adminPage.goto('/manage-students');
 
     await expect(adminPage.getByText(/csv|upload|import/i).first()).toBeVisible();
   });
 
   test('shows student table with actions', async ({ adminPage }) => {
-    await adminPage.goto('/admin/students');
+    await adminPage.goto('/manage-students');
 
     // Table should exist
     const table = adminPage.getByRole('table');
@@ -62,19 +62,19 @@ test.describe('Admin - Manage Students', () => {
 
 test.describe('Admin - View All Hours', () => {
   test('displays all hours page', async ({ adminPage }) => {
-    await adminPage.goto('/admin/hours');
+    await adminPage.goto('/view-all-hours');
 
-    await expect(adminPage.getByRole('heading', { name: /all hours/i })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: 'All Hours' })).toBeVisible();
   });
 
   test('shows summary by student', async ({ adminPage }) => {
-    await adminPage.goto('/admin/hours');
+    await adminPage.goto('/view-all-hours');
 
     await expect(adminPage.getByText(/summary|student/i).first()).toBeVisible();
   });
 
   test('has CSV import functionality', async ({ adminPage }) => {
-    await adminPage.goto('/admin/hours');
+    await adminPage.goto('/view-all-hours');
 
     await expect(adminPage.getByText(/import|csv|upload/i).first()).toBeVisible();
   });
@@ -82,13 +82,13 @@ test.describe('Admin - View All Hours', () => {
 
 test.describe('Admin - Events Management', () => {
   test('displays events management page', async ({ adminPage }) => {
-    await adminPage.goto('/admin/events');
+    await adminPage.goto('/events-admin');
 
-    await expect(adminPage.getByRole('heading', { name: /event/i })).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: 'Events Management' })).toBeVisible();
   });
 
   test('shows event list with status filters', async ({ adminPage }) => {
-    await adminPage.goto('/admin/events');
+    await adminPage.goto('/events-admin');
 
     // Should have status filter
     const statusFilter = adminPage.getByRole('combobox').or(

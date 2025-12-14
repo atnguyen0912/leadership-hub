@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
-const { authenticateToken, requireAdmin } = require('./middleware/auth');
+const { authenticateToken, requireAdmin, attachPermissions, requirePermission } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const studentsRoutes = require('./routes/students');
 const hoursRoutes = require('./routes/hours');
@@ -54,14 +54,16 @@ app.use('/api/menu', authenticateToken, menuRoutes);
 app.use('/api/orders', authenticateToken, ordersRoutes);
 app.use('/api/events', authenticateToken, eventsRoutes);
 
+// Permission-based routes (students with specific permissions can access)
+app.use('/api/cashbox', authenticateToken, attachPermissions, cashboxRoutes);
+app.use('/api/inventory', authenticateToken, attachPermissions, inventoryRoutes);
+app.use('/api/purchases', authenticateToken, attachPermissions, purchasesRoutes);
+
 // Admin-only routes
-app.use('/api/cashbox', authenticateToken, requireAdmin, cashboxRoutes);
 app.use('/api/permissions', authenticateToken, requireAdmin, permissionsRoutes);
-app.use('/api/purchases', authenticateToken, requireAdmin, purchasesRoutes);
-app.use('/api/inventory', authenticateToken, requireAdmin, inventoryRoutes);
 app.use('/api/cashapp', authenticateToken, requireAdmin, cashappRoutes);
 app.use('/api/losses', authenticateToken, requireAdmin, lossesRoutes);
-app.use('/api/reports', authenticateToken, requireAdmin, reportsRoutes);
+app.use('/api/reports', authenticateToken, requirePermission('reports.view'), reportsRoutes);
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '../client/build');

@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../database');
 const { run, get, all, transaction } = require('../db-utils');
+const { requirePermission } = require('../middleware/auth');
+
+// Helper to check if user has a specific permission (from attachPermissions middleware)
+const hasPermission = (req, permission) => {
+  if (!req.userPermissions) return false;
+  if (req.userPermissions.includes('admin.*')) return true;
+  if (req.userPermissions.includes(permission)) return true;
+
+  // Check wildcard
+  const parts = permission.split('.');
+  if (parts.length > 1) {
+    const wildcardPerm = parts[0] + '.*';
+    if (req.userPermissions.includes(wildcardPerm)) return true;
+  }
+  return false;
+};
 
 // Helper function to calculate total value from denomination counts
 const calculateTotal = (row, prefix = '') => {
@@ -19,8 +35,8 @@ const calculateTotal = (row, prefix = '') => {
 
 // ==================== MAIN CASHBOX ====================
 
-// GET /api/cashbox - Get current cashbox state
-router.get('/', (req, res) => {
+// GET /api/cashbox - Get current cashbox state (requires cashbox.view permission)
+router.get('/', requirePermission('cashbox.view'), (req, res) => {
   const db = getDb();
   db.get('SELECT * FROM cashbox WHERE id = 1', [], (err, row) => {
     if (err) {
@@ -34,8 +50,8 @@ router.get('/', (req, res) => {
   });
 });
 
-// POST /api/cashbox/update - Admin manually updates main cashbox
-router.post('/update', (req, res) => {
+// POST /api/cashbox/update - Admin manually updates main cashbox (requires cashbox.manage)
+router.post('/update', requirePermission('cashbox.manage'), (req, res) => {
   const {
     quarters = 0,
     bills_1 = 0,
@@ -326,7 +342,7 @@ router.get('/sessions', (req, res) => {
   });
 });
 
-// GET /api/cashbox/sessions/active - List active/created sessions
+// GET /api/cashbox/sessions/active - List active/created sessions (any authenticated user)
 router.get('/sessions/active', (req, res) => {
   const db = getDb();
   db.all(
@@ -345,8 +361,8 @@ router.get('/sessions/active', (req, res) => {
   );
 });
 
-// GET /api/cashbox/sessions/:id - Get session details
-router.get('/sessions/:id', (req, res) => {
+// GET /api/cashbox/sessions/:id - Get session details (requires sessions.run)
+router.get('/sessions/:id', requirePermission('sessions.run'), (req, res) => {
   const { id } = req.params;
   const db = getDb();
 
@@ -368,8 +384,8 @@ router.get('/sessions/:id', (req, res) => {
   );
 });
 
-// POST /api/cashbox/sessions - Create new session (Admin)
-router.post('/sessions', (req, res) => {
+// POST /api/cashbox/sessions - Create new session (requires sessions.create)
+router.post('/sessions', requirePermission('sessions.create'), (req, res) => {
   const { name, programId, createdBy, isTest = false } = req.body;
 
   if (!name || !name.trim()) {
@@ -403,8 +419,8 @@ router.post('/sessions', (req, res) => {
   });
 });
 
-// POST /api/cashbox/sessions/:id/start - Fill starting cash (Student)
-router.post('/sessions/:id/start', async (req, res) => {
+// POST /api/cashbox/sessions/:id/start - Fill starting cash (requires sessions.start)
+router.post('/sessions/:id/start', requirePermission('sessions.start'), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -514,8 +530,8 @@ router.post('/sessions/:id/start', async (req, res) => {
   }
 });
 
-// POST /api/cashbox/sessions/:id/close - Close session with ending cash
-router.post('/sessions/:id/close', async (req, res) => {
+// POST /api/cashbox/sessions/:id/close - Close session with ending cash (requires sessions.close)
+router.post('/sessions/:id/close', requirePermission('sessions.close'), async (req, res) => {
   try {
     const { id } = req.params;
     const {

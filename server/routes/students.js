@@ -9,6 +9,19 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 const STUDENTS_CSV_PATH = path.join(__dirname, '..', 'students.csv');
 
+// Helper to assign student to default Member group
+const assignToMemberGroup = (db, studentId) => {
+  // Find the Member group and add student to it
+  db.get('SELECT id FROM permission_groups WHERE name = ?', ['Member'], (err, group) => {
+    if (!err && group) {
+      db.run(
+        'INSERT OR IGNORE INTO student_groups (student_id, group_id) VALUES (?, ?)',
+        [studentId, group.id]
+      );
+    }
+  });
+};
+
 // Student ID validation: 6 digits + M/F/X + 3 digits (e.g., 123456M789)
 const STUDENT_ID_REGEX = /^\d{6}[MFX]\d{3}$/;
 
@@ -68,6 +81,10 @@ router.post('/', (req, res) => {
         }
         return res.status(500).json({ error: 'Database error' });
       }
+
+      // Auto-assign to Member group
+      assignToMemberGroup(db, studentId);
+
       res.json({ success: true, id: this.lastID });
     }
   );
@@ -135,6 +152,8 @@ router.post('/upload-csv', upload.single('file'), (req, res) => {
             }
           } else {
             results.push({ studentId, name });
+            // Auto-assign to Member group
+            assignToMemberGroup(db, studentIdStr);
           }
 
           processed++;

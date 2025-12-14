@@ -2,24 +2,58 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../database');
 
+// Protected groups that cannot be edited or deleted
+const PROTECTED_GROUPS = ['Admin', 'Member'];
+
+// Default Member permissions - these are automatically assigned to all students
+// and cannot be changed. Based on expected workflow:
+// - Every member can log and view their own hours
+// - Every member can view events
+// - Every member can use the concessions POS
+const DEFAULT_MEMBER_PERMISSIONS = [
+  'hours.log_own',
+  'hours.view_own',
+  'events.view',
+  'sessions.view',
+  'sessions.run'
+];
+
 // Available permissions in the system
 const AVAILABLE_PERMISSIONS = [
+  // Admin
   { key: 'admin.*', label: 'Full Admin Access', category: 'Admin' },
+
+  // Concessions/Sessions
+  { key: 'sessions.view', label: 'View Active Sessions', category: 'Concessions' },
   { key: 'sessions.create', label: 'Create Sessions', category: 'Concessions' },
-  { key: 'sessions.start', label: 'Start Sessions', category: 'Concessions' },
+  { key: 'sessions.start', label: 'Start Sessions (Cash Count)', category: 'Concessions' },
   { key: 'sessions.run', label: 'Run POS Counter', category: 'Concessions' },
   { key: 'sessions.close', label: 'Close Sessions', category: 'Concessions' },
+
+  // Inventory
   { key: 'inventory.view', label: 'View Inventory', category: 'Inventory' },
   { key: 'inventory.count', label: 'Count Inventory', category: 'Inventory' },
   { key: 'inventory.adjust', label: 'Adjust Inventory', category: 'Inventory' },
   { key: 'purchases.enter', label: 'Enter Purchases', category: 'Inventory' },
   { key: 'purchases.stock_update', label: 'Stock Updates', category: 'Inventory' },
+
+  // Menu & Cashbox
   { key: 'menu.edit', label: 'Edit Menu', category: 'Menu' },
-  { key: 'cashbox.view', label: 'View Cashbox', category: 'Cashbox' },
+  { key: 'cashbox.view', label: 'View Cashbox Balance', category: 'Cashbox' },
   { key: 'cashbox.manage', label: 'Manage Cashbox', category: 'Cashbox' },
-  { key: 'hours.approve', label: 'Approve Hours', category: 'Hours' },
-  { key: 'hours.view_all', label: 'View All Hours', category: 'Hours' },
+
+  // Hours
   { key: 'hours.log_own', label: 'Log Own Hours', category: 'Hours' },
+  { key: 'hours.view_own', label: 'View Own Hours', category: 'Hours' },
+  { key: 'hours.view_all', label: 'View All Hours', category: 'Hours' },
+  { key: 'hours.approve', label: 'Approve Hours', category: 'Hours' },
+
+  // Events
+  { key: 'events.view', label: 'View Events', category: 'Events' },
+  { key: 'events.create', label: 'Create Events', category: 'Events' },
+  { key: 'events.manage', label: 'Manage Events', category: 'Events' },
+
+  // Reports
   { key: 'reports.view', label: 'View Reports', category: 'Reports' },
   { key: 'reports.export', label: 'Export Data', category: 'Reports' }
 ];
@@ -27,6 +61,18 @@ const AVAILABLE_PERMISSIONS = [
 // Get list of available permissions
 router.get('/available', (req, res) => {
   res.json(AVAILABLE_PERMISSIONS);
+});
+
+// Get default member permissions (these are fixed and cannot be changed)
+router.get('/member-defaults', (req, res) => {
+  res.json({
+    permissions: DEFAULT_MEMBER_PERMISSIONS,
+    description: 'Default permissions automatically granted to all members. These cannot be modified.',
+    labels: DEFAULT_MEMBER_PERMISSIONS.map(key => {
+      const perm = AVAILABLE_PERMISSIONS.find(p => p.key === key);
+      return { key, label: perm ? perm.label : key };
+    })
+  });
 });
 
 // Get all permission groups
@@ -71,6 +117,7 @@ router.get('/groups', (req, res) => {
 
           groups.forEach(g => {
             g.permissions = permsByGroup[g.id] || [];
+            g.isProtected = PROTECTED_GROUPS.includes(g.name);
           });
 
           res.json(groups);
@@ -116,6 +163,7 @@ router.get('/groups/:id', (req, res) => {
               return res.status(500).json({ error: err.message });
             }
             group.members = members;
+            group.isProtected = PROTECTED_GROUPS.includes(group.name);
             res.json(group);
           }
         );
@@ -175,10 +223,26 @@ router.put('/groups/:id', (req, res) => {
     return res.status(400).json({ error: 'Group name is required' });
   }
 
-  db.run(
-    'UPDATE permission_groups SET name = ?, description = ? WHERE id = ?',
-    [name, description || '', id],
-    function(err) {
+  // Check if this is a protected group
+  db.get('SELECT name FROM permission_groups WHERE id = ?', [id], (err, group) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    if (PROTECTED_GROUPS.includes(group.name)) {
+      return res.status(400).json({
+        error: 'Cannot modify protected group',
+        message: `The "${group.name}" group has fixed permissions and cannot be edited.`
+      });
+    }
+
+    db.run(
+      'UPDATE permission_groups SET name = ?, description = ? WHERE id = ?',
+      [name, description || '', id],
+      function(err) {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -203,8 +267,9 @@ router.put('/groups/:id', (req, res) => {
 
         res.json({ id: parseInt(id), name, description, permissions: permissions || [] });
       });
-    }
-  );
+      }
+    );
+  });
 });
 
 // Delete permission group
@@ -221,9 +286,11 @@ router.delete('/groups/:id', (req, res) => {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    const protectedGroups = ['Admin', 'Member'];
-    if (protectedGroups.includes(group.name)) {
-      return res.status(400).json({ error: 'Cannot delete protected group' });
+    if (PROTECTED_GROUPS.includes(group.name)) {
+      return res.status(400).json({
+        error: 'Cannot delete protected group',
+        message: `The "${group.name}" group is protected and cannot be deleted.`
+      });
     }
 
     // Delete group permissions first
@@ -413,3 +480,5 @@ const hasPermission = (studentId, permission) => {
 
 module.exports = router;
 module.exports.hasPermission = hasPermission;
+module.exports.DEFAULT_MEMBER_PERMISSIONS = DEFAULT_MEMBER_PERMISSIONS;
+module.exports.PROTECTED_GROUPS = PROTECTED_GROUPS;

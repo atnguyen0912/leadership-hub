@@ -701,11 +701,36 @@ const initialize = () => {
             if (!err && row && row.count === 0) {
               // Create default groups
               const defaultGroups = [
-                { name: 'Admin', description: 'Full system access', permissions: ['admin.*'] },
-                { name: 'Concessions Lead', description: 'Manage concessions, inventory, purchases', permissions: ['sessions.create', 'sessions.start', 'sessions.run', 'sessions.close', 'inventory.view', 'inventory.count', 'inventory.adjust', 'purchases.enter', 'purchases.stock_update', 'menu.edit', 'cashbox.view'] },
-                { name: 'Concessions Worker', description: 'Run POS and count inventory', permissions: ['sessions.run', 'inventory.view', 'inventory.count'] },
-                { name: 'Events Lead', description: 'Manage events and approve hours', permissions: ['hours.approve', 'hours.view_all'] },
-                { name: 'Member', description: 'Basic member access', permissions: ['hours.log_own'] }
+                {
+                  name: 'Admin',
+                  description: 'Full system access - can do everything',
+                  permissions: ['admin.*']
+                },
+                {
+                  name: 'Concessions Lead',
+                  description: 'Manage concessions sessions, inventory, and purchases',
+                  permissions: [
+                    'sessions.view', 'sessions.create', 'sessions.start', 'sessions.run', 'sessions.close',
+                    'inventory.view', 'inventory.count', 'inventory.adjust',
+                    'purchases.enter', 'purchases.stock_update',
+                    'menu.edit', 'cashbox.view'
+                  ]
+                },
+                {
+                  name: 'Concessions Worker',
+                  description: 'Run concessions POS and count inventory',
+                  permissions: ['sessions.view', 'sessions.run', 'inventory.view', 'inventory.count']
+                },
+                {
+                  name: 'Events Lead',
+                  description: 'Create and manage events, view all hours',
+                  permissions: ['events.view', 'events.create', 'events.manage', 'hours.view_all']
+                },
+                {
+                  name: 'Member',
+                  description: 'Standard student member - can log hours, view events, and use concessions POS',
+                  permissions: ['hours.log_own', 'hours.view_own', 'events.view', 'sessions.view', 'sessions.run']
+                }
               ];
 
               defaultGroups.forEach((group) => {
@@ -723,6 +748,23 @@ const initialize = () => {
                 );
               });
             }
+
+            // Auto-assign all existing students to Member group if they're not in any group
+            setTimeout(() => {
+              db.get('SELECT id FROM permission_groups WHERE name = ?', ['Member'], (err, memberGroup) => {
+                if (!err && memberGroup) {
+                  db.run(`
+                    INSERT OR IGNORE INTO student_groups (student_id, group_id)
+                    SELECT student_id, ? FROM students
+                    WHERE student_id NOT IN (SELECT DISTINCT student_id FROM student_groups)
+                  `, [memberGroup.id], function(err) {
+                    if (!err && this.changes > 0) {
+                      console.log(`Auto-assigned ${this.changes} existing students to Member group`);
+                    }
+                  });
+                }
+              });
+            }, 1000); // Delay to ensure groups are created first
           });
 
           // Insert default programs if none exist
