@@ -9,7 +9,7 @@ const getLocalDateString = (date = new Date()) => {
   return date.toLocaleDateString('en-CA');
 };
 
-function AdminStudentProfile({ user, onLogout }) {
+function AdminStudentProfile() {
   const { studentId } = useParams();
   const navigate = useNavigate();
 
@@ -266,7 +266,7 @@ function AdminStudentProfile({ user, onLogout }) {
       <div className="calendar-container">
         <div className="calendar-header">
           <button className="btn" onClick={() => navigateMonth(-1)}>&lt;</button>
-          <h2 style={{ margin: 0, color: '#22c55e' }}>
+          <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </h2>
           <button className="btn" onClick={() => navigateMonth(1)}>&gt;</button>
@@ -288,14 +288,14 @@ function AdminStudentProfile({ user, onLogout }) {
     if (entries.length === 0) {
       return (
         <div className="card" style={{ marginTop: '16px' }}>
-          <p style={{ color: '#6b7280', textAlign: 'center' }}>No hours logged on this day</p>
+          <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>No hours logged on this day</p>
         </div>
       );
     }
 
     return (
       <div className="card" style={{ marginTop: '16px' }}>
-        <h3 style={{ color: '#22c55e', marginBottom: '12px' }}>
+        <h3 style={{ color: 'var(--color-primary)', marginBottom: '12px' }}>
           {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </h3>
         {entries.map(entry => (
@@ -317,15 +317,15 @@ function AdminStudentProfile({ user, onLogout }) {
               >
                 {getHourTypeLabel(entry.hour_type)}
               </span>
-              <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
+              <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
                 {calculateHours(entry.time_in, entry.time_out)}
               </span>
             </div>
-            <div style={{ color: '#9ca3af' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>
               {formatTime(entry.time_in)} - {formatTime(entry.time_out)}
             </div>
             {entry.item && (
-              <div style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px' }}>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginTop: '4px' }}>
                 {entry.item}
               </div>
             )}
@@ -337,7 +337,7 @@ function AdminStudentProfile({ user, onLogout }) {
 
   const renderList = () => {
     if (hours.length === 0) {
-      return <p style={{ textAlign: 'center', color: '#4ade80' }}>No hours logged yet.</p>;
+      return <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No hours logged yet.</p>;
     }
 
     const grouped = {};
@@ -401,7 +401,7 @@ function AdminStudentProfile({ user, onLogout }) {
                         <td>{formatTime(entry.time_in)}</td>
                         <td>{formatTime(entry.time_out)}</td>
                         <td>{calculateHours(entry.time_in, entry.time_out)}</td>
-                        <td style={{ color: '#9ca3af' }}>{entry.item || '-'}</td>
+                        <td style={{ color: 'var(--color-text-muted)' }}>{entry.item || '-'}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
@@ -483,7 +483,7 @@ function AdminStudentProfile({ user, onLogout }) {
 
     return (
       <div className="card" style={{ marginBottom: '24px' }}>
-        <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Hours by Type</h3>
+        <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Hours by Type</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {HOUR_TYPES.map(type => {
             const minutes = byType[type.value] || 0;
@@ -503,7 +503,7 @@ function AdminStudentProfile({ user, onLogout }) {
                     ></span>
                     {type.label}
                   </span>
-                  <span style={{ color: '#9ca3af' }}>{formatMinutes(minutes)}</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{formatMinutes(minutes)}</span>
                 </div>
                 <div style={{
                   height: '8px',
@@ -530,9 +530,9 @@ function AdminStudentProfile({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
-          <p style={{ color: '#22c55e' }}>Loading...</p>
+          <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -541,7 +541,7 @@ function AdminStudentProfile({ user, onLogout }) {
   if (error) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <button
             className="btn"
@@ -562,7 +562,7 @@ function AdminStudentProfile({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <button
           className="btn"
@@ -579,7 +579,7 @@ function AdminStudentProfile({ user, onLogout }) {
         {editingEntry && (
           <div className="modal-overlay" onClick={handleCancelEdit}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>Edit Entry</h2>
+              <h2 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>Edit Entry</h2>
               <div className="form-group">
                 <label htmlFor="edit-date">Date</label>
                 <input
@@ -661,7 +661,7 @@ function AdminStudentProfile({ user, onLogout }) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <h1 className="page-title" style={{ margin: 0 }}>{student?.name}</h1>
-          <div style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold' }}>
+          <div style={{ color: 'var(--color-primary)', fontSize: '24px', fontWeight: 'bold' }}>
             Total: {aggregates.total}
           </div>
         </div>

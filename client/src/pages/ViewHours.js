@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { formatDateWithWeekday, formatTime, calculateMinutes, formatMinutes, calculateHours } from '../utils/formatters';
 import { HOUR_TYPES, getHourTypeLabel, getHourTypeColor } from '../utils/hourTypes';
+import { useAuth } from '../contexts';
 
 // Helper to get date string in local timezone (YYYY-MM-DD format)
 const getLocalDateString = (date = new Date()) => {
   return date.toLocaleDateString('en-CA'); // en-CA uses YYYY-MM-DD format
 };
 
-function ViewHours({ user, onLogout }) {
+function ViewHours() {
+  const { user } = useAuth();
   const [hours, setHours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -223,7 +225,7 @@ function ViewHours({ user, onLogout }) {
       <div className="calendar-container">
         <div className="calendar-header">
           <button className="btn" onClick={() => navigateMonth(-1)}>&lt;</button>
-          <h2 style={{ margin: 0, color: '#22c55e' }}>
+          <h2 style={{ margin: 0, color: 'var(--color-primary)' }}>
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </h2>
           <button className="btn" onClick={() => navigateMonth(1)}>&gt;</button>
@@ -240,7 +242,7 @@ function ViewHours({ user, onLogout }) {
 
   const renderList = () => {
     if (hours.length === 0) {
-      return <p style={{ textAlign: 'center', color: '#4ade80' }}>No hours logged yet.</p>;
+      return <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No hours logged yet.</p>;
     }
 
     const grouped = {};
@@ -382,9 +384,9 @@ function ViewHours({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
-          <p style={{ color: '#22c55e' }}>Loading...</p>
+          <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -394,7 +396,7 @@ function ViewHours({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">My Hours</h1>
 
@@ -405,7 +407,7 @@ function ViewHours({ user, onLogout }) {
         {editingEntry && (
           <div className="modal-overlay" onClick={handleCancelEdit}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>Edit Entry</h2>
+              <h2 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>Edit Entry</h2>
               <div className="form-group">
                 <label htmlFor="edit-date">Date</label>
                 <input

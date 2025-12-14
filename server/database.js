@@ -769,7 +769,11 @@ const initialize = () => {
             }
 
             if (!row) {
-              const hashedPassword = bcrypt.hashSync('leadership2025', 10);
+              const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'changeme123';
+              if (!process.env.DEFAULT_ADMIN_PASSWORD) {
+                console.warn('WARNING: Using default admin password. Set DEFAULT_ADMIN_PASSWORD environment variable in production!');
+              }
+              const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
               db.run('INSERT INTO admin (password) VALUES (?)', [hashedPassword], (err) => {
                 if (err) reject(err);
                 else resolve();

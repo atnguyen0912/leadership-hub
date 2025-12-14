@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatDecimalHours } from '../utils/formatters';
 
-function AdminDashboard({ user, onLogout }) {
+function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFullLeaderboard, setShowFullLeaderboard] = useState(false);
@@ -60,7 +60,7 @@ function AdminDashboard({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Admin Dashboard</h1>
 
@@ -89,7 +89,7 @@ function AdminDashboard({ user, onLogout }) {
             {/* Leaderboard */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>Hours Leaderboard</h2>
+                <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>Hours Leaderboard</h2>
                 <button className="btn btn-small" onClick={exportToCSV}>
                   Export CSV
                 </button>
@@ -117,13 +117,13 @@ function AdminDashboard({ user, onLogout }) {
                         <td>
                           <span style={{ fontWeight: index < 3 ? 600 : 400 }}>{student.name}</span>
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#22c55e' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--color-primary)' }}>
                           {formatDecimalHours(student.totalHours)}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#4ade80' }}>
+                        <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
                           {formatDecimalHours(student.monthHours)}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#4a7c59' }}>
+                        <td style={{ textAlign: 'right', color: 'var(--color-text-subtle)' }}>
                           {formatDecimalHours(student.weekHours)}
                         </td>
                       </tr>
@@ -135,7 +135,7 @@ function AdminDashboard({ user, onLogout }) {
                 <button
                   className="btn btn-small"
                   onClick={() => setShowFullLeaderboard(!showFullLeaderboard)}
-                  style={{ marginTop: '12px', width: '100%', background: '#333' }}
+                  style={{ marginTop: '12px', width: '100%', background: 'var(--color-border)' }}
                 >
                   {showFullLeaderboard ? 'Show Less' : `Show All (${stats.leaderboard.length})`}
                 </button>

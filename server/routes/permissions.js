@@ -51,9 +51,10 @@ router.get('/groups', (req, res) => {
         return res.json([]);
       }
 
+      const placeholders = groupIds.map(() => '?').join(',');
       db.all(
-        `SELECT group_id, permission FROM group_permissions WHERE group_id IN (${groupIds.join(',')})`,
-        [],
+        `SELECT group_id, permission FROM group_permissions WHERE group_id IN (${placeholders})`,
+        groupIds,
         (err, perms) => {
           if (err) {
             return res.status(500).json({ error: err.message });

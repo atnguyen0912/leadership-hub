@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatDateWithWeekday, formatTime, calculateHours } from '../utils/formatters';
 
-function ViewAllHours({ user, onLogout }) {
+function ViewAllHours() {
   const [hours, setHours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -166,7 +166,7 @@ function ViewAllHours({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <p>Loading...</p>
         </div>
@@ -178,7 +178,7 @@ function ViewAllHours({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">All Hours</h1>
 
@@ -187,11 +187,11 @@ function ViewAllHours({ user, onLogout }) {
 
         {/* Conflict Resolution UI */}
         {conflicts.length > 0 && (
-          <div className="card" style={{ borderColor: '#eab308' }}>
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="card" style={{ borderColor: 'var(--color-warning)' }}>
+            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span>⚠️</span> Resolve Conflicts ({conflicts.length})
             </h2>
-            <p style={{ marginBottom: '16px', color: '#4a7c59', fontSize: '14px' }}>
+            <p style={{ marginBottom: '16px', color: 'var(--color-text-subtle)', fontSize: '14px' }}>
               These entries have different times for the same student and date. Choose which to keep.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -200,36 +200,36 @@ function ViewAllHours({ user, onLogout }) {
                   key={index}
                   style={{
                     padding: '16px',
-                    background: '#1a1a1a',
+                    background: 'var(--color-bg-input)',
                     borderRadius: '8px',
-                    border: '1px solid #333'
+                    border: '1px solid var(--color-border)'
                   }}
                 >
                   <div style={{ marginBottom: '12px' }}>
-                    <strong style={{ color: '#22c55e' }}>{conflict.studentName}</strong>
-                    <span style={{ color: '#4ade80', marginLeft: '8px' }}>({conflict.studentId})</span>
-                    <span style={{ color: '#888', marginLeft: '12px' }}>{formatDateWithWeekday(conflict.date)}</span>
+                    <strong style={{ color: 'var(--color-primary)' }}>{conflict.studentName}</strong>
+                    <span style={{ color: 'var(--color-text-muted)', marginLeft: '8px' }}>({conflict.studentId})</span>
+                    <span style={{ color: 'var(--color-text-subtle)', marginLeft: '12px' }}>{formatDateWithWeekday(conflict.date)}</span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                     {/* Existing Entry */}
                     <div style={{
                       padding: '12px',
-                      background: '#0a0a0a',
+                      background: 'var(--color-bg)',
                       borderRadius: '6px',
-                      border: '1px solid #333'
+                      border: '1px solid var(--color-border)'
                     }}>
-                      <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)', marginBottom: '8px', textTransform: 'uppercase' }}>
                         Current Entry
                       </div>
-                      <div style={{ color: '#fff', fontWeight: 600 }}>
+                      <div style={{ color: 'var(--color-text)', fontWeight: 600 }}>
                         {formatTime(conflict.existing.timeIn)} - {formatTime(conflict.existing.timeOut)}
                       </div>
-                      <div style={{ color: '#22c55e', fontSize: '14px' }}>
+                      <div style={{ color: 'var(--color-primary)', fontSize: '14px' }}>
                         {calculateHours(conflict.existing.timeIn, conflict.existing.timeOut)}
                       </div>
                       {conflict.existing.item && (
-                        <div style={{ color: '#888', fontSize: '13px', marginTop: '4px' }}>
+                        <div style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginTop: '4px' }}>
                           {conflict.existing.item}
                         </div>
                       )}
@@ -238,21 +238,21 @@ function ViewAllHours({ user, onLogout }) {
                     {/* New Entry */}
                     <div style={{
                       padding: '12px',
-                      background: '#0a0a0a',
+                      background: 'var(--color-bg)',
                       borderRadius: '6px',
-                      border: '1px solid #eab308'
+                      border: '1px solid var(--color-warning)'
                     }}>
-                      <div style={{ fontSize: '12px', color: '#eab308', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--color-warning)', marginBottom: '8px', textTransform: 'uppercase' }}>
                         From CSV (Row {conflict.rowNum})
                       </div>
-                      <div style={{ color: '#fff', fontWeight: 600 }}>
+                      <div style={{ color: 'var(--color-text)', fontWeight: 600 }}>
                         {formatTime(conflict.new.timeIn)} - {formatTime(conflict.new.timeOut)}
                       </div>
-                      <div style={{ color: '#22c55e', fontSize: '14px' }}>
+                      <div style={{ color: 'var(--color-primary)', fontSize: '14px' }}>
                         {calculateHours(conflict.new.timeIn, conflict.new.timeOut)}
                       </div>
                       {conflict.new.item && (
-                        <div style={{ color: '#888', fontSize: '13px', marginTop: '4px' }}>
+                        <div style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginTop: '4px' }}>
                           {conflict.new.item}
                         </div>
                       )}
@@ -265,7 +265,7 @@ function ViewAllHours({ user, onLogout }) {
                       className="btn btn-small"
                       onClick={() => handleResolveConflict(conflict, 'keep-existing')}
                       disabled={resolvingIndex === index}
-                      style={{ background: '#333' }}
+                      style={{ background: 'var(--color-border)' }}
                     >
                       Keep Current
                     </button>
@@ -273,7 +273,7 @@ function ViewAllHours({ user, onLogout }) {
                       className="btn btn-small"
                       onClick={() => handleResolveConflict(conflict, 'use-new')}
                       disabled={resolvingIndex === index}
-                      style={{ background: '#eab308', color: '#000' }}
+                      style={{ background: 'var(--color-warning)', color: 'var(--color-bg)' }}
                     >
                       Use CSV Entry
                     </button>
@@ -281,7 +281,7 @@ function ViewAllHours({ user, onLogout }) {
                       className="btn btn-small"
                       onClick={() => handleResolveConflict(conflict, 'keep-both')}
                       disabled={resolvingIndex === index}
-                      style={{ background: '#22c55e', color: '#000' }}
+                      style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}
                     >
                       Keep Both
                     </button>
@@ -294,11 +294,11 @@ function ViewAllHours({ user, onLogout }) {
 
         {/* CSV Import */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Import Hours from CSV</h2>
-          <p style={{ marginBottom: '12px', color: '#4ade80', fontSize: '14px' }}>
-            CSV columns: <code style={{ background: '#1a1a1a', padding: '2px 6px', borderRadius: '4px' }}>student_id, date, time_in, time_out, item</code>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Import Hours from CSV</h2>
+          <p style={{ marginBottom: '12px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
+            CSV columns: <code style={{ background: 'var(--color-bg-input)', padding: '2px 6px', borderRadius: '4px' }}>student_id, date, time_in, time_out, item</code>
           </p>
-          <p style={{ marginBottom: '16px', color: '#4a7c59', fontSize: '13px' }}>
+          <p style={{ marginBottom: '16px', color: 'var(--color-text-subtle)', fontSize: '13px' }}>
             Exact duplicates are automatically skipped. Entries with different times for the same date will prompt for resolution.
           </p>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -313,20 +313,20 @@ function ViewAllHours({ user, onLogout }) {
             <button
               className="btn btn-small"
               onClick={downloadTemplate}
-              style={{ background: '#333' }}
+              style={{ background: 'var(--color-border)' }}
             >
               Download Template
             </button>
           </div>
           {uploading && (
-            <p style={{ marginTop: '12px', color: '#22c55e' }}>Uploading...</p>
+            <p style={{ marginTop: '12px', color: 'var(--color-primary)' }}>Uploading...</p>
           )}
           {uploadResult && uploadResult.errors && uploadResult.errors.length > 0 && (
-            <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a1a', border: '1px solid #ef4444', borderRadius: '8px' }}>
-              <p style={{ fontWeight: 500, marginBottom: '8px', color: '#ef4444' }}>
+            <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-bg-input)', border: '1px solid var(--color-danger)', borderRadius: '8px' }}>
+              <p style={{ fontWeight: 500, marginBottom: '8px', color: 'var(--color-danger)' }}>
                 Errors ({uploadResult.errors.length}):
               </p>
-              <ul style={{ marginLeft: '20px', fontSize: '13px', color: '#ef4444', maxHeight: '150px', overflowY: 'auto' }}>
+              <ul style={{ marginLeft: '20px', fontSize: '13px', color: 'var(--color-danger)', maxHeight: '150px', overflowY: 'auto' }}>
                 {uploadResult.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -337,9 +337,9 @@ function ViewAllHours({ user, onLogout }) {
 
         {/* Summary by Student */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Summary by Student</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Summary by Student</h2>
           {studentSummary.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#4ade80' }}>No hours logged yet.</p>
+            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No hours logged yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
@@ -357,7 +357,7 @@ function ViewAllHours({ user, onLogout }) {
                     <tr key={student.studentId}>
                       <td>{student.name}</td>
                       <td>{student.studentId}</td>
-                      <td style={{ fontWeight: 600, color: '#22c55e' }}>{student.totalFormatted}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{student.totalFormatted}</td>
                       <td>{student.entries}</td>
                       <td>
                         <Link
@@ -378,9 +378,9 @@ function ViewAllHours({ user, onLogout }) {
 
         {/* All Entries */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>All Entries ({hours.length})</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>All Entries ({hours.length})</h2>
           {hours.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#4ade80' }}>No hours logged yet.</p>
+            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No hours logged yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
@@ -398,7 +398,7 @@ function ViewAllHours({ user, onLogout }) {
                     <tr key={entry.id}>
                       <td>
                         <div>{entry.name}</div>
-                        <div style={{ fontSize: '12px', color: '#4ade80' }}>{entry.student_id}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{entry.student_id}</div>
                       </td>
                       <td>{formatDateWithWeekday(entry.date)}</td>
                       <td>{formatTime(entry.time_in)}</td>

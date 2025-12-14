@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth, ThemeProvider } from './contexts';
 import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import LogHours from './pages/LogHours';
@@ -14,54 +15,50 @@ import CashBox from './pages/CashBox';
 import CashBoxAdmin from './pages/CashBoxAdmin';
 import ConcessionSession from './pages/ConcessionSession';
 
-function App() {
-  // Load user from localStorage on initial render
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-
-  const handleLogin = (userData) => {
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-  };
+function AppRoutes() {
+  const { user, isStudent } = useAuth();
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return <Login />;
   }
 
   return (
     <Routes>
-      {user.type === 'student' ? (
+      {isStudent ? (
         <>
-          <Route path="/" element={<StudentDashboard user={user} onLogout={handleLogout} />} />
-          <Route path="/log-hours" element={<LogHours user={user} onLogout={handleLogout} />} />
-          <Route path="/view-hours" element={<ViewHours user={user} onLogout={handleLogout} />} />
-          <Route path="/events" element={<Events user={user} onLogout={handleLogout} />} />
-          <Route path="/cashbox" element={<CashBox user={user} onLogout={handleLogout} />} />
-          <Route path="/concession-session/:id" element={<ConcessionSession user={user} onLogout={handleLogout} />} />
+          <Route path="/" element={<StudentDashboard />} />
+          <Route path="/log-hours" element={<LogHours />} />
+          <Route path="/view-hours" element={<ViewHours />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/cashbox" element={<CashBox />} />
+          <Route path="/concession-session/:id" element={<ConcessionSession />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       ) : (
         <>
-          <Route path="/" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
-          <Route path="/manage-students" element={<ManageStudents user={user} onLogout={handleLogout} />} />
-          <Route path="/view-all-hours" element={<ViewAllHours user={user} onLogout={handleLogout} />} />
-          <Route path="/admin/hours" element={<ViewAllHours user={user} onLogout={handleLogout} />} />
-          <Route path="/admin/student/:studentId" element={<AdminStudentProfile user={user} onLogout={handleLogout} />} />
-          <Route path="/events-admin" element={<EventsAdmin user={user} onLogout={handleLogout} />} />
-          <Route path="/cashbox" element={<CashBox user={user} onLogout={handleLogout} />} />
-          <Route path="/cashbox-admin" element={<CashBoxAdmin user={user} onLogout={handleLogout} />} />
-          <Route path="/concession-session/:id" element={<ConcessionSession user={user} onLogout={handleLogout} />} />
+          <Route path="/" element={<AdminDashboard />} />
+          <Route path="/manage-students" element={<ManageStudents />} />
+          <Route path="/view-all-hours" element={<ViewAllHours />} />
+          <Route path="/admin/hours" element={<ViewAllHours />} />
+          <Route path="/admin/student/:studentId" element={<AdminStudentProfile />} />
+          <Route path="/events-admin" element={<EventsAdmin />} />
+          <Route path="/cashbox" element={<CashBox />} />
+          <Route path="/cashbox-admin" element={<CashBoxAdmin />} />
+          <Route path="/concession-session/:id" element={<ConcessionSession />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}
     </Routes>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

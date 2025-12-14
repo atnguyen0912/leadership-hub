@@ -1,10 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { getDb } = require('../database');
+const { generateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Student login - just verify student ID exists
+// Student login - verify student ID and issue token
 router.post('/student-login', (req, res) => {
   const { studentId } = req.body;
   const db = getDb();
@@ -18,20 +19,25 @@ router.post('/student-login', (req, res) => {
       return res.status(401).json({ error: 'Student ID not found' });
     }
 
+    const user = {
+      type: 'student',
+      studentId: row.student_id,
+      name: row.name,
+      isLead: row.is_lead === 1,
+      leadType: row.lead_type || null
+    };
+
+    const token = generateToken(user);
+
     res.json({
       success: true,
-      user: {
-        type: 'student',
-        studentId: row.student_id,
-        name: row.name,
-        isLead: row.is_lead === 1,
-        leadType: row.lead_type || null  // 'events', 'concessions', or null
-      }
+      token,
+      user
     });
   });
 });
 
-// Admin login
+// Admin login - verify password and issue token
 router.post('/admin-login', (req, res) => {
   const { password } = req.body;
   const db = getDb();
@@ -45,11 +51,13 @@ router.post('/admin-login', (req, res) => {
       return res.status(401).json({ error: 'Invalid password' });
     }
 
+    const user = { type: 'admin' };
+    const token = generateToken(user);
+
     res.json({
       success: true,
-      user: {
-        type: 'admin'
-      }
+      token,
+      user
     });
   });
 });

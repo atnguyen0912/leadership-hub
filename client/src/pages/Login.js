@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { useAuth, useTheme } from '../contexts';
 
-function Login({ onLogin }) {
+function Login() {
+  const { login } = useAuth();
+  const { theme } = useTheme();
   const [loginType, setLoginType] = useState('student');
   const [studentId, setStudentId] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -25,7 +28,7 @@ function Login({ onLogin }) {
         throw new Error(data.error || 'Login failed');
       }
 
-      onLogin(data.user);
+      login(data.user, data.token);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -51,7 +54,7 @@ function Login({ onLogin }) {
         throw new Error(data.error || 'Login failed');
       }
 
-      onLogin(data.user);
+      login(data.user, data.token);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,10 +62,12 @@ function Login({ onLogin }) {
     }
   };
 
+  const isLight = theme === 'light';
+
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#000000',
+      backgroundColor: isLight ? '#f8fafc' : '#000000',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -72,15 +77,16 @@ function Login({ onLogin }) {
       <div style={{
         maxWidth: '420px',
         width: '100%',
-        backgroundColor: '#111111',
+        backgroundColor: isLight ? '#ffffff' : '#111111',
         borderRadius: '16px',
         padding: '40px',
-        border: '1px solid #22c55e'
+        border: isLight ? '1px solid #16a34a' : '1px solid #22c55e',
+        boxShadow: isLight ? '0 4px 16px rgba(0, 0, 0, 0.1)' : 'none'
       }}>
         <h1 style={{
           textAlign: 'center',
           marginBottom: '8px',
-          color: '#22c55e',
+          color: isLight ? '#16a34a' : '#22c55e',
           fontSize: '28px',
           fontWeight: 'bold'
         }}>
@@ -89,7 +95,7 @@ function Login({ onLogin }) {
         <h2 style={{
           textAlign: 'center',
           marginBottom: '12px',
-          color: '#22c55e',
+          color: isLight ? '#16a34a' : '#22c55e',
           fontSize: '32px',
           fontWeight: 'bold'
         }}>
@@ -97,7 +103,7 @@ function Login({ onLogin }) {
         </h2>
         <p style={{
           textAlign: 'center',
-          color: '#4ade80',
+          color: isLight ? '#475569' : '#4ade80',
           marginBottom: '32px',
           fontSize: '16px'
         }}>
@@ -109,7 +115,7 @@ function Login({ onLogin }) {
           marginBottom: '24px',
           borderRadius: '8px',
           overflow: 'hidden',
-          border: '1px solid #22c55e'
+          border: isLight ? '1px solid #16a34a' : '1px solid #22c55e'
         }}>
           <button
             onClick={() => { setLoginType('student'); setError(''); }}
@@ -118,8 +124,12 @@ function Login({ onLogin }) {
               padding: '12px',
               border: 'none',
               cursor: 'pointer',
-              background: loginType === 'student' ? '#22c55e' : '#1a1a1a',
-              color: loginType === 'student' ? '#000000' : '#22c55e',
+              background: loginType === 'student'
+                ? (isLight ? '#16a34a' : '#22c55e')
+                : (isLight ? '#f1f5f9' : '#1a1a1a'),
+              color: loginType === 'student'
+                ? (isLight ? '#ffffff' : '#000000')
+                : (isLight ? '#16a34a' : '#22c55e'),
               fontWeight: 600,
               transition: 'all 0.2s ease'
             }}
@@ -133,8 +143,12 @@ function Login({ onLogin }) {
               padding: '12px',
               border: 'none',
               cursor: 'pointer',
-              background: loginType === 'admin' ? '#22c55e' : '#1a1a1a',
-              color: loginType === 'admin' ? '#000000' : '#22c55e',
+              background: loginType === 'admin'
+                ? (isLight ? '#16a34a' : '#22c55e')
+                : (isLight ? '#f1f5f9' : '#1a1a1a'),
+              color: loginType === 'admin'
+                ? (isLight ? '#ffffff' : '#000000')
+                : (isLight ? '#16a34a' : '#22c55e'),
               fontWeight: 600,
               transition: 'all 0.2s ease'
             }}
@@ -149,7 +163,7 @@ function Login({ onLogin }) {
               <label htmlFor="studentId" style={{
                 display: 'block',
                 marginBottom: '8px',
-                color: '#22c55e',
+                color: isLight ? '#16a34a' : '#22c55e',
                 fontWeight: 500
               }}>
                 Student ID
@@ -165,9 +179,9 @@ function Login({ onLogin }) {
                   width: '100%',
                   padding: '12px 16px',
                   borderRadius: '8px',
-                  border: '1px solid #22c55e',
-                  backgroundColor: '#1a1a1a',
-                  color: '#22c55e',
+                  border: isLight ? '1px solid #16a34a' : '1px solid #22c55e',
+                  backgroundColor: isLight ? '#f8fafc' : '#1a1a1a',
+                  color: isLight ? '#1e293b' : '#22c55e',
                   fontSize: '16px',
                   boxSizing: 'border-box'
                 }}
@@ -181,8 +195,8 @@ function Login({ onLogin }) {
                 padding: '14px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: '#22c55e',
-                color: '#000000',
+                backgroundColor: isLight ? '#16a34a' : '#22c55e',
+                color: isLight ? '#ffffff' : '#000000',
                 fontSize: '16px',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',
@@ -199,7 +213,7 @@ function Login({ onLogin }) {
               <label htmlFor="password" style={{
                 display: 'block',
                 marginBottom: '8px',
-                color: '#22c55e',
+                color: isLight ? '#16a34a' : '#22c55e',
                 fontWeight: 500
               }}>
                 Admin Password
@@ -215,9 +229,9 @@ function Login({ onLogin }) {
                   width: '100%',
                   padding: '12px 16px',
                   borderRadius: '8px',
-                  border: '1px solid #22c55e',
-                  backgroundColor: '#1a1a1a',
-                  color: '#22c55e',
+                  border: isLight ? '1px solid #16a34a' : '1px solid #22c55e',
+                  backgroundColor: isLight ? '#f8fafc' : '#1a1a1a',
+                  color: isLight ? '#1e293b' : '#22c55e',
                   fontSize: '16px',
                   boxSizing: 'border-box'
                 }}
@@ -231,8 +245,8 @@ function Login({ onLogin }) {
                 padding: '14px',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: '#22c55e',
-                color: '#000000',
+                backgroundColor: isLight ? '#16a34a' : '#22c55e',
+                color: isLight ? '#ffffff' : '#000000',
                 fontSize: '16px',
                 fontWeight: 600,
                 cursor: loading ? 'not-allowed' : 'pointer',

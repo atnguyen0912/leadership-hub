@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { useAuth } from '../contexts';
+import {
+  SubMenuModal,
+  DiscountModal,
+  PaymentModal,
+  OrderHistoryModal
+} from '../components/concession';
 
-function ConcessionSession({ user, onLogout }) {
+function ConcessionSession() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
@@ -797,9 +805,9 @@ function ConcessionSession({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
-          <p style={{ color: '#22c55e' }}>Loading...</p>
+          <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -808,7 +816,7 @@ function ConcessionSession({ user, onLogout }) {
   if (!session) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <button
             className="btn"
@@ -895,17 +903,17 @@ function ConcessionSession({ user, onLogout }) {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '12px 16px',
-          background: '#111',
-          borderBottom: '1px solid #2a2a2a',
+          background: 'var(--color-bg-card-solid)',
+          borderBottom: '1px solid var(--color-border)',
           flexWrap: 'wrap',
           gap: '8px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 auto' }}>
             <div style={{ minWidth: 0 }}>
-              <h1 style={{ color: '#22c55e', fontSize: '18px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h1 style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {session.name}
               </h1>
-              <p className="pos-header-subtitle" style={{ color: '#4ade80', fontSize: '11px', margin: 0 }}>
+              <p className="pos-header-subtitle" style={{ color: 'var(--color-text-muted)', fontSize: '11px', margin: 0 }}>
                 {session.program_name}
               </p>
             </div>
@@ -913,21 +921,21 @@ function ConcessionSession({ user, onLogout }) {
           {/* Stats - Hidden on mobile */}
           <div className="pos-header-stats" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#4a7c59', fontSize: '10px' }}>Start:</div>
-              <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold' }}>
+              <div style={{ color: 'var(--color-text-subtle)', fontSize: '10px' }}>Start:</div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: 'bold' }}>
                 {formatCurrency(session.start_total)}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#4a7c59', fontSize: '10px' }}>Expected:</div>
-              <div style={{ color: '#22c55e', fontSize: '13px', fontWeight: 'bold' }}>
+              <div style={{ color: 'var(--color-text-subtle)', fontSize: '10px' }}>Expected:</div>
+              <div style={{ color: 'var(--color-primary)', fontSize: '13px', fontWeight: 'bold' }}>
                 {formatCurrency(expectedCashInBox)}
               </div>
             </div>
             {sessionDiscountsTotal > 0 && (
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: '#eab308', fontSize: '10px' }}>Given:</div>
-                <div style={{ color: '#eab308', fontSize: '13px', fontWeight: 'bold' }}>
+                <div style={{ color: 'var(--color-warning)', fontSize: '10px' }}>Given:</div>
+                <div style={{ color: 'var(--color-warning)', fontSize: '13px', fontWeight: 'bold' }}>
                   {formatCurrency(sessionDiscountsTotal)}
                 </div>
               </div>
@@ -944,7 +952,7 @@ function ConcessionSession({ user, onLogout }) {
             <button
               className="btn btn-small"
               onClick={handleShowOrderHistory}
-              style={{ background: '#3b82f6' }}
+              style={{ background: 'var(--color-info)' }}
             >
               History
             </button>
@@ -997,7 +1005,7 @@ function ConcessionSession({ user, onLogout }) {
                         onClick={() => !item && handleCellTap(row, col)}
                         style={{
                           minHeight: '70px',
-                          border: selectedBankItem && !item ? '2px solid #22c55e' : '2px dashed #4a7c59',
+                          border: selectedBankItem && !item ? '2px solid var(--color-primary)' : '2px dashed var(--color-text-subtle)',
                           borderRadius: '8px',
                           background: selectedBankItem && !item
                             ? 'rgba(34, 197, 94, 0.2)'
@@ -1026,7 +1034,7 @@ function ConcessionSession({ user, onLogout }) {
                               height: '100%',
                               cursor: isTouchDevice() ? 'pointer' : 'grab',
                               minHeight: '60px',
-                              outline: selectedItem?.id === item.id ? '3px solid #22c55e' : selectedBankItem ? '2px dashed #f59e0b' : 'none'
+                              outline: selectedItem?.id === item.id ? '3px solid var(--color-primary)' : selectedBankItem ? '2px dashed var(--color-warning)' : 'none'
                             }}
                           >
                             {!isTouchDevice() && (
@@ -1035,7 +1043,7 @@ function ConcessionSession({ user, onLogout }) {
                                 top: '2px',
                                 left: '4px',
                                 fontSize: '10px',
-                                color: '#22c55e'
+                                color: 'var(--color-primary)'
                               }}>
                                 ☰
                               </div>
@@ -1046,8 +1054,8 @@ function ConcessionSession({ user, onLogout }) {
                                 top: '2px',
                                 right: '4px',
                                 fontSize: '9px',
-                                color: '#4ade80',
-                                background: '#1a1a1a',
+                                color: 'var(--color-text-muted)',
+                                background: 'var(--color-bg-input)',
                                 padding: '1px 3px',
                                 borderRadius: '3px'
                               }}>
@@ -1064,7 +1072,7 @@ function ConcessionSession({ user, onLogout }) {
                           </button>
                         ) : (
                           <span style={{
-                            color: selectedBankItem ? '#22c55e' : '#4a7c59',
+                            color: selectedBankItem ? 'var(--color-primary)' : 'var(--color-text-subtle)',
                             fontSize: '10px',
                             fontWeight: selectedBankItem ? 'bold' : 'normal'
                           }}>
@@ -1084,7 +1092,7 @@ function ConcessionSession({ user, onLogout }) {
                 >
                   <div className="pos-item-bank-header">
                     <span>Available Items</span>
-                    <span style={{ fontSize: '10px', color: '#4a7c59' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-subtle)' }}>
                       {isTouchDevice() ? 'Tap to place' : 'Drag to grid'}
                     </span>
                   </div>
@@ -1092,9 +1100,9 @@ function ConcessionSession({ user, onLogout }) {
                     <div style={{
                       padding: '6px 10px',
                       background: 'rgba(34, 197, 94, 0.2)',
-                      borderBottom: '1px solid #22c55e',
+                      borderBottom: '1px solid var(--color-primary)',
                       fontSize: '11px',
-                      color: '#22c55e'
+                      color: 'var(--color-primary)'
                     }}>
                       Selected: <strong>{selectedBankItem.name}</strong> — tap a cell to place
                       <button
@@ -1103,7 +1111,7 @@ function ConcessionSession({ user, onLogout }) {
                           marginLeft: '8px',
                           background: 'none',
                           border: 'none',
-                          color: '#f59e0b',
+                          color: 'var(--color-warning)',
                           cursor: 'pointer',
                           fontSize: '11px'
                         }}
@@ -1114,7 +1122,7 @@ function ConcessionSession({ user, onLogout }) {
                   )}
                   <div className="pos-item-bank-items">
                     {getItemsInBank().length === 0 ? (
-                      <p style={{ color: '#4a7c59', fontSize: '11px', textAlign: 'center', margin: 0, padding: '8px' }}>
+                      <p style={{ color: 'var(--color-text-subtle)', fontSize: '11px', textAlign: 'center', margin: 0, padding: '8px' }}>
                         {isTouchDevice() ? 'Tap grid items to remove' : 'Drag items here to remove from grid'}
                       </p>
                     ) : (
@@ -1129,7 +1137,7 @@ function ConcessionSession({ user, onLogout }) {
                           style={{
                             cursor: 'pointer',
                             background: selectedBankItem?.id === item.id ? 'rgba(34, 197, 94, 0.3)' : undefined,
-                            borderColor: selectedBankItem?.id === item.id ? '#22c55e' : undefined
+                            borderColor: selectedBankItem?.id === item.id ? 'var(--color-primary)' : undefined
                           }}
                         >
                           <span className="pos-bank-item-name">{item.name}</span>
@@ -1147,19 +1155,19 @@ function ConcessionSession({ user, onLogout }) {
                 {/* Span Controls - shown when item is selected */}
                 {selectedItem && (
                   <div style={{
-                    background: '#1a1a1a',
+                    background: 'var(--color-bg-input)',
                     padding: '12px',
-                    borderTop: '1px solid #2a2a2a',
+                    borderTop: '1px solid var(--color-border)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '16px',
                     flexWrap: 'wrap'
                   }}>
-                    <div style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '14px' }}>
+                    <div style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '14px' }}>
                       {selectedItem.name}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#4ade80', fontSize: '12px' }}>Width:</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Width:</span>
                       {[1, 2, 3, 4].map(n => (
                         <button
                           key={`col-${n}`}
@@ -1169,8 +1177,8 @@ function ConcessionSession({ user, onLogout }) {
                             height: '28px',
                             border: 'none',
                             borderRadius: '4px',
-                            background: (selectedItem.col_span || 1) === n ? '#22c55e' : '#333',
-                            color: (selectedItem.col_span || 1) === n ? '#000' : '#4ade80',
+                            background: (selectedItem.col_span || 1) === n ? 'var(--color-primary)' : 'var(--color-border)',
+                            color: (selectedItem.col_span || 1) === n ? 'var(--color-bg)' : 'var(--color-text-muted)',
                             cursor: 'pointer',
                             fontWeight: 'bold'
                           }}
@@ -1180,7 +1188,7 @@ function ConcessionSession({ user, onLogout }) {
                       ))}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#4ade80', fontSize: '12px' }}>Height:</span>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Height:</span>
                       {[1, 2, 3].map(n => (
                         <button
                           key={`row-${n}`}
@@ -1190,8 +1198,8 @@ function ConcessionSession({ user, onLogout }) {
                             height: '28px',
                             border: 'none',
                             borderRadius: '4px',
-                            background: (selectedItem.row_span || 1) === n ? '#22c55e' : '#333',
-                            color: (selectedItem.row_span || 1) === n ? '#000' : '#4ade80',
+                            background: (selectedItem.row_span || 1) === n ? 'var(--color-primary)' : 'var(--color-border)',
+                            color: (selectedItem.row_span || 1) === n ? 'var(--color-bg)' : 'var(--color-text-muted)',
                             cursor: 'pointer',
                             fontWeight: 'bold'
                           }}
@@ -1207,8 +1215,8 @@ function ConcessionSession({ user, onLogout }) {
                         padding: '4px 12px',
                         border: 'none',
                         borderRadius: '4px',
-                        background: '#333',
-                        color: '#4ade80',
+                        background: 'var(--color-border)',
+                        color: 'var(--color-text-muted)',
                         cursor: 'pointer',
                         fontSize: '12px'
                       }}
@@ -1230,7 +1238,7 @@ function ConcessionSession({ user, onLogout }) {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#4a7c59'
+                    color: 'var(--color-text-subtle)'
                   }}>
                     <p>No menu items configured.</p>
                     <p style={{ fontSize: '14px' }}>Click "Edit" to add items to the grid.</p>
@@ -1278,10 +1286,10 @@ function ConcessionSession({ user, onLogout }) {
 
           {/* Order Summary */}
           <div className="pos-order">
-            <h2 style={{ color: '#22c55e', fontSize: '16px', marginBottom: '12px' }}>Order</h2>
+            <h2 style={{ color: 'var(--color-primary)', fontSize: '16px', marginBottom: '12px' }}>Order</h2>
 
             {Object.keys(orderItems).length === 0 ? (
-              <p style={{ color: '#4a7c59', textAlign: 'center' }}>No items added</p>
+              <p style={{ color: 'var(--color-text-subtle)', textAlign: 'center' }}>No items added</p>
             ) : (
               <div className="pos-order-items">
                 {Object.values(orderItems).map((item) => (
@@ -1315,11 +1323,11 @@ function ConcessionSession({ user, onLogout }) {
             <div className="pos-order-totals">
               <div className="pos-total-row">
                 <span>Subtotal:</span>
-                <span style={{ fontWeight: 'bold', color: '#22c55e' }}>{formatCurrency(subtotal)}</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>{formatCurrency(subtotal)}</span>
               </div>
 
               <div className="pos-payment">
-                <label style={{ color: '#4ade80', fontSize: '14px' }}>Amount Given:</label>
+                <label style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>Amount Given:</label>
                 <input
                   type="number"
                   className="input"
@@ -1337,7 +1345,7 @@ function ConcessionSession({ user, onLogout }) {
                   <span>Change:</span>
                   <span style={{
                     fontWeight: 'bold',
-                    color: change >= 0 ? '#22c55e' : '#ef4444'
+                    color: change >= 0 ? 'var(--color-primary)' : 'var(--color-danger)'
                   }}>
                     {formatCurrency(change)}
                   </span>
@@ -1357,7 +1365,7 @@ function ConcessionSession({ user, onLogout }) {
                 className="btn"
                 onClick={() => handleOpenDiscount(false)}
                 disabled={submittingOrder || subtotal === 0}
-                style={{ flex: '1 1 45%', background: '#6b5b00' }}
+                style={{ flex: '1 1 45%', background: 'var(--color-warning)' }}
               >
                 Discount
               </button>
@@ -1365,7 +1373,7 @@ function ConcessionSession({ user, onLogout }) {
                 className="btn"
                 onClick={() => handleOpenDiscount(true)}
                 disabled={submittingOrder || subtotal === 0}
-                style={{ flex: '1 1 45%', background: '#5b006b' }}
+                style={{ flex: '1 1 45%', background: '#9333ea' }}
               >
                 Comp
               </button>
@@ -1382,290 +1390,48 @@ function ConcessionSession({ user, onLogout }) {
         </div>
 
         {/* Sub-menu Modal */}
-        {showSubMenu && subMenuParent && (
-          <div className="pos-modal-overlay" onClick={() => setShowSubMenu(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
-                Select {subMenuParent.name}
-              </h3>
-              <div className="pos-submenu-grid">
-                {subMenuParent.subItems.map((item) => {
-                  const stockStatus = getStockStatus(item);
-                  return (
-                    <button
-                      key={item.id}
-                      className={`pos-item-btn ${stockStatus !== 'none' ? `stock-${stockStatus}` : ''}`}
-                      onClick={() => addToOrder(item)}
-                    >
-                      <div className="pos-item-name">{item.name}</div>
-                      <div className="pos-item-price">{formatCurrency(item.price)}</div>
-                      {stockStatus !== 'none' && (
-                        <div className={`pos-stock-badge ${stockStatus}`}>
-                          {stockStatus === 'out' ? 'OUT' : item.quantity_on_hand}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                className="btn"
-                onClick={() => setShowSubMenu(false)}
-                style={{ marginTop: '16px', width: '100%' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+        <SubMenuModal
+          show={showSubMenu && !!subMenuParent}
+          parentItem={subMenuParent}
+          onClose={() => setShowSubMenu(false)}
+          onSelectItem={addToOrder}
+          getStockStatus={getStockStatus}
+        />
 
         {/* Discount Modal */}
-        {showDiscountModal && (
-          <div className="pos-modal-overlay" onClick={() => setShowDiscountModal(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: isComp ? '#9333ea' : '#eab308', marginBottom: '16px' }}>
-                {isComp ? 'Comp Order' : 'Apply Discount'}
-              </h3>
-
-              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#4a7c59' }}>Order Total:</span>
-                  <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
-                    {formatCurrency(calculateSubtotal())}
-                  </span>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>{isComp ? 'Comp Amount' : 'Discount Amount'}</label>
-                <input
-                  type="number"
-                  className="input"
-                  step="0.01"
-                  min="0.01"
-                  max={calculateSubtotal()}
-                  value={discountAmount}
-                  onChange={(e) => setDiscountAmount(e.target.value)}
-                  placeholder="0.00"
-                  style={{ fontSize: '20px', textAlign: 'center' }}
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Charge To</label>
-                <select
-                  className="input"
-                  value={discountChargedTo}
-                  onChange={(e) => setDiscountChargedTo(e.target.value)}
-                >
-                  <option value="asb">ASB (Loss)</option>
-                  <option value="program">This Program ({session?.program_name || 'Current'})</option>
-                  {programs.filter(p => p.id !== session?.program_id).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Reason</label>
-                <input
-                  type="text"
-                  className="input"
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                  placeholder={isComp ? 'e.g., Staff appreciation' : 'e.g., Coupon, loyalty'}
-                />
-              </div>
-
-              {error && <div className="error-message" style={{ marginBottom: '12px' }}>{error}</div>}
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowDiscountModal(false)}
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleApplyDiscount}
-                  disabled={(parseFloat(discountAmount) || 0) <= 0}
-                  style={{ flex: 1, background: isComp ? '#9333ea' : '#eab308' }}
-                >
-                  Apply {isComp ? 'Comp' : 'Discount'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DiscountModal
+          show={showDiscountModal}
+          onClose={() => setShowDiscountModal(false)}
+          isComp={isComp}
+          orderTotal={calculateSubtotal()}
+          discountAmount={discountAmount}
+          setDiscountAmount={setDiscountAmount}
+          discountChargedTo={discountChargedTo}
+          setDiscountChargedTo={setDiscountChargedTo}
+          discountReason={discountReason}
+          setDiscountReason={setDiscountReason}
+          onApply={handleApplyDiscount}
+          session={session}
+          programs={programs}
+          error={error}
+        />
 
         {/* Payment Modal */}
-        {showPaymentModal && (
-          <div className="pos-modal-overlay" onClick={() => setShowPaymentModal(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
-                {isComp ? 'Complete Comp' : getAppliedDiscount() > 0 ? 'Complete with Discount' : 'Payment'}
-              </h3>
-
-              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: getAppliedDiscount() > 0 ? '8px' : 0 }}>
-                  <span style={{ color: '#4a7c59' }}>Subtotal:</span>
-                  <span style={{ color: '#4ade80' }}>
-                    {formatCurrency(calculateSubtotal())}
-                  </span>
-                </div>
-                {getAppliedDiscount() > 0 && (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ color: isComp ? '#9333ea' : '#eab308' }}>
-                        {isComp ? 'Comp' : 'Discount'}:
-                      </span>
-                      <span style={{ color: isComp ? '#9333ea' : '#eab308' }}>
-                        -{formatCurrency(getAppliedDiscount())}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '8px' }}>
-                      <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Total Due:</span>
-                      <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '20px' }}>
-                        {formatCurrency(getFinalTotal())}
-                      </span>
-                    </div>
-                  </>
-                )}
-                {getAppliedDiscount() === 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Total:</span>
-                    <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '20px' }}>
-                      {formatCurrency(calculateSubtotal())}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label>Payment Method</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : ''}`}
-                    onClick={() => setPaymentMethod('cash')}
-                    style={{ flex: 1, padding: '12px' }}
-                  >
-                    Cash
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${paymentMethod === 'cashapp' ? 'btn-primary' : ''}`}
-                    onClick={() => setPaymentMethod('cashapp')}
-                    style={{ flex: 1, padding: '12px', background: paymentMethod === 'cashapp' ? '#00D632' : undefined }}
-                  >
-                    CashApp
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${paymentMethod === 'zelle' ? 'btn-primary' : ''}`}
-                    onClick={() => setPaymentMethod('zelle')}
-                    style={{ flex: 1, padding: '12px', background: paymentMethod === 'zelle' ? '#6B1CD1' : undefined }}
-                  >
-                    Zelle
-                  </button>
-                </div>
-              </div>
-
-              {paymentMethod === 'cash' && (
-                <div className="form-group">
-                  <label>Amount Tendered</label>
-                  <input
-                    type="number"
-                    className="input"
-                    step="0.01"
-                    min={getFinalTotal()}
-                    value={amountTendered}
-                    onChange={(e) => setAmountTendered(e.target.value)}
-                    placeholder="0.00"
-                    style={{ fontSize: '24px', textAlign: 'center' }}
-                    autoFocus
-                  />
-                  {parseFloat(amountTendered) >= getFinalTotal() && (
-                    <div style={{ marginTop: '8px', textAlign: 'center' }}>
-                      <span style={{ color: '#4a7c59' }}>Change: </span>
-                      <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '18px' }}>
-                        {formatCurrency(calculateChange())}
-                      </span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
-                    {[1, 5, 10, 20].map(amt => (
-                      <button
-                        key={amt}
-                        type="button"
-                        className="btn btn-small"
-                        onClick={() => setAmountTendered(String(Math.ceil(getFinalTotal() / amt) * amt))}
-                        style={{ flex: 1 }}
-                      >
-                        ${amt}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="btn btn-small"
-                      onClick={() => setAmountTendered(String(getFinalTotal()))}
-                      style={{ flex: 1 }}
-                    >
-                      Exact
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === 'cashapp' && (
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                  <p style={{ color: '#00D632', fontSize: '14px', marginBottom: '8px' }}>
-                    Confirm customer sent CashApp payment
-                  </p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>
-                    Payment will be added to CashApp balance for withdrawal
-                  </p>
-                </div>
-              )}
-
-              {paymentMethod === 'zelle' && (
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                  <p style={{ color: '#6B1CD1', fontSize: '14px', marginBottom: '8px' }}>
-                    Confirm customer sent Zelle payment
-                  </p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>
-                    Zelle payments are auto-applied to reimbursement
-                  </p>
-                </div>
-              )}
-
-              {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
-
-              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowPaymentModal(false)}
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleCompleteOrder}
-                  disabled={submittingOrder || (paymentMethod === 'cash' && (parseFloat(amountTendered) || 0) < getFinalTotal())}
-                  style={{ flex: 2 }}
-                >
-                  {submittingOrder ? 'Processing...' : 'Complete'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PaymentModal
+          show={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          isComp={isComp}
+          subtotal={calculateSubtotal()}
+          appliedDiscount={getAppliedDiscount()}
+          finalTotal={getFinalTotal()}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          amountTendered={amountTendered}
+          setAmountTendered={setAmountTendered}
+          onComplete={handleCompleteOrder}
+          submitting={submittingOrder}
+          error={error}
+        />
 
         {/* Checkout Modal */}
         {showCheckout && (
@@ -1732,24 +1498,24 @@ function ConcessionSession({ user, onLogout }) {
               ) : (
                 /* Real Session - Full close flow */
                 <>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Close Session</h3>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Close Session</h3>
 
-              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+              <div style={{ background: 'var(--color-bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#4a7c59' }}>Starting Cash:</span>
-                  <span style={{ color: '#4ade80' }}>{formatCurrency(session.start_total)}</span>
+                  <span style={{ color: 'var(--color-text-subtle)' }}>Starting Cash:</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(session.start_total)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#4a7c59' }}>Total Sales:</span>
-                  <span style={{ color: '#4ade80' }}>{formatCurrency(sessionSales)}</span>
+                  <span style={{ color: 'var(--color-text-subtle)' }}>Total Sales:</span>
+                  <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(sessionSales)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #2a2a2a', paddingTop: '8px' }}>
-                  <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Expected in Box:</span>
-                  <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{formatCurrency(expectedCashInBox)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Expected in Box:</span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{formatCurrency(expectedCashInBox)}</span>
                 </div>
               </div>
 
-              <p style={{ color: '#4ade80', marginBottom: '12px', fontSize: '14px' }}>
+              <p style={{ color: 'var(--color-text-muted)', marginBottom: '12px', fontSize: '14px' }}>
                 Count all cash and enter the amounts below:
               </p>
 
@@ -1792,15 +1558,15 @@ function ConcessionSession({ user, onLogout }) {
                   </div>
                 </div>
 
-                <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div style={{ background: 'var(--color-bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#4a7c59' }}>Counted Total:</span>
-                    <span style={{ color: '#4ade80', fontWeight: 'bold' }}>{formatCurrency(calculateFormTotal())}</span>
+                    <span style={{ color: 'var(--color-text-subtle)' }}>Counted Total:</span>
+                    <span style={{ color: 'var(--color-text-muted)', fontWeight: 'bold' }}>{formatCurrency(calculateFormTotal())}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #2a2a2a', paddingTop: '8px' }}>
-                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Profit:</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Profit:</span>
                     <span style={{
-                      color: calculateFormTotal() - session.start_total >= 0 ? '#22c55e' : '#ef4444',
+                      color: calculateFormTotal() - session.start_total >= 0 ? 'var(--color-primary)' : 'var(--color-danger)',
                       fontWeight: 'bold',
                       fontSize: '18px'
                     }}>
@@ -1837,92 +1603,12 @@ function ConcessionSession({ user, onLogout }) {
         )}
 
         {/* Order History Modal */}
-        {showOrderHistory && (
-          <div className="pos-modal-overlay" onClick={() => setShowOrderHistory(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ color: '#3b82f6', margin: 0 }}>Order History</h3>
-                <button
-                  className="btn btn-small"
-                  onClick={() => setShowOrderHistory(false)}
-                >
-                  Close
-                </button>
-              </div>
-
-              {loadingHistory ? (
-                <p style={{ textAlign: 'center', color: '#4a7c59' }}>Loading orders...</p>
-              ) : orderHistory.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#4a7c59' }}>No orders yet.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {orderHistory.map(order => (
-                    <div
-                      key={order.id}
-                      style={{
-                        background: '#1a1a1a',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        borderLeft: order.is_comp ? '3px solid #eab308' : order.discount_amount > 0 ? '3px solid #f97316' : '3px solid #22c55e'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <div>
-                          <span style={{ color: '#4a7c59', fontSize: '11px' }}>
-                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <span style={{
-                            marginLeft: '8px',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            background: order.payment_method === 'cash' ? '#22c55e33' :
-                                       order.payment_method === 'cashapp' ? '#00D63233' : '#6B1CD133',
-                            color: order.payment_method === 'cash' ? '#22c55e' :
-                                   order.payment_method === 'cashapp' ? '#00D632' : '#a855f7'
-                          }}>
-                            {order.payment_method === 'cashapp' ? 'CashApp' : order.payment_method === 'zelle' ? 'Zelle' : 'Cash'}
-                          </span>
-                          {order.is_comp ? (
-                            <span style={{ marginLeft: '4px', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', background: '#eab30833', color: '#eab308' }}>
-                              COMP
-                            </span>
-                          ) : null}
-                        </div>
-                        <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '16px' }}>
-                          {formatCurrency(order.final_total || order.subtotal)}
-                        </span>
-                      </div>
-
-                      <p style={{ color: '#e5e7eb', fontSize: '13px', marginBottom: '4px' }}>
-                        {order.items_summary || 'Items not available'}
-                      </p>
-
-                      {order.discount_amount > 0 && !order.is_comp && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#f97316', marginTop: '4px' }}>
-                          <span>Discount{order.discount_reason ? `: ${order.discount_reason}` : ''}</span>
-                          <span>-{formatCurrency(order.discount_amount)}</span>
-                        </div>
-                      )}
-
-                      {order.payment_method === 'cash' && order.change_given > 0 && (
-                        <div style={{ fontSize: '11px', color: '#4a7c59', marginTop: '4px' }}>
-                          Paid: {formatCurrency(order.amount_tendered)} | Change: {formatCurrency(order.change_given)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ marginTop: '16px', padding: '12px', background: '#1a1a1a', borderRadius: '8px', textAlign: 'center' }}>
-                <span style={{ color: '#4a7c59', fontSize: '12px' }}>
-                  Total: {orderHistory.length} orders | {formatCurrency(orderHistory.reduce((sum, o) => sum + (o.final_total || o.subtotal), 0))}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
+        <OrderHistoryModal
+          show={showOrderHistory}
+          onClose={() => setShowOrderHistory(false)}
+          orders={orderHistory}
+          loading={loadingHistory}
+        />
       </div>
     );
   }
@@ -1930,7 +1616,7 @@ function ConcessionSession({ user, onLogout }) {
   // Start mode or closed mode - show regular view
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <button
           className="btn"
@@ -1963,22 +1649,22 @@ function ConcessionSession({ user, onLogout }) {
 
           {isClosed && (
             <div style={{
-              background: '#1a1a1a',
+              background: 'var(--color-bg-input)',
               padding: '16px',
               borderRadius: '8px',
               marginTop: '16px'
             }}>
-              <h3 style={{ color: '#22c55e', fontSize: '16px', marginBottom: '12px' }}>Session Results</h3>
+              <h3 style={{ color: 'var(--color-primary)', fontSize: '16px', marginBottom: '12px' }}>Session Results</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <p style={{ color: '#4a7c59', fontSize: '14px' }}>Starting Cash</p>
-                  <p style={{ color: '#22c55e', fontSize: '20px', fontWeight: 'bold' }}>
+                  <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px' }}>Starting Cash</p>
+                  <p style={{ color: 'var(--color-primary)', fontSize: '20px', fontWeight: 'bold' }}>
                     {formatCurrency(session.start_total)}
                   </p>
                 </div>
                 <div>
-                  <p style={{ color: '#4a7c59', fontSize: '14px' }}>Ending Cash</p>
-                  <p style={{ color: '#22c55e', fontSize: '20px', fontWeight: 'bold' }}>
+                  <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px' }}>Ending Cash</p>
+                  <p style={{ color: 'var(--color-primary)', fontSize: '20px', fontWeight: 'bold' }}>
                     {formatCurrency(session.end_total)}
                   </p>
                 </div>
@@ -1986,12 +1672,12 @@ function ConcessionSession({ user, onLogout }) {
               <div style={{
                 marginTop: '16px',
                 paddingTop: '16px',
-                borderTop: '1px solid #2a2a2a',
+                borderTop: '1px solid var(--color-border)',
                 textAlign: 'center'
               }}>
-                <p style={{ color: '#4a7c59', fontSize: '14px' }}>Profit</p>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px' }}>Profit</p>
                 <p style={{
-                  color: session.profit >= 0 ? '#22c55e' : '#ef4444',
+                  color: session.profit >= 0 ? 'var(--color-primary)' : 'var(--color-danger)',
                   fontSize: '28px',
                   fontWeight: 'bold'
                 }}>
@@ -2005,21 +1691,21 @@ function ConcessionSession({ user, onLogout }) {
         {/* Start Session Form */}
         {isStartMode && (
           <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
+            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>
               Enter Starting Cash
             </h2>
-            <p style={{ color: '#4ade80', marginBottom: '16px', fontSize: '14px' }}>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '16px', fontSize: '14px' }}>
               Enter the cash you are taking from the main cashbox to start this session.
             </p>
 
             {cashbox && (
               <div style={{
-                background: '#1a1a1a',
+                background: 'var(--color-bg-input)',
                 padding: '12px',
                 borderRadius: '8px',
                 marginBottom: '16px',
                 fontSize: '14px',
-                color: '#4a7c59'
+                color: 'var(--color-text-subtle)'
               }}>
                 Main Cashbox Available: {formatCurrency(cashbox.totalValue)}
               </div>
@@ -2032,61 +1718,61 @@ function ConcessionSession({ user, onLogout }) {
                   <input type="number" id="quarters" className="input" min="0"
                     max={cashbox?.quarters || 0} value={quarters}
                     onChange={(e) => setQuarters(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.quarters || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.quarters || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills1">$1 Bills</label>
                   <input type="number" id="bills1" className="input" min="0"
                     max={cashbox?.bills_1 || 0} value={bills1}
                     onChange={(e) => setBills1(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_1 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_1 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills5">$5 Bills</label>
                   <input type="number" id="bills5" className="input" min="0"
                     max={cashbox?.bills_5 || 0} value={bills5}
                     onChange={(e) => setBills5(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_5 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_5 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills10">$10 Bills</label>
                   <input type="number" id="bills10" className="input" min="0"
                     max={cashbox?.bills_10 || 0} value={bills10}
                     onChange={(e) => setBills10(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_10 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_10 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills20">$20 Bills</label>
                   <input type="number" id="bills20" className="input" min="0"
                     max={cashbox?.bills_20 || 0} value={bills20}
                     onChange={(e) => setBills20(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_20 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_20 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills50">$50 Bills</label>
                   <input type="number" id="bills50" className="input" min="0"
                     max={cashbox?.bills_50 || 0} value={bills50}
                     onChange={(e) => setBills50(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_50 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_50 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills100">$100 Bills</label>
                   <input type="number" id="bills100" className="input" min="0"
                     max={cashbox?.bills_100 || 0} value={bills100}
                     onChange={(e) => setBills100(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: '#4a7c59' }}>Available: {cashbox?.bills_100 || 0}</small>
+                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_100 || 0}</small>
                 </div>
               </div>
 
               <div style={{
                 padding: '16px',
-                background: '#1a1a1a',
+                background: 'var(--color-bg-input)',
                 borderRadius: '8px',
                 marginBottom: '16px',
                 textAlign: 'center'
               }}>
-                <span style={{ color: '#4ade80' }}>Starting Cash Total: </span>
-                <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '24px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Starting Cash Total: </span>
+                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '24px' }}>
                   {formatCurrency(calculateFormTotal())}
                 </span>
               </div>

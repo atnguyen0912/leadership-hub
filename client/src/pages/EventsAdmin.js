@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 
-function EventsAdmin({ user, onLogout }) {
+function EventsAdmin() {
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -180,7 +180,7 @@ function EventsAdmin({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <p>Loading...</p>
         </div>
@@ -190,7 +190,7 @@ function EventsAdmin({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Events Management</h1>
 
@@ -201,7 +201,7 @@ function EventsAdmin({ user, onLogout }) {
           {/* Events List */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>All Events</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>All Events</h2>
               <select
                 className="input"
                 value={statusFilter}
@@ -218,7 +218,7 @@ function EventsAdmin({ user, onLogout }) {
             </div>
 
             {filteredEvents.length === 0 ? (
-              <p style={{ color: '#4ade80', textAlign: 'center' }}>No events found.</p>
+              <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>No events found.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {filteredEvents.map(event => (
@@ -227,23 +227,23 @@ function EventsAdmin({ user, onLogout }) {
                     onClick={() => fetchEventDetails(event.id)}
                     style={{
                       padding: '12px',
-                      background: selectedEvent?.id === event.id ? '#22c55e20' : '#1a1a1a',
+                      background: selectedEvent?.id === event.id ? 'rgba(34, 197, 94, 0.1)' : 'var(--color-bg-input)',
                       borderRadius: '6px',
-                      border: selectedEvent?.id === event.id ? '1px solid #22c55e' : '1px solid #333',
+                      border: selectedEvent?.id === event.id ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
                       cursor: 'pointer',
                       transition: 'all 0.2s'
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ color: '#fff', fontWeight: 500 }}>{event.name}</div>
-                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                        <div style={{ color: 'var(--color-text)', fontWeight: 500 }}>{event.name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)', marginTop: '4px' }}>
                           {event.start_date} | by {event.creator_name || 'Unknown'}
                         </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                         {getStatusBadge(event.status)}
-                        <span style={{ fontSize: '12px', color: '#4ade80' }}>{event.attendee_count} attendees</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{event.attendee_count} attendees</span>
                       </div>
                     </div>
 
@@ -270,7 +270,7 @@ function EventsAdmin({ user, onLogout }) {
                       {event.status === 'approved' && (
                         <button
                           className="btn btn-small"
-                          style={{ background: '#3b82f6' }}
+                          style={{ background: 'var(--color-info)' }}
                           onClick={(e) => { e.stopPropagation(); handleAction(event.id, 'activate'); }}
                           disabled={actionLoading === `${event.id}-activate`}
                         >
@@ -280,7 +280,7 @@ function EventsAdmin({ user, onLogout }) {
                       {event.status === 'active' && (
                         <button
                           className="btn btn-small"
-                          style={{ background: '#22c55e' }}
+                          style={{ background: 'var(--color-primary)' }}
                           onClick={(e) => { e.stopPropagation(); handleAction(event.id, 'complete'); }}
                           disabled={actionLoading === `${event.id}-complete`}
                         >
@@ -298,11 +298,11 @@ function EventsAdmin({ user, onLogout }) {
           {selectedEvent && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>{selectedEvent.name}</h2>
+                <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>{selectedEvent.name}</h2>
                 <button
                   className="btn btn-small"
                   onClick={() => setSelectedEvent(null)}
-                  style={{ background: '#333' }}
+                  style={{ background: 'var(--color-border)' }}
                 >
                   Close
                 </button>
@@ -314,9 +314,9 @@ function EventsAdmin({ user, onLogout }) {
                   <span style={{
                     marginLeft: '12px',
                     padding: '4px 12px',
-                    background: '#22c55e20',
+                    background: 'rgba(34, 197, 94, 0.1)',
                     borderRadius: '6px',
-                    color: '#22c55e',
+                    color: 'var(--color-primary)',
                     fontWeight: 700,
                     letterSpacing: '2px'
                   }}>
@@ -326,10 +326,10 @@ function EventsAdmin({ user, onLogout }) {
               </div>
 
               {selectedEvent.description && (
-                <p style={{ color: '#888', marginBottom: '12px' }}>{selectedEvent.description}</p>
+                <p style={{ color: 'var(--color-text-subtle)', marginBottom: '12px' }}>{selectedEvent.description}</p>
               )}
 
-              <div style={{ fontSize: '14px', color: '#4ade80', marginBottom: '16px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
                 <div><strong>Dates:</strong> {selectedEvent.start_date} to {selectedEvent.end_date}</div>
                 <div><strong>Hours:</strong> {selectedEvent.default_time_in} - {selectedEvent.default_time_out}</div>
                 <div><strong>Created by:</strong> {selectedEvent.creator_name}</div>
@@ -338,7 +338,7 @@ function EventsAdmin({ user, onLogout }) {
               {/* Add Attendee */}
               {(selectedEvent.status === 'approved' || selectedEvent.status === 'active') && (
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', color: '#4ade80', fontSize: '14px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
                     Add Attendee
                   </label>
                   <input
@@ -354,8 +354,8 @@ function EventsAdmin({ user, onLogout }) {
                   {searchResults.length > 0 && (
                     <div style={{
                       marginTop: '4px',
-                      background: '#1a1a1a',
-                      border: '1px solid #333',
+                      background: 'var(--color-bg-input)',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '6px',
                       maxHeight: '150px',
                       overflowY: 'auto'
@@ -367,11 +367,11 @@ function EventsAdmin({ user, onLogout }) {
                           style={{
                             padding: '8px 12px',
                             cursor: 'pointer',
-                            borderBottom: '1px solid #333',
-                            color: '#fff'
+                            borderBottom: '1px solid var(--color-border)',
+                            color: 'var(--color-text)'
                           }}
                         >
-                          {student.name} <span style={{ color: '#888' }}>({student.student_id})</span>
+                          {student.name} <span style={{ color: 'var(--color-text-subtle)' }}>({student.student_id})</span>
                         </div>
                       ))}
                     </div>
@@ -381,11 +381,11 @@ function EventsAdmin({ user, onLogout }) {
 
               {/* Attendees List */}
               <div>
-                <h3 style={{ fontSize: '14px', color: '#4ade80', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
                   Attendees ({selectedEvent.attendees?.length || 0})
                 </h3>
                 {(!selectedEvent.attendees || selectedEvent.attendees.length === 0) ? (
-                  <p style={{ color: '#888', fontSize: '14px', textAlign: 'center' }}>No attendees yet.</p>
+                  <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px', textAlign: 'center' }}>No attendees yet.</p>
                 ) : (
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {selectedEvent.attendees.map(attendee => (
@@ -396,17 +396,17 @@ function EventsAdmin({ user, onLogout }) {
                           justifyContent: 'space-between',
                           alignItems: 'center',
                           padding: '8px',
-                          background: '#1a1a1a',
+                          background: 'var(--color-bg-input)',
                           borderRadius: '4px',
                           marginBottom: '4px'
                         }}
                       >
                         <div>
-                          <span style={{ color: '#fff' }}>{attendee.student_name}</span>
+                          <span style={{ color: 'var(--color-text)' }}>{attendee.student_name}</span>
                           {attendee.hours_logged ? (
-                            <span style={{ marginLeft: '8px', color: '#22c55e', fontSize: '12px' }}>Hours logged</span>
+                            <span style={{ marginLeft: '8px', color: 'var(--color-primary)', fontSize: '12px' }}>Hours logged</span>
                           ) : attendee.checked_in ? (
-                            <span style={{ marginLeft: '8px', color: '#3b82f6', fontSize: '12px' }}>Checked in</span>
+                            <span style={{ marginLeft: '8px', color: 'var(--color-info)', fontSize: '12px' }}>Checked in</span>
                           ) : null}
                         </div>
                         {!attendee.hours_logged && (

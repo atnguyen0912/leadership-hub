@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import { HOUR_TYPES } from '../utils/hourTypes';
+import { useAuth } from '../contexts';
 
 // Helper to get date string in local timezone (YYYY-MM-DD format)
 const getLocalDateString = (date = new Date()) => {
   return date.toLocaleDateString('en-CA'); // en-CA uses YYYY-MM-DD format
 };
 
-function LogHours({ user, onLogout }) {
+function LogHours() {
+  const { user } = useAuth();
   const [mode, setMode] = useState('today'); // 'today' or 'past'
   const [selectedDate, setSelectedDate] = useState('');
   const [timeIn, setTimeIn] = useState('');
@@ -177,7 +179,7 @@ function LogHours({ user, onLogout }) {
       <div className="calendar-container">
         <div className="calendar-header">
           <button type="button" className="btn" onClick={() => navigateMonth(-1)}>&lt;</button>
-          <h3 style={{ margin: 0, color: '#22c55e', fontSize: '16px' }}>
+          <h3 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '16px' }}>
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </h3>
           <button type="button" className="btn" onClick={() => navigateMonth(1)}>&gt;</button>
@@ -198,7 +200,7 @@ function LogHours({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Log Hours</h1>
 
@@ -234,7 +236,7 @@ function LogHours({ user, onLogout }) {
 
             {todayHours.length > 0 && (
               <div className="logged-entries" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', marginBottom: '16px' }}>
-                <h3 style={{ color: '#4ade80', fontSize: '14px', marginBottom: '8px' }}>
+                <h3 style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '8px' }}>
                   Already logged today:
                 </h3>
                 {todayHours.map(entry => (
@@ -335,7 +337,7 @@ function LogHours({ user, onLogout }) {
             </div>
 
             <div className="card">
-              <h2 style={{ color: '#22c55e', marginBottom: '16px', fontSize: '18px' }}>
+              <h2 style={{ color: 'var(--color-primary)', marginBottom: '16px', fontSize: '18px' }}>
                 {selectedDate
                   ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
                       weekday: 'long',
@@ -422,7 +424,7 @@ function LogHours({ user, onLogout }) {
 
               {selectedDate && getHoursForDate(new Date(selectedDate + 'T00:00:00')).length > 0 && (
                 <div className="logged-entries">
-                  <h3 style={{ color: '#4ade80', fontSize: '14px', marginBottom: '8px' }}>
+                  <h3 style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '8px' }}>
                     Already logged for this day:
                   </h3>
                   {getHoursForDate(new Date(selectedDate + 'T00:00:00')).map(entry => (

@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth, useTheme } from '../contexts';
 
-function Navbar({ user, onLogout }) {
+function Navbar() {
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <nav className="nav">
@@ -39,7 +42,14 @@ function Navbar({ user, onLogout }) {
             </Link>
           </>
         )}
-        <button className="logout-btn" onClick={onLogout}>
+        <button
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+        <button className="logout-btn" onClick={logout}>
           Logout
         </button>
       </div>

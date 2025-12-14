@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 
-function ManageStudents({ user, onLogout }) {
+function ManageStudents() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -398,9 +398,9 @@ function ManageStudents({ user, onLogout }) {
   };
 
   const getLeadTypeColor = (leadType) => {
-    if (leadType === 'events') return '#3b82f6';
-    if (leadType === 'concessions') return '#22c55e';
-    return '#666';
+    if (leadType === 'events') return 'var(--color-info)';
+    if (leadType === 'concessions') return 'var(--color-primary)';
+    return 'var(--color-text-muted)';
   };
 
   // Save students to CSV file on server
@@ -436,7 +436,7 @@ function ManageStudents({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <p>Loading...</p>
         </div>
@@ -449,7 +449,7 @@ function ManageStudents({ user, onLogout }) {
       {/* Permission Groups List */}
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>Permission Groups</h2>
+          <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>Permission Groups</h2>
           <button
             className="btn btn-primary btn-small"
             onClick={() => {
@@ -463,7 +463,7 @@ function ManageStudents({ user, onLogout }) {
         </div>
 
         {permissionGroups.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#4ade80' }}>No permission groups yet.</p>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No permission groups yet.</p>
         ) : (
           <div style={{ display: 'grid', gap: '12px' }}>
             {permissionGroups.map(group => (
@@ -471,33 +471,33 @@ function ManageStudents({ user, onLogout }) {
                 key={group.id}
                 style={{
                   padding: '16px',
-                  background: '#1a1a1a',
+                  background: 'var(--color-bg-input)',
                   borderRadius: '8px',
-                  border: '1px solid #2a2a2a'
+                  border: '1px solid var(--color-border)'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <h3 style={{ margin: 0, color: '#22c55e', fontSize: '16px' }}>{group.name}</h3>
+                    <h3 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '16px' }}>{group.name}</h3>
                     {group.description && (
-                      <p style={{ margin: '4px 0 0', color: '#4a7c59', fontSize: '13px' }}>{group.description}</p>
+                      <p style={{ margin: '4px 0 0', color: 'var(--color-text-subtle)', fontSize: '13px' }}>{group.description}</p>
                     )}
                     <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{
                         padding: '2px 8px',
-                        background: '#4a7c5930',
+                        background: 'rgba(74, 124, 89, 0.19)',
                         borderRadius: '4px',
                         fontSize: '12px',
-                        color: '#4ade80'
+                        color: 'var(--color-text-muted)'
                       }}>
                         {group.member_count || 0} member{group.member_count !== 1 ? 's' : ''}
                       </span>
                       <span style={{
                         padding: '2px 8px',
-                        background: '#3b82f630',
+                        background: 'rgba(59, 130, 246, 0.19)',
                         borderRadius: '4px',
                         fontSize: '12px',
-                        color: '#60a5fa'
+                        color: 'var(--color-info)'
                       }}>
                         {(group.permissions || []).length} permission{(group.permissions || []).length !== 1 ? 's' : ''}
                       </span>
@@ -507,7 +507,7 @@ function ManageStudents({ user, onLogout }) {
                     <button
                       className="btn btn-small"
                       onClick={() => handleManageMembers(group)}
-                      style={{ background: '#3b82f6' }}
+                      style={{ background: 'var(--color-info)' }}
                     >
                       Members
                     </button>
@@ -546,7 +546,7 @@ function ManageStudents({ user, onLogout }) {
           padding: '20px'
         }}>
           <div style={{
-            background: '#111',
+            background: 'var(--color-bg)',
             borderRadius: '12px',
             padding: '24px',
             maxWidth: '600px',
@@ -554,7 +554,7 @@ function ManageStudents({ user, onLogout }) {
             maxHeight: '80vh',
             overflow: 'auto'
           }}>
-            <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>
+            <h2 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>
               {selectedGroup ? 'Edit Permission Group' : 'Create Permission Group'}
             </h2>
             <form onSubmit={selectedGroup ? handleUpdateGroup : handleCreateGroup}>
@@ -581,7 +581,7 @@ function ManageStudents({ user, onLogout }) {
                 <label style={{ marginBottom: '12px', display: 'block' }}>Permissions</label>
                 {Object.entries(groupPermissionsByCategory()).map(([category, perms]) => (
                   <div key={category} style={{ marginBottom: '16px' }}>
-                    <h4 style={{ color: '#4ade80', fontSize: '14px', marginBottom: '8px' }}>{category}</h4>
+                    <h4 style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '8px' }}>{category}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
                       {perms.map(perm => (
                         <label
@@ -591,10 +591,10 @@ function ManageStudents({ user, onLogout }) {
                             alignItems: 'center',
                             gap: '8px',
                             padding: '8px',
-                            background: groupFormData.permissions.includes(perm.key) ? '#22c55e20' : '#1a1a1a',
+                            background: groupFormData.permissions.includes(perm.key) ? 'rgba(34, 197, 94, 0.13)' : 'var(--color-bg-input)',
                             borderRadius: '6px',
                             cursor: 'pointer',
-                            border: `1px solid ${groupFormData.permissions.includes(perm.key) ? '#22c55e' : '#2a2a2a'}`
+                            border: `1px solid ${groupFormData.permissions.includes(perm.key) ? 'var(--color-primary)' : 'var(--color-border)'}`
                           }}
                         >
                           <input
@@ -602,7 +602,7 @@ function ManageStudents({ user, onLogout }) {
                             checked={groupFormData.permissions.includes(perm.key)}
                             onChange={() => togglePermission(perm.key)}
                           />
-                          <span style={{ fontSize: '13px', color: '#4ade80' }}>{perm.label}</span>
+                          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{perm.label}</span>
                         </label>
                       ))}
                     </div>
@@ -642,7 +642,7 @@ function ManageStudents({ user, onLogout }) {
           padding: '20px'
         }}>
           <div style={{
-            background: '#111',
+            background: 'var(--color-bg)',
             borderRadius: '12px',
             padding: '24px',
             maxWidth: '700px',
@@ -650,17 +650,17 @@ function ManageStudents({ user, onLogout }) {
             maxHeight: '80vh',
             overflow: 'auto'
           }}>
-            <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>
+            <h2 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>
               Manage Members: {selectedGroup.name}
             </h2>
 
             {/* Current Members */}
             <div style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '14px', color: '#4ade80', marginBottom: '12px' }}>
+              <h3 style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>
                 Current Members ({(selectedGroup.members || []).length})
               </h3>
               {(selectedGroup.members || []).length === 0 ? (
-                <p style={{ color: '#4a7c59', fontSize: '13px' }}>No members in this group yet.</p>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>No members in this group yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {(selectedGroup.members || []).map(member => (
@@ -671,18 +671,18 @@ function ManageStudents({ user, onLogout }) {
                         alignItems: 'center',
                         gap: '8px',
                         padding: '6px 12px',
-                        background: '#1a1a1a',
+                        background: 'var(--color-bg-input)',
                         borderRadius: '20px',
                         fontSize: '13px'
                       }}
                     >
-                      <span style={{ color: '#4ade80' }}>{member.name}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{member.name}</span>
                       <button
                         onClick={() => handleRemoveMember(member.student_id)}
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#ef4444',
+                          color: 'var(--color-danger)',
                           cursor: 'pointer',
                           padding: '0 4px',
                           fontSize: '16px'
@@ -698,7 +698,7 @@ function ManageStudents({ user, onLogout }) {
 
             {/* Add Members */}
             <div>
-              <h3 style={{ fontSize: '14px', color: '#4ade80', marginBottom: '12px' }}>Add Members</h3>
+              <h3 style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>Add Members</h3>
               <input
                 type="text"
                 className="input"
@@ -716,7 +716,7 @@ function ManageStudents({ user, onLogout }) {
                       alignItems: 'center',
                       gap: '8px',
                       padding: '8px',
-                      background: selectedStudents.includes(student.student_id) ? '#22c55e20' : 'transparent',
+                      background: selectedStudents.includes(student.student_id) ? 'rgba(34, 197, 94, 0.13)' : 'transparent',
                       borderRadius: '6px',
                       cursor: 'pointer'
                     }}
@@ -726,8 +726,8 @@ function ManageStudents({ user, onLogout }) {
                       checked={selectedStudents.includes(student.student_id)}
                       onChange={() => toggleStudentSelection(student.student_id)}
                     />
-                    <span style={{ color: '#4ade80' }}>{student.name}</span>
-                    <span style={{ color: '#4a7c59', fontSize: '12px' }}>({student.student_id})</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{student.name}</span>
+                    <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>({student.student_id})</span>
                   </label>
                 ))}
               </div>
@@ -757,7 +757,7 @@ function ManageStudents({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Manage Students</h1>
 
@@ -786,7 +786,7 @@ function ManageStudents({ user, onLogout }) {
         <>
         {/* Add Student Form */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Add Student</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Add Student</h2>
           <form onSubmit={handleAddStudent}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -824,8 +824,8 @@ function ManageStudents({ user, onLogout }) {
 
         {/* CSV Upload */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Upload CSV Roster</h2>
-          <p style={{ marginBottom: '12px', color: '#4ade80', fontSize: '14px' }}>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Upload CSV Roster</h2>
+          <p style={{ marginBottom: '12px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
             CSV file should have columns: student_id, name
           </p>
           <input
@@ -836,9 +836,9 @@ function ManageStudents({ user, onLogout }) {
             style={{ padding: '8px' }}
           />
           {uploadResult && uploadResult.errors.length > 0 && (
-            <div style={{ marginTop: '12px', padding: '12px', background: '#1a1a1a', border: '1px solid #eab308', borderRadius: '8px' }}>
-              <p style={{ fontWeight: 500, marginBottom: '8px', color: '#eab308' }}>Warnings:</p>
-              <ul style={{ marginLeft: '20px', fontSize: '14px', color: '#eab308' }}>
+            <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-bg-input)', border: '1px solid var(--color-warning)', borderRadius: '8px' }}>
+              <p style={{ fontWeight: 500, marginBottom: '8px', color: 'var(--color-warning)' }}>Warnings:</p>
+              <ul style={{ marginLeft: '20px', fontSize: '14px', color: 'var(--color-warning)' }}>
                 {uploadResult.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -849,8 +849,8 @@ function ManageStudents({ user, onLogout }) {
 
         {/* Save/Export CSV */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Export Students</h2>
-          <p style={{ marginBottom: '12px', color: '#4ade80', fontSize: '14px' }}>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Export Students</h2>
+          <p style={{ marginBottom: '12px', color: 'var(--color-text-muted)', fontSize: '14px' }}>
             Save students to CSV to persist data between deployments, or download for backup.
           </p>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -864,7 +864,7 @@ function ManageStudents({ user, onLogout }) {
             <button
               className="btn"
               onClick={handleDownloadCSV}
-              style={{ background: '#4a7c59' }}
+              style={{ background: 'var(--color-text-subtle)' }}
             >
               Download CSV
             </button>
@@ -873,9 +873,9 @@ function ManageStudents({ user, onLogout }) {
 
         {/* Students Table */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>All Students ({students.length})</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>All Students ({students.length})</h2>
           {students.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#4ade80' }}>No students registered yet.</p>
+            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No students registered yet.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
@@ -903,7 +903,7 @@ function ManageStudents({ user, onLogout }) {
                               fontSize: '11px',
                               fontWeight: 600,
                               background: getLeadTypeColor(student.lead_type),
-                              color: '#fff'
+                              color: 'var(--color-text)'
                             }}>
                               {leadLabel}
                             </span>

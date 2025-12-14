@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { useAuth } from '../contexts';
 
-function CashBox({ user, onLogout }) {
+function CashBox() {
+  const { user } = useAuth();
   const [cashbox, setCashbox] = useState(null);
   const [activeSessions, setActiveSessions] = useState([]);
   const [programs, setPrograms] = useState([]);
@@ -115,9 +117,9 @@ function CashBox({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
-          <p style={{ color: '#22c55e' }}>Loading...</p>
+          <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -128,7 +130,7 @@ function CashBox({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Concessions</h1>
 
@@ -138,7 +140,7 @@ function CashBox({ user, onLogout }) {
         {/* Concession Lead: View Main Cashbox Balance */}
         {isConcessionLead && cashbox && (
           <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '20px' }}>💰</span>
               Main CashBox Balance
             </h2>
@@ -189,11 +191,11 @@ function CashBox({ user, onLogout }) {
         {isConcessionLead && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showCreateForm ? '16px' : 0 }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>Create Session</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>Create Session</h2>
               <button
                 className="btn btn-small"
                 onClick={() => setShowCreateForm(!showCreateForm)}
-                style={{ background: showCreateForm ? '#333' : '#22c55e' }}
+                style={{ background: showCreateForm ? 'var(--color-border)' : 'var(--color-primary)' }}
               >
                 {showCreateForm ? 'Cancel' : '+ New Session'}
               </button>
@@ -245,12 +247,12 @@ function CashBox({ user, onLogout }) {
         {activeSessions.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}>📦</div>
-            <h2 style={{ color: '#22c55e', marginBottom: '8px' }}>No Active Sessions</h2>
-            <p style={{ color: '#4ade80' }}>
+            <h2 style={{ color: 'var(--color-primary)', marginBottom: '8px' }}>No Active Sessions</h2>
+            <p style={{ color: 'var(--color-text-muted)' }}>
               There are no concession sessions available right now.
             </p>
             {!isConcessionLead && (
-              <p style={{ color: '#4a7c59', fontSize: '14px', marginTop: '8px' }}>
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px', marginTop: '8px' }}>
                 A concessions lead or admin needs to create a session.
               </p>
             )}
@@ -260,11 +262,11 @@ function CashBox({ user, onLogout }) {
             {/* Sessions Needing Start */}
             {createdSessions.length > 0 && (
               <div className="card">
-                <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '20px' }}>⏳</span>
                   Ready to Start
                 </h2>
-                <p style={{ color: '#4a7c59', fontSize: '14px', marginBottom: '16px' }}>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px', marginBottom: '16px' }}>
                   These sessions need starting cash counted before they can begin.
                 </p>
                 <div className="sessions-list">
@@ -278,14 +280,14 @@ function CashBox({ user, onLogout }) {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <div>
-                            <strong style={{ color: '#22c55e', fontSize: '18px' }}>{session.name}</strong>
-                            <div style={{ color: '#4ade80', fontSize: '14px' }}>{session.program_name}</div>
+                            <strong style={{ color: 'var(--color-primary)', fontSize: '18px' }}>{session.name}</strong>
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>{session.program_name}</div>
                           </div>
                           <span className={`status-badge ${statusInfo.class}`}>
                             {statusInfo.label}
                           </span>
                         </div>
-                        <div style={{ color: '#4a7c59', fontSize: '13px' }}>
+                        <div style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
                           Created: {formatDateTime(session.created_at)}
                         </div>
                         <div style={{
@@ -296,7 +298,7 @@ function CashBox({ user, onLogout }) {
                           justifyContent: 'flex-end'
                         }}>
                           <span style={{
-                            color: '#22c55e',
+                            color: 'var(--color-primary)',
                             fontSize: '14px',
                             fontWeight: 600,
                             display: 'flex',
@@ -316,11 +318,11 @@ function CashBox({ user, onLogout }) {
             {/* Active Sessions */}
             {inProgressSessions.length > 0 && (
               <div className="card">
-                <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '20px' }}>✓</span>
                   Active Sessions
                 </h2>
-                <p style={{ color: '#4a7c59', fontSize: '14px', marginBottom: '16px' }}>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px', marginBottom: '16px' }}>
                   These sessions are running. Use the counter to ring up orders, or close when done.
                 </p>
                 <div className="sessions-list">
@@ -334,8 +336,8 @@ function CashBox({ user, onLogout }) {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <div>
-                            <strong style={{ color: '#22c55e', fontSize: '18px' }}>{session.name}</strong>
-                            <div style={{ color: '#4ade80', fontSize: '14px' }}>{session.program_name}</div>
+                            <strong style={{ color: 'var(--color-primary)', fontSize: '18px' }}>{session.name}</strong>
+                            <div style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>{session.program_name}</div>
                           </div>
                           <span className={`status-badge ${statusInfo.class}`}>
                             {statusInfo.label}
@@ -344,12 +346,12 @@ function CashBox({ user, onLogout }) {
                         <div style={{
                           display: 'flex',
                           gap: '16px',
-                          color: '#4ade80',
+                          color: 'var(--color-text-muted)',
                           fontSize: '14px',
                           flexWrap: 'wrap'
                         }}>
                           <span>Started with: <strong>{formatCurrency(session.start_total)}</strong></span>
-                          <span style={{ color: '#4a7c59' }}>{formatDateTime(session.started_at)}</span>
+                          <span style={{ color: 'var(--color-text-subtle)' }}>{formatDateTime(session.started_at)}</span>
                         </div>
                         <div style={{
                           marginTop: '12px',
@@ -371,7 +373,7 @@ function CashBox({ user, onLogout }) {
                             Open Counter
                           </button>
                           <span style={{
-                            color: '#22c55e',
+                            color: 'var(--color-primary)',
                             fontSize: '14px',
                             fontWeight: 600,
                             display: 'flex',

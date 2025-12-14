@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb } = require('../database');
+const { run, get, all, transaction } = require('../db-utils');
 
 // Helper function to calculate total value from denomination counts
 const calculateTotal = (row, prefix = '') => {
@@ -403,31 +404,27 @@ router.post('/sessions', (req, res) => {
 });
 
 // POST /api/cashbox/sessions/:id/start - Fill starting cash (Student)
-router.post('/sessions/:id/start', (req, res) => {
-  const { id } = req.params;
-  const {
-    quarters = 0,
-    bills_1 = 0,
-    bills_5 = 0,
-    bills_10 = 0,
-    bills_20 = 0,
-    bills_50 = 0,
-    bills_100 = 0,
-    startedBy
-  } = req.body;
+router.post('/sessions/:id/start', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      quarters = 0,
+      bills_1 = 0,
+      bills_5 = 0,
+      bills_10 = 0,
+      bills_20 = 0,
+      bills_50 = 0,
+      bills_100 = 0,
+      startedBy
+    } = req.body;
 
-  // Validate non-negative
-  if (quarters < 0 || bills_1 < 0 || bills_5 < 0 || bills_10 < 0 || bills_20 < 0 || bills_50 < 0 || bills_100 < 0) {
-    return res.status(400).json({ error: 'Denomination counts cannot be negative' });
-  }
-
-  const db = getDb();
-
-  // Get the session
-  db.get('SELECT * FROM concession_sessions WHERE id = ?', [id], (err, session) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    // Validate non-negative
+    if (quarters < 0 || bills_1 < 0 || bills_5 < 0 || bills_10 < 0 || bills_20 < 0 || bills_50 < 0 || bills_100 < 0) {
+      return res.status(400).json({ error: 'Denomination counts cannot be negative' });
     }
+
+    // Get the session
+    const session = await get('SELECT * FROM concession_sessions WHERE id = ?', [id]);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
@@ -439,7 +436,7 @@ router.post('/sessions/:id/start', (req, res) => {
 
     // For test sessions, skip cashbox deduction
     if (session.is_test) {
-      db.run(
+      await run(
         `UPDATE concession_sessions SET
          status = 'active',
          start_quarters = ?,
@@ -453,38 +450,31 @@ router.post('/sessions/:id/start', (req, res) => {
          started_by = ?,
          started_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id],
-        (err) => {
-          if (err) {
-            return res.status(500).json({ error: 'Database error' });
-          }
-          res.json({ success: true, status: 'active', startTotal, isTest: true });
-        }
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id]
       );
-      return;
+      return res.json({ success: true, status: 'active', startTotal, isTest: true });
     }
 
-    // For real sessions, deduct from main cashbox
-    db.get('SELECT * FROM cashbox WHERE id = 1', [], (err, cashbox) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
+    // For real sessions, verify and deduct from main cashbox atomically
+    const cashbox = await get('SELECT * FROM cashbox WHERE id = 1', []);
 
-      // Verify sufficient funds in main cashbox
-      if (
-        cashbox.quarters < quarters ||
-        cashbox.bills_1 < bills_1 ||
-        cashbox.bills_5 < bills_5 ||
-        cashbox.bills_10 < bills_10 ||
-        cashbox.bills_20 < bills_20 ||
-        cashbox.bills_50 < bills_50 ||
-        cashbox.bills_100 < bills_100
-      ) {
-        return res.status(400).json({ error: 'Insufficient funds in main cashbox' });
-      }
+    // Verify sufficient funds in main cashbox
+    if (
+      cashbox.quarters < quarters ||
+      cashbox.bills_1 < bills_1 ||
+      cashbox.bills_5 < bills_5 ||
+      cashbox.bills_10 < bills_10 ||
+      cashbox.bills_20 < bills_20 ||
+      cashbox.bills_50 < bills_50 ||
+      cashbox.bills_100 < bills_100
+    ) {
+      return res.status(400).json({ error: 'Insufficient funds in main cashbox' });
+    }
 
+    // Use transaction to ensure atomicity
+    await transaction(async ({ run: txRun }) => {
       // Subtract from main cashbox
-      db.run(
+      await txRun(
         `UPDATE cashbox SET
          quarters = quarters - ?,
          bills_1 = bills_1 - ?,
@@ -495,67 +485,57 @@ router.post('/sessions/:id/start', (req, res) => {
          bills_100 = bills_100 - ?,
          updated_at = CURRENT_TIMESTAMP
          WHERE id = 1`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100],
-        (err) => {
-          if (err) {
-            return res.status(500).json({ error: 'Database error' });
-          }
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100]
+      );
 
-          // Update session with starting cash
-          db.run(
-            `UPDATE concession_sessions SET
-             status = 'active',
-             start_quarters = ?,
-             start_bills_1 = ?,
-             start_bills_5 = ?,
-             start_bills_10 = ?,
-             start_bills_20 = ?,
-             start_bills_50 = ?,
-             start_bills_100 = ?,
-             start_total = ?,
-             started_by = ?,
-             started_at = CURRENT_TIMESTAMP
-             WHERE id = ?`,
-            [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id],
-            (err) => {
-              if (err) {
-                return res.status(500).json({ error: 'Database error' });
-              }
-              res.json({ success: true, status: 'active', startTotal });
-            }
-          );
-        }
+      // Update session with starting cash
+      await txRun(
+        `UPDATE concession_sessions SET
+         status = 'active',
+         start_quarters = ?,
+         start_bills_1 = ?,
+         start_bills_5 = ?,
+         start_bills_10 = ?,
+         start_bills_20 = ?,
+         start_bills_50 = ?,
+         start_bills_100 = ?,
+         start_total = ?,
+         started_by = ?,
+         started_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id]
       );
     });
-  });
+
+    res.json({ success: true, status: 'active', startTotal });
+  } catch (err) {
+    console.error('Session start error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // POST /api/cashbox/sessions/:id/close - Close session with ending cash
-router.post('/sessions/:id/close', (req, res) => {
-  const { id } = req.params;
-  const {
-    quarters = 0,
-    bills_1 = 0,
-    bills_5 = 0,
-    bills_10 = 0,
-    bills_20 = 0,
-    bills_50 = 0,
-    bills_100 = 0,
-    closedBy
-  } = req.body;
+router.post('/sessions/:id/close', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      quarters = 0,
+      bills_1 = 0,
+      bills_5 = 0,
+      bills_10 = 0,
+      bills_20 = 0,
+      bills_50 = 0,
+      bills_100 = 0,
+      closedBy
+    } = req.body;
 
-  // Validate non-negative
-  if (quarters < 0 || bills_1 < 0 || bills_5 < 0 || bills_10 < 0 || bills_20 < 0 || bills_50 < 0 || bills_100 < 0) {
-    return res.status(400).json({ error: 'Denomination counts cannot be negative' });
-  }
-
-  const db = getDb();
-
-  // Get the session
-  db.get('SELECT * FROM concession_sessions WHERE id = ?', [id], (err, session) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+    // Validate non-negative
+    if (quarters < 0 || bills_1 < 0 || bills_5 < 0 || bills_10 < 0 || bills_20 < 0 || bills_50 < 0 || bills_100 < 0) {
+      return res.status(400).json({ error: 'Denomination counts cannot be negative' });
     }
+
+    // Get the session
+    const session = await get('SELECT * FROM concession_sessions WHERE id = ?', [id]);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
@@ -566,62 +546,54 @@ router.post('/sessions/:id/close', (req, res) => {
     const endTotal = calculateTotal({ quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100 });
     const profit = endTotal - session.start_total;
 
-    // Add ending cash back to main cashbox
-    db.run(
-      `UPDATE cashbox SET
-       quarters = quarters + ?,
-       bills_1 = bills_1 + ?,
-       bills_5 = bills_5 + ?,
-       bills_10 = bills_10 + ?,
-       bills_20 = bills_20 + ?,
-       bills_50 = bills_50 + ?,
-       bills_100 = bills_100 + ?,
-       updated_at = CURRENT_TIMESTAMP
-       WHERE id = 1`,
-      [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100],
-      (err) => {
-        if (err) {
-          return res.status(500).json({ error: 'Database error' });
-        }
+    // Use transaction to ensure atomicity
+    await transaction(async ({ run: txRun }) => {
+      // Add ending cash back to main cashbox
+      await txRun(
+        `UPDATE cashbox SET
+         quarters = quarters + ?,
+         bills_1 = bills_1 + ?,
+         bills_5 = bills_5 + ?,
+         bills_10 = bills_10 + ?,
+         bills_20 = bills_20 + ?,
+         bills_50 = bills_50 + ?,
+         bills_100 = bills_100 + ?,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = 1`,
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100]
+      );
 
-        // Update session with ending cash
-        db.run(
-          `UPDATE concession_sessions SET
-           status = 'closed',
-           end_quarters = ?,
-           end_bills_1 = ?,
-           end_bills_5 = ?,
-           end_bills_10 = ?,
-           end_bills_20 = ?,
-           end_bills_50 = ?,
-           end_bills_100 = ?,
-           end_total = ?,
-           profit = ?,
-           closed_by = ?,
-           closed_at = CURRENT_TIMESTAMP
-           WHERE id = ?`,
-          [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, endTotal, profit, closedBy || null, id],
-          (err) => {
-            if (err) {
-              return res.status(500).json({ error: 'Database error' });
-            }
+      // Update session with ending cash
+      await txRun(
+        `UPDATE concession_sessions SET
+         status = 'closed',
+         end_quarters = ?,
+         end_bills_1 = ?,
+         end_bills_5 = ?,
+         end_bills_10 = ?,
+         end_bills_20 = ?,
+         end_bills_50 = ?,
+         end_bills_100 = ?,
+         end_total = ?,
+         profit = ?,
+         closed_by = ?,
+         closed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, endTotal, profit, closedBy || null, id]
+      );
 
-            // Record profit to program earnings
-            db.run(
-              'INSERT INTO program_earnings (program_id, session_id, amount) VALUES (?, ?, ?)',
-              [session.program_id, id, profit],
-              (err) => {
-                if (err) {
-                  return res.status(500).json({ error: 'Database error' });
-                }
-                res.json({ success: true, status: 'closed', endTotal, profit });
-              }
-            );
-          }
-        );
-      }
-    );
-  });
+      // Record profit to program earnings
+      await txRun(
+        'INSERT INTO program_earnings (program_id, session_id, amount) VALUES (?, ?, ?)',
+        [session.program_id, id, profit]
+      );
+    });
+
+    res.json({ success: true, status: 'closed', endTotal, profit });
+  } catch (err) {
+    console.error('Session close error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // POST /api/cashbox/sessions/:id/cancel - Cancel session (Admin)

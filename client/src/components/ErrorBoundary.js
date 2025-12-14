@@ -31,7 +31,7 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      // Fallback UI
+      // Fallback UI - uses CSS variables for theme support
       return (
         <div style={{
           minHeight: '100vh',
@@ -40,27 +40,28 @@ class ErrorBoundary extends React.Component {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px',
-          backgroundColor: '#0a0a0a',
-          color: '#4ade80'
+          backgroundColor: 'var(--color-bg)',
+          color: 'var(--color-text-muted)'
         }}>
           <div style={{
             maxWidth: '500px',
             textAlign: 'center',
             padding: '40px',
-            backgroundColor: '#111',
+            backgroundColor: 'var(--color-bg-card-solid)',
             borderRadius: '12px',
-            border: '1px solid #2a2a2a'
+            border: '1px solid var(--color-primary)',
+            boxShadow: 'var(--shadow-md)'
           }}>
             <h1 style={{
               fontSize: '24px',
               marginBottom: '16px',
-              color: '#22c55e'
+              color: 'var(--color-primary)'
             }}>
               Something went wrong
             </h1>
             <p style={{
               fontSize: '14px',
-              color: '#4a7c59',
+              color: 'var(--color-text-muted)',
               marginBottom: '24px'
             }}>
               An unexpected error occurred. Please try refreshing the page or going back to the home page.
@@ -71,17 +72,17 @@ class ErrorBoundary extends React.Component {
                 textAlign: 'left',
                 marginBottom: '24px',
                 padding: '12px',
-                backgroundColor: '#1a1a1a',
+                backgroundColor: 'var(--color-bg-input)',
                 borderRadius: '8px',
                 fontSize: '12px'
               }}>
-                <summary style={{ cursor: 'pointer', color: '#f59e0b', marginBottom: '8px' }}>
+                <summary style={{ cursor: 'pointer', color: 'var(--color-warning)', marginBottom: '8px' }}>
                   Error Details (Dev Only)
                 </summary>
                 <pre style={{
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
-                  color: '#ef4444',
+                  color: 'var(--color-danger)',
                   margin: '8px 0'
                 }}>
                   {this.state.error.toString()}
@@ -90,7 +91,7 @@ class ErrorBoundary extends React.Component {
                   <pre style={{
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
-                    color: '#6b7280',
+                    color: 'var(--color-text-subtle)',
                     fontSize: '10px'
                   }}>
                     {this.state.errorInfo.componentStack}
@@ -102,30 +103,13 @@ class ErrorBoundary extends React.Component {
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
                 onClick={this.handleReload}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: '#22c55e',
-                  color: '#000',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '14px'
-                }}
+                className="btn btn-primary"
               >
                 Refresh Page
               </button>
               <button
                 onClick={this.handleGoHome}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: '#333',
-                  color: '#4ade80',
-                  border: '1px solid #4a7c59',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
+                className="btn btn-secondary"
               >
                 Go Home
               </button>

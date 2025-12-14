@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../contexts';
 
-function Events({ user, onLogout }) {
+function Events() {
+  const { user } = useAuth();
   const [activeEvents, setActiveEvents] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -159,7 +161,7 @@ function Events({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
           <p>Loading...</p>
         </div>
@@ -169,7 +171,7 @@ function Events({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Events</h1>
 
@@ -178,7 +180,7 @@ function Events({ user, onLogout }) {
 
         {/* Join Event by Code */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Join Event</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Join Event</h2>
           <form onSubmit={handleJoinByCode}>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
               <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
@@ -204,36 +206,36 @@ function Events({ user, onLogout }) {
 
         {/* Active Events */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Active Events</h2>
+          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Active Events</h2>
           {activeEvents.length === 0 ? (
-            <p style={{ color: '#4ade80', textAlign: 'center' }}>No active events at this time.</p>
+            <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>No active events at this time.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {activeEvents.map(event => (
                 <div key={event.id} style={{
                   padding: '16px',
-                  background: '#1a1a1a',
+                  background: 'var(--color-bg-input)',
                   borderRadius: '8px',
-                  border: '1px solid #333'
+                  border: '1px solid var(--color-border)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <h3 style={{ margin: 0, color: '#fff' }}>{event.name}</h3>
+                    <h3 style={{ margin: 0, color: 'var(--color-text)' }}>{event.name}</h3>
                     {getStatusBadge(event.status)}
                   </div>
                   {event.description && (
-                    <p style={{ margin: '8px 0', color: '#888', fontSize: '14px' }}>{event.description}</p>
+                    <p style={{ margin: '8px 0', color: 'var(--color-text-subtle)', fontSize: '14px' }}>{event.description}</p>
                   )}
-                  <div style={{ fontSize: '14px', color: '#4ade80' }}>
+                  <div style={{ fontSize: '14px', color: 'var(--color-text-muted)' }}>
                     <span>{event.start_date} - {event.end_date}</span>
-                    <span style={{ margin: '0 12px', color: '#444' }}>|</span>
+                    <span style={{ margin: '0 12px', color: 'var(--color-border)' }}>|</span>
                     <span>{event.default_time_in} - {event.default_time_out}</span>
-                    <span style={{ margin: '0 12px', color: '#444' }}>|</span>
+                    <span style={{ margin: '0 12px', color: 'var(--color-border)' }}>|</span>
                     <span>{event.attendee_count} attendees</span>
                   </div>
                   {event.status === 'active' && event.check_in_code && (
-                    <div style={{ marginTop: '12px', padding: '8px 12px', background: '#22c55e20', borderRadius: '6px', display: 'inline-block' }}>
-                      <span style={{ color: '#4ade80', fontSize: '12px' }}>Check-in Code: </span>
-                      <span style={{ color: '#22c55e', fontWeight: 700, letterSpacing: '2px' }}>{event.check_in_code}</span>
+                    <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(34, 197, 94, 0.1)', borderRadius: '6px', display: 'inline-block' }}>
+                      <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Check-in Code: </span>
+                      <span style={{ color: 'var(--color-primary)', fontWeight: 700, letterSpacing: '2px' }}>{event.check_in_code}</span>
                     </div>
                   )}
                 </div>
@@ -246,11 +248,11 @@ function Events({ user, onLogout }) {
         {user.leadType === 'events' && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>Create Event</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', color: 'var(--color-primary)' }}>Create Event</h2>
               <button
                 className="btn btn-small"
                 onClick={() => setShowCreateForm(!showCreateForm)}
-                style={{ background: showCreateForm ? '#333' : '#22c55e' }}
+                style={{ background: showCreateForm ? 'var(--color-border)' : 'var(--color-primary)' }}
               >
                 {showCreateForm ? 'Cancel' : '+ New Event'}
               </button>
@@ -339,20 +341,20 @@ function Events({ user, onLogout }) {
             {/* My Created Events */}
             {myEvents.length > 0 && (
               <div style={{ marginTop: '24px' }}>
-                <h3 style={{ fontSize: '16px', color: '#4ade80', marginBottom: '12px' }}>My Created Events</h3>
+                <h3 style={{ fontSize: '16px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>My Created Events</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {myEvents.map(event => (
                     <div key={event.id} style={{
                       padding: '12px',
-                      background: '#1a1a1a',
+                      background: 'var(--color-bg-input)',
                       borderRadius: '6px',
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center'
                     }}>
                       <div>
-                        <span style={{ color: '#fff' }}>{event.name}</span>
-                        <span style={{ marginLeft: '12px', color: '#888', fontSize: '14px' }}>
+                        <span style={{ color: 'var(--color-text)' }}>{event.name}</span>
+                        <span style={{ marginLeft: '12px', color: 'var(--color-text-subtle)', fontSize: '14px' }}>
                           {event.start_date}
                         </span>
                       </div>

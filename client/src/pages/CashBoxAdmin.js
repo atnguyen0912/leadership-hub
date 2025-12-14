@@ -2,8 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
+import { useAuth } from '../contexts';
+import {
+  DashboardSection,
+  ReportsSection,
+  ActiveSessionsSection,
+  SessionHistorySection,
+  CashboxSection,
+  ProgramsListSection,
+  InventoryStockSection,
+  ReimbursementSection,
+  CashAppSection,
+  LossesSection,
+  ProgramsEarningsSection,
+  InventoryLotsSection,
+  InventoryMovementsSection,
+  InventoryCountSection
+} from '../components/cashbox';
 
-function CashBoxAdmin({ user, onLogout }) {
+function CashBoxAdmin() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [cashbox, setCashbox] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -980,17 +998,6 @@ function CashBoxAdmin({ user, onLogout }) {
     const targetIsTopLevel = targetParentId === null && targetItem.parent_id === null;
     const draggedIsCategory = draggedItem.price === null;
 
-    console.log('handleDrop:', {
-      position,
-      draggedItem: draggedItem.name,
-      targetItem: targetItem.name,
-      draggedIsCategory,
-      targetIsCategory,
-      targetIsTopLevel,
-      draggedParentId,
-      targetParentId
-    });
-
     try {
       // Case 1: Dropping INTO a category (position is 'into')
       // Prevent categories from being nested inside other categories
@@ -1838,9 +1845,9 @@ function CashBoxAdmin({ user, onLogout }) {
   if (loading) {
     return (
       <div>
-        <Navbar user={user} onLogout={onLogout} />
+        <Navbar />
         <div className="container">
-          <p style={{ color: '#22c55e' }}>Loading...</p>
+          <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -1958,18 +1965,18 @@ function CashBoxAdmin({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="cashbox-layout">
         {/* Sidebar */}
         <div className={`cashbox-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <div className="sidebar-header">
-            <h2 style={{ color: '#22c55e', fontSize: '16px', margin: 0 }}>
+            <h2 style={{ color: 'var(--color-primary)', fontSize: '16px', margin: 0 }}>
               {!sidebarCollapsed && 'Concessions'}
             </h2>
             <button
               className="sidebar-toggle"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              style={{ background: 'none', border: 'none', color: '#4a7c59', cursor: 'pointer', fontSize: '16px' }}
+              style={{ background: 'none', border: 'none', color: 'var(--color-text-subtle)', cursor: 'pointer', fontSize: '16px' }}
             >
               {sidebarCollapsed ? '→' : '←'}
             </button>
@@ -2023,420 +2030,88 @@ function CashBoxAdmin({ user, onLogout }) {
 
           {/* Dashboard Section */}
           {activeSection === 'dashboard' && (
-            <div>
-              <h1 className="page-title">Concessions Dashboard</h1>
-
-              {/* Quick Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                <div className="card" style={{ textAlign: 'center' }}>
-                  <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>Main Cashbox</p>
-                  <p style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                    {formatCurrency(cashbox?.totalValue || 0)}
-                  </p>
-                </div>
-                <div className="card" style={{ textAlign: 'center' }}>
-                  <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>Active Sessions</p>
-                  <p style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                    {sessions.filter(s => s.status === 'active').length}
-                  </p>
-                </div>
-                <div className="card" style={{ textAlign: 'center' }}>
-                  <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>CashApp Balance</p>
-                  <p style={{ color: '#00D632', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                    {formatCurrency(cashAppBalance)}
-                  </p>
-                </div>
-                <div className="card" style={{ textAlign: 'center' }}>
-                  <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>Low Stock Items</p>
-                  <p style={{ color: inventoryItems.filter(i => i.quantity_on_hand <= 5 && i.quantity_on_hand > 0).length > 0 ? '#eab308' : '#22c55e', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                    {inventoryItems.filter(i => i.quantity_on_hand <= 5 && i.quantity_on_hand > 0).length}
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="card">
-                <h2 style={{ color: '#22c55e', fontSize: '16px', marginBottom: '16px' }}>Quick Actions</h2>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button className="btn btn-primary" onClick={() => navigateTo('sessions', 'active')}>
-                    New Session
-                  </button>
-                  <button className="btn" onClick={() => navigateTo('purchases', 'new')}>
-                    Enter Purchase
-                  </button>
-                  <button className="btn" onClick={() => navigateTo('inventory', 'count')}>
-                    Inventory Count
-                  </button>
-                  <button className="btn" onClick={() => navigateTo('reports')}>
-                    View Reports
-                  </button>
-                </div>
-              </div>
-
-              {/* Active Sessions */}
-              {sessions.filter(s => s.status === 'active').length > 0 && (
-                <div className="card" style={{ marginTop: '16px' }}>
-                  <h2 style={{ color: '#22c55e', fontSize: '16px', marginBottom: '16px' }}>Active Sessions</h2>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {sessions.filter(s => s.status === 'active').map(session => (
-                      <div key={session.id} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        background: '#1a1a1a',
-                        padding: '12px',
-                        borderRadius: '8px'
-                      }}>
-                        <div>
-                          <p style={{ color: '#22c55e', margin: 0, fontWeight: 'bold' }}>{session.name}</p>
-                          <p style={{ color: '#4a7c59', margin: 0, fontSize: '12px' }}>{session.program_name}</p>
-                        </div>
-                        <button
-                          className="btn btn-small btn-primary"
-                          onClick={() => navigate(`/cashbox/session/${session.id}`)}
-                        >
-                          Open POS
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Low Stock Alert */}
-              {inventoryItems.filter(i => i.quantity_on_hand <= 5 && i.quantity_on_hand > 0).length > 0 && (
-                <div className="card" style={{ marginTop: '16px', borderLeft: '4px solid #eab308' }}>
-                  <h2 style={{ color: '#eab308', fontSize: '16px', marginBottom: '12px' }}>Low Stock Alert</h2>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {inventoryItems.filter(i => i.quantity_on_hand <= 5 && i.quantity_on_hand > 0).map(item => (
-                      <span key={item.id} style={{
-                        background: '#eab30822',
-                        color: '#eab308',
-                        padding: '4px 12px',
-                        borderRadius: '4px',
-                        fontSize: '13px'
-                      }}>
-                        {item.name}: {item.quantity_on_hand} left
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <DashboardSection
+              cashbox={cashbox}
+              sessions={sessions}
+              cashAppBalance={cashAppBalance}
+              inventoryItems={inventoryItems}
+              onNavigate={navigateTo}
+              onOpenPOS={(sessionId) => navigate(`/cashbox/session/${sessionId}`)}
+            />
           )}
 
           {/* Financials - Cashbox SubSection */}
           {activeSection === 'financials' && activeSubSection === 'cashbox' && cashbox && (
-            <div>
-              <h1 className="page-title">Main Cashbox</h1>
-              <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h2 style={{ fontSize: '18px', color: '#22c55e' }}>Cash Denominations</h2>
-                  <button
-                    className="btn btn-small"
-                    onClick={() => setEditingCashbox(!editingCashbox)}
-                  >
-                    {editingCashbox ? 'Cancel' : 'Edit Counts'}
-                  </button>
-                </div>
-
-                {editingCashbox ? (
-                  <form onSubmit={handleUpdateCashbox}>
-                    <div className="denomination-inputs">
-                      <div className="form-group">
-                        <label>Quarters</label>
-                        <input type="number" className="input" min="0" value={editQuarters} onChange={(e) => setEditQuarters(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$1 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills1} onChange={(e) => setEditBills1(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$5 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills5} onChange={(e) => setEditBills5(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$10 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills10} onChange={(e) => setEditBills10(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$20 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills20} onChange={(e) => setEditBills20(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$50 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills50} onChange={(e) => setEditBills50(parseInt(e.target.value) || 0)} />
-                      </div>
-                      <div className="form-group">
-                        <label>$100 Bills</label>
-                        <input type="number" className="input" min="0" value={editBills100} onChange={(e) => setEditBills100(parseInt(e.target.value) || 0)} />
-                      </div>
-                    </div>
-                    <button type="submit" className="btn btn-primary" style={{ marginTop: '16px' }}>
-                      Save Changes
-                    </button>
-                  </form>
-                ) : (
-                  <>
-                    <div className="cashbox-totals">
-                      <div className="denomination-card">
-                        <div className="label">Quarters</div>
-                        <div className="count">{cashbox.quarters}</div>
-                        <div className="value">{formatCurrency(cashbox.quarters * 0.25)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$1 Bills</div>
-                        <div className="count">{cashbox.bills_1}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_1)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$5 Bills</div>
-                        <div className="count">{cashbox.bills_5}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_5 * 5)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$10 Bills</div>
-                        <div className="count">{cashbox.bills_10}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_10 * 10)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$20 Bills</div>
-                        <div className="count">{cashbox.bills_20}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_20 * 20)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$50 Bills</div>
-                        <div className="count">{cashbox.bills_50}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_50 * 50)}</div>
-                      </div>
-                      <div className="denomination-card">
-                        <div className="label">$100 Bills</div>
-                        <div className="count">{cashbox.bills_100}</div>
-                        <div className="value">{formatCurrency(cashbox.bills_100 * 100)}</div>
-                      </div>
-                    </div>
-                    <div className="cashbox-total">
-                      Total: {formatCurrency(cashbox.totalValue)}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+            <CashboxSection
+              cashbox={cashbox}
+              editingCashbox={editingCashbox}
+              setEditingCashbox={setEditingCashbox}
+              editValues={{
+                quarters: editQuarters,
+                bills1: editBills1,
+                bills5: editBills5,
+                bills10: editBills10,
+                bills20: editBills20,
+                bills50: editBills50,
+                bills100: editBills100
+              }}
+              setEditValues={(values) => {
+                setEditQuarters(values.quarters);
+                setEditBills1(values.bills1);
+                setEditBills5(values.bills5);
+                setEditBills10(values.bills10);
+                setEditBills20(values.bills20);
+                setEditBills50(values.bills50);
+                setEditBills100(values.bills100);
+              }}
+              onUpdateCashbox={handleUpdateCashbox}
+            />
           )}
 
           {/* Sessions - Active (Create + Active Sessions) */}
           {activeSection === 'sessions' && activeSubSection === 'active' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Create New Session
-            </h2>
-            <form onSubmit={handleCreateSession} style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <div className="form-group" style={{ flex: '2', minWidth: '200px', marginBottom: 0 }}>
-                  <label htmlFor="sessionName">Session Name</label>
-                  <input
-                    type="text"
-                    id="sessionName"
-                    className="input"
-                    value={sessionName}
-                    onChange={(e) => setSessionName(e.target.value)}
-                    placeholder="e.g., Girls Basketball 12/11"
-                    required
-                  />
-                </div>
-                <div className="form-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
-                  <label htmlFor="sessionProgram">Program</label>
-                  <select
-                    id="sessionProgram"
-                    className="input"
-                    value={sessionProgramId}
-                    onChange={(e) => setSessionProgramId(e.target.value)}
-                    required
-                  >
-                    {programs.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-end', paddingBottom: '4px' }}>
-                  <input
-                    type="checkbox"
-                    id="practiceMode"
-                    checked={isTestSession}
-                    onChange={(e) => setIsTestSession(e.target.checked)}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="practiceMode" style={{ color: isTestSession ? '#eab308' : '#4a7c59', cursor: 'pointer', fontSize: '14px' }}>
-                    Practice Mode
-                  </label>
-                </div>
-                <button
-                  type="submit"
-                  className={`btn ${isTestSession ? '' : 'btn-primary'}`}
-                  disabled={creatingSession}
-                  style={{ alignSelf: 'flex-end', background: isTestSession ? '#eab308' : undefined }}
-                >
-                  {creatingSession ? 'Creating...' : isTestSession ? 'Create Practice' : 'Create Session'}
-                </button>
-              </div>
-            </form>
-
-            <h3 style={{ marginBottom: '12px', fontSize: '16px', color: '#4ade80' }}>
-              Active Sessions
-            </h3>
-            {sessions.filter(s => s.status === 'created' || s.status === 'active').length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4a7c59' }}>No active sessions.</p>
-            ) : (
-              sessions.filter(s => s.status === 'created' || s.status === 'active').map((session) => (
-                <div key={session.id} className="session-card" style={{ marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <strong style={{ color: '#22c55e' }}>{session.name}</strong>
-                      <div style={{ color: '#4ade80', fontSize: '14px' }}>{session.program_name}</div>
-                    </div>
-                    <span className={`status-badge ${getStatusBadgeClass(session.status)}`}>
-                      {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
-                    </span>
-                  </div>
-                  <div style={{ marginTop: '8px', color: '#4a7c59', fontSize: '14px' }}>
-                    Created: {formatDateTime(session.created_at)}
-                    {session.start_total > 0 && (
-                      <span style={{ marginLeft: '16px' }}>
-                        Started: {formatCurrency(session.start_total)}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                    <button
-                      className="btn btn-small"
-                      onClick={() => navigate(`/concession-session/${session.id}`)}
-                    >
-                      View
-                    </button>
-                    <button
-                      className="btn btn-small btn-danger"
-                      onClick={() => handleCancelSession(session.id)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+            <ActiveSessionsSection
+              sessions={sessions}
+              programs={programs}
+              sessionName={sessionName}
+              setSessionName={setSessionName}
+              sessionProgramId={sessionProgramId}
+              setSessionProgramId={setSessionProgramId}
+              isTestSession={isTestSession}
+              setIsTestSession={setIsTestSession}
+              creatingSession={creatingSession}
+              onCreateSession={handleCreateSession}
+              onViewSession={(id) => navigate(`/concession-session/${id}`)}
+              onCancelSession={handleCancelSession}
+              getStatusBadgeClass={getStatusBadgeClass}
+            />
+          )}
 
           {/* Programs - List & Balances */}
           {activeSection === 'programs' && activeSubSection === 'list' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Manage Programs
-            </h2>
-
-            <form onSubmit={handleAddProgram} style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label htmlFor="programName">New Program Name</label>
-                  <input
-                    type="text"
-                    id="programName"
-                    className="input"
-                    value={newProgramName}
-                    onChange={(e) => setNewProgramName(e.target.value)}
-                    placeholder="e.g., Football"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={addingProgram}
-                >
-                  {addingProgram ? 'Adding...' : 'Add Program'}
-                </button>
-              </div>
-            </form>
-
-            {programs.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4ade80' }}>No programs yet.</p>
-            ) : (
-              <div>
-                {programs.map((program) => (
-                  <div key={program.id} style={{
-                    background: '#1a1a1a',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    marginBottom: '8px'
-                  }}>
-                    {editingProgramId === program.id ? (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <input
-                          type="text"
-                          className="input"
-                          value={editProgramName}
-                          onChange={(e) => setEditProgramName(e.target.value)}
-                          style={{ flex: 1, minWidth: '150px' }}
-                        />
-                        <button
-                          className="btn btn-primary btn-small"
-                          onClick={() => handleUpdateProgram(program.id)}
-                        >
-                          Save
-                        </button>
-                        <button
-                          className="btn btn-small"
-                          onClick={cancelEditingProgram}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                        <div>
-                          <strong style={{ color: '#22c55e', fontSize: '16px' }}>{program.name}</strong>
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          <button
-                            className="btn btn-small"
-                            onClick={() => openProgramLog(program)}
-                            style={{ background: '#4a7c59' }}
-                          >
-                            View Log
-                          </button>
-                          <button
-                            className="btn btn-small"
-                            onClick={() => openTransactionModal(program)}
-                            style={{ background: '#22c55e' }}
-                          >
-                            $ Withdraw/Deposit
-                          </button>
-                          <button
-                            className="btn btn-small"
-                            onClick={() => startEditingProgram(program)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="btn btn-danger btn-small"
-                            onClick={() => handleDeactivateProgram(program.id, program.name)}
-                          >
-                            Deactivate
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+            <ProgramsListSection
+              programs={programs}
+              newProgramName={newProgramName}
+              setNewProgramName={setNewProgramName}
+              addingProgram={addingProgram}
+              onAddProgram={handleAddProgram}
+              editingProgramId={editingProgramId}
+              editProgramName={editProgramName}
+              setEditProgramName={setEditProgramName}
+              onStartEditProgram={startEditingProgram}
+              onUpdateProgram={handleUpdateProgram}
+              onCancelEditProgram={cancelEditingProgram}
+              onViewLog={openProgramLog}
+              onOpenTransaction={openTransactionModal}
+              onDeactivateProgram={handleDeactivateProgram}
+            />
+          )}
 
         {/* Transaction Modal */}
         {transactionProgramId && (
           <div className="pos-modal-overlay" onClick={closeTransactionModal}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>
                 {programs.find(p => p.id === transactionProgramId)?.name} - Transaction
               </h3>
 
@@ -2511,14 +2186,14 @@ function CashBoxAdmin({ user, onLogout }) {
         {logProgramId && (
           <div className="pos-modal-overlay" onClick={closeProgramLog}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '80vh', overflow: 'auto' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>
                 {programs.find(p => p.id === logProgramId)?.name} - Transaction Log
               </h3>
 
               {loadingLog ? (
-                <p style={{ color: '#4ade80', textAlign: 'center' }}>Loading...</p>
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>Loading...</p>
               ) : programLog.length === 0 ? (
-                <p style={{ color: '#4a7c59', textAlign: 'center' }}>No transactions yet.</p>
+                <p style={{ color: 'var(--color-text-subtle)', textAlign: 'center' }}>No transactions yet.</p>
               ) : (
                 <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                   <table style={{ width: '100%' }}>
@@ -2532,16 +2207,16 @@ function CashBoxAdmin({ user, onLogout }) {
                     <tbody>
                       {programLog.map((entry, index) => (
                         <tr key={index}>
-                          <td style={{ fontSize: '13px', color: '#4ade80' }}>
+                          <td style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                             {formatDateTime(entry.created_at)}
                           </td>
-                          <td style={{ fontSize: '13px', color: '#4a7c59' }}>
+                          <td style={{ fontSize: '13px', color: 'var(--color-text-subtle)' }}>
                             {entry.session_id === 0 ? 'Manual Adjustment' : entry.session_name || `Session #${entry.session_id}`}
                           </td>
                           <td style={{
                             textAlign: 'right',
                             fontWeight: 'bold',
-                            color: entry.amount >= 0 ? '#22c55e' : '#ef4444'
+                            color: entry.amount >= 0 ? 'var(--color-primary)' : 'var(--color-danger)'
                           }}>
                             {entry.amount >= 0 ? '+' : ''}{formatCurrency(entry.amount)}
                           </td>
@@ -2565,62 +2240,21 @@ function CashBoxAdmin({ user, onLogout }) {
 
           {/* Programs - Earnings */}
           {activeSection === 'programs' && activeSubSection === 'earnings' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Program Earnings
-            </h2>
-
-            {programsWithEarnings.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4ade80' }}>No programs yet.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Program</th>
-                      <th style={{ textAlign: 'right' }}>Total Earnings</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {programsWithEarnings.map((program) => (
-                      <tr key={program.id}>
-                        <td>{program.name}</td>
-                        <td style={{
-                          textAlign: 'right',
-                          color: program.total_earnings >= 0 ? '#22c55e' : '#ef4444',
-                          fontWeight: 'bold'
-                        }}>
-                          {formatCurrency(program.total_earnings)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ borderTop: '2px solid #22c55e' }}>
-                      <td style={{ fontWeight: 'bold', color: '#22c55e' }}>Total</td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#22c55e' }}>
-                        {formatCurrency(programsWithEarnings.reduce((sum, p) => sum + p.total_earnings, 0))}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            <ProgramsEarningsSection programsWithEarnings={programsWithEarnings} />
+          )}
 
           {/* Menu Section */}
           {activeSection === 'menu' && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <h2 style={{ fontSize: '18px', color: '#22c55e', margin: 0 }}>
+              <h2 style={{ fontSize: '18px', color: 'var(--color-primary)', margin: 0 }}>
                 Manage Menu Items
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   className="btn btn-small"
                   onClick={handleDownloadMenuCSV}
-                  style={{ background: '#4a7c59' }}
+                  style={{ background: 'var(--color-text-subtle)' }}
                 >
                   Download CSV
                 </button>
@@ -2686,7 +2320,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>Needs ingredients</span>
                   </label>
                   {newItemNeedsIngredients && newItemPrice && (
-                    <small style={{ color: '#9ca3af', fontSize: '11px' }}>
+                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
                       (configure after adding)
                     </small>
                   )}
@@ -2701,12 +2335,12 @@ function CashBoxAdmin({ user, onLogout }) {
               </div>
             </form>
 
-            <p style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '12px' }}>
+            <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px', marginBottom: '12px' }}>
               Drag items to reorder. Drag an item onto a category (no price) to make it a sub-item.
             </p>
 
             {menuItems.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4ade80' }}>No menu items yet.</p>
+              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No menu items yet.</p>
             ) : (
               <div>
                 {menuItems.map((item, index) => (
@@ -2715,7 +2349,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     {dropIndicator?.itemId === item.id && dropIndicator?.position === 'before' && dropIndicator?.parentId === null && (
                       <div style={{
                         height: '4px',
-                        background: '#22c55e',
+                        background: 'var(--color-primary)',
                         borderRadius: '2px',
                         marginBottom: '4px',
                         boxShadow: '0 0 8px rgba(34, 197, 94, 0.5)'
@@ -2729,12 +2363,12 @@ function CashBoxAdmin({ user, onLogout }) {
                       onDrop={(e) => handleDrop(e, item, null)}
                       onDragEnd={handleDragEnd}
                       style={{
-                        background: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? '#2a4a2a' : '#1a1a1a',
+                        background: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? 'rgba(34, 197, 94, 0.15)' : 'var(--color-bg-input)',
                         padding: '12px',
                         borderRadius: '8px',
                         cursor: editingMenuItemId === item.id ? 'default' : 'grab',
                         opacity: draggedItem?.id === item.id ? 0.5 : 1,
-                        border: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? '2px dashed #22c55e' : '2px solid transparent',
+                        border: dropIndicator?.itemId === item.id && dropIndicator?.position === 'into' ? '2px dashed var(--color-primary)' : '2px solid transparent',
                         transition: 'background 0.15s ease, border 0.15s ease'
                       }}
                     >
@@ -2764,7 +2398,7 @@ function CashBoxAdmin({ user, onLogout }) {
                         </div>
                         {item.price !== null && (
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <label style={{ color: '#4a7c59', fontSize: '12px' }}>Unit Cost:</label>
+                            <label style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>Unit Cost:</label>
                             <input
                               type="number"
                               className="input"
@@ -2775,7 +2409,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               placeholder="0.00"
                               style={{ width: '80px' }}
                             />
-                            <label style={{ color: '#4a7c59', fontSize: '12px', marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <label style={{ color: 'var(--color-text-subtle)', fontSize: '12px', marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <input
                                 type="checkbox"
                                 checked={editMenuItemTrackInventory}
@@ -2803,23 +2437,23 @@ function CashBoxAdmin({ user, onLogout }) {
                     ) : (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: '#4a7c59', cursor: 'grab' }}>☰</span>
-                          <strong style={{ color: item.active ? '#22c55e' : '#666' }}>
+                          <span style={{ color: 'var(--color-text-subtle)', cursor: 'grab' }}>☰</span>
+                          <strong style={{ color: item.active ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
                             {item.name}
                           </strong>
                           {item.price !== null && (
                             <>
-                              <span style={{ color: '#4ade80', marginLeft: '12px' }}>
+                              <span style={{ color: 'var(--color-text-muted)', marginLeft: '12px' }}>
                                 {formatCurrency(item.price)}
                               </span>
                               {item.unit_cost > 0 && (
-                                <span style={{ color: '#6b7280', marginLeft: '6px', fontSize: '11px' }}>
+                                <span style={{ color: 'var(--color-text-muted)', marginLeft: '6px', fontSize: '11px' }}>
                                   (cost: {formatCurrency(item.unit_cost)})
                                 </span>
                               )}
                               {item.is_composite === 1 && (
                                 <span style={{
-                                  color: '#f59e0b',
+                                  color: 'var(--color-warning)',
                                   marginLeft: '8px',
                                   fontSize: '11px',
                                   background: 'rgba(245, 158, 11, 0.15)',
@@ -2831,7 +2465,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               )}
                               {item.track_inventory === 0 && (
                                 <span style={{
-                                  color: '#9ca3af',
+                                  color: 'var(--color-text-muted)',
                                   marginLeft: '8px',
                                   fontSize: '10px',
                                   fontStyle: 'italic'
@@ -2841,7 +2475,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               )}
                               {item.track_inventory !== 0 && item.quantity_on_hand !== undefined && item.quantity_on_hand !== null && (
                                 <span style={{
-                                  color: item.quantity_on_hand <= 5 ? '#ef4444' : '#6b7280',
+                                  color: item.quantity_on_hand <= 5 ? 'var(--color-danger)' : 'var(--color-text-muted)',
                                   marginLeft: '8px',
                                   fontSize: '11px'
                                 }}>
@@ -2852,7 +2486,7 @@ function CashBoxAdmin({ user, onLogout }) {
                           )}
                           {item.price === null && (
                             <>
-                              <span style={{ color: '#4a7c59', marginLeft: '12px', fontSize: '12px' }}>
+                              <span style={{ color: 'var(--color-text-subtle)', marginLeft: '12px', fontSize: '12px' }}>
                                 (Category - {item.subItems?.length || 0} items)
                               </span>
                               {item.subItems && item.subItems.length > 0 && (
@@ -2861,7 +2495,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                   style={{
                                     background: 'transparent',
                                     border: 'none',
-                                    color: '#4ade80',
+                                    color: 'var(--color-text-muted)',
                                     cursor: 'pointer',
                                     marginLeft: '8px',
                                     fontSize: '14px',
@@ -2875,7 +2509,7 @@ function CashBoxAdmin({ user, onLogout }) {
                             </>
                           )}
                           {!item.active && (
-                            <span style={{ color: '#666', marginLeft: '12px', fontSize: '12px' }}>
+                            <span style={{ color: 'var(--color-text-muted)', marginLeft: '12px', fontSize: '12px' }}>
                               (Inactive)
                             </span>
                           )}
@@ -2891,7 +2525,7 @@ function CashBoxAdmin({ user, onLogout }) {
                             <button
                               className="btn btn-small"
                               onClick={() => openCompositeEditor(item)}
-                              style={{ background: item.is_composite ? '#f59e0b' : '#4a5568' }}
+                              style={{ background: item.is_composite ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
                               title={item.is_composite ? 'Edit composite components' : 'Make this a composite item'}
                             >
                               Components
@@ -2902,7 +2536,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               <button
                                 className="btn btn-small"
                                 onClick={() => handleDeactivateMenuItem(item.id, item.name)}
-                                style={{ background: '#666' }}
+                                style={{ background: 'var(--color-text-muted)' }}
                               >
                                 Deactivate
                               </button>
@@ -2918,7 +2552,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               <button
                                 className="btn btn-small"
                                 onClick={() => handleReactivateMenuItem(item.id, item.name)}
-                                style={{ background: '#22c55e' }}
+                                style={{ background: 'var(--color-primary)' }}
                               >
                                 Reactivate
                               </button>
@@ -2941,7 +2575,7 @@ function CashBoxAdmin({ user, onLogout }) {
                             {dropIndicator?.itemId === sub.id && dropIndicator?.position === 'before' && dropIndicator?.parentId === item.id && (
                               <div style={{
                                 height: '3px',
-                                background: '#22c55e',
+                                background: 'var(--color-primary)',
                                 borderRadius: '2px',
                                 marginBottom: '2px',
                                 boxShadow: '0 0 6px rgba(34, 197, 94, 0.5)'
@@ -2959,7 +2593,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 padding: '6px 8px',
-                                borderBottom: '1px solid #2a2a2a',
+                                borderBottom: '1px solid var(--color-border)',
                                 flexWrap: 'wrap',
                                 gap: '6px',
                                 cursor: editingMenuItemId === sub.id ? 'default' : 'grab',
@@ -2992,7 +2626,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                   />
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                  <label style={{ color: '#4a7c59', fontSize: '11px' }}>Cost:</label>
+                                  <label style={{ color: 'var(--color-text-subtle)', fontSize: '11px' }}>Cost:</label>
                                   <input
                                     type="number"
                                     className="input"
@@ -3003,7 +2637,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                     placeholder="0.00"
                                     style={{ width: '70px', padding: '4px' }}
                                   />
-                                  <label style={{ color: '#4a7c59', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <label style={{ color: 'var(--color-text-subtle)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                                     <input
                                       type="checkbox"
                                       checked={editMenuItemTrackInventory}
@@ -3029,17 +2663,17 @@ function CashBoxAdmin({ user, onLogout }) {
                               </div>
                             ) : (
                               <>
-                                <span style={{ color: sub.active ? '#4ade80' : '#666', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  <span style={{ color: '#4a7c59', cursor: 'grab', fontSize: '12px' }}>☰</span>
+                                <span style={{ color: sub.active ? 'var(--color-text-muted)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                  <span style={{ color: 'var(--color-text-subtle)', cursor: 'grab', fontSize: '12px' }}>☰</span>
                                   {sub.name} - {formatCurrency(sub.price)}
                                   {sub.unit_cost > 0 && (
-                                    <span style={{ color: '#6b7280', fontSize: '10px' }}>
+                                    <span style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}>
                                       (cost: {formatCurrency(sub.unit_cost)})
                                     </span>
                                   )}
                                   {sub.is_composite === 1 && (
                                     <span style={{
-                                      color: '#f59e0b',
+                                      color: 'var(--color-warning)',
                                       fontSize: '10px',
                                       background: 'rgba(245, 158, 11, 0.15)',
                                       padding: '1px 4px',
@@ -3049,19 +2683,19 @@ function CashBoxAdmin({ user, onLogout }) {
                                     </span>
                                   )}
                                   {sub.track_inventory === 0 && (
-                                    <span style={{ color: '#9ca3af', fontSize: '9px', fontStyle: 'italic' }}>
+                                    <span style={{ color: 'var(--color-text-muted)', fontSize: '9px', fontStyle: 'italic' }}>
                                       (no track)
                                     </span>
                                   )}
                                   {sub.track_inventory !== 0 && sub.quantity_on_hand !== undefined && sub.quantity_on_hand !== null && (
                                     <span style={{
-                                      color: sub.quantity_on_hand <= 5 ? '#ef4444' : '#6b7280',
+                                      color: sub.quantity_on_hand <= 5 ? 'var(--color-danger)' : 'var(--color-text-muted)',
                                       fontSize: '10px'
                                     }}>
                                       Stock: {sub.quantity_on_hand}
                                     </span>
                                   )}
-                                  {!sub.active && <span style={{ color: '#666', marginLeft: '8px' }}>(Inactive)</span>}
+                                  {!sub.active && <span style={{ color: 'var(--color-text-muted)', marginLeft: '8px' }}>(Inactive)</span>}
                                 </span>
                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                   <button
@@ -3077,7 +2711,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                     style={{
                                       padding: '4px 8px',
                                       fontSize: '12px',
-                                      background: sub.is_composite ? '#f59e0b' : '#4a5568'
+                                      background: sub.is_composite ? 'var(--color-warning)' : 'var(--color-text-muted)'
                                     }}
                                     title={sub.is_composite ? 'Edit components' : 'Make composite'}
                                   >
@@ -3088,7 +2722,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                       <button
                                         className="btn btn-small"
                                         onClick={() => handleDeactivateMenuItem(sub.id, sub.name)}
-                                        style={{ padding: '4px 8px', fontSize: '12px', background: '#666' }}
+                                        style={{ padding: '4px 8px', fontSize: '12px', background: 'var(--color-text-muted)' }}
                                       >
                                         Deactivate
                                       </button>
@@ -3105,7 +2739,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                       <button
                                         className="btn btn-small"
                                         onClick={() => handleReactivateMenuItem(sub.id, sub.name)}
-                                        style={{ padding: '4px 8px', fontSize: '12px', background: '#22c55e' }}
+                                        style={{ padding: '4px 8px', fontSize: '12px', background: 'var(--color-primary)' }}
                                       >
                                         Reactivate
                                       </button>
@@ -3126,7 +2760,7 @@ function CashBoxAdmin({ user, onLogout }) {
                             {dropIndicator?.itemId === sub.id && dropIndicator?.position === 'after' && dropIndicator?.parentId === item.id && (
                               <div style={{
                                 height: '3px',
-                                background: '#22c55e',
+                                background: 'var(--color-primary)',
                                 borderRadius: '2px',
                                 marginTop: '2px',
                                 boxShadow: '0 0 6px rgba(34, 197, 94, 0.5)'
@@ -3141,7 +2775,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     {dropIndicator?.itemId === item.id && dropIndicator?.position === 'after' && dropIndicator?.parentId === null && (
                       <div style={{
                         height: '4px',
-                        background: '#22c55e',
+                        background: 'var(--color-primary)',
                         borderRadius: '2px',
                         marginTop: '4px',
                         marginBottom: '4px',
@@ -3163,15 +2797,15 @@ function CashBoxAdmin({ user, onLogout }) {
               onClick={(e) => e.stopPropagation()}
               style={{ maxWidth: '600px', maxHeight: '80vh', overflowY: 'auto' }}
             >
-              <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>
+              <h2 style={{ marginBottom: '16px', color: 'var(--color-primary)' }}>
                 Edit Components: {editingCompositeItem.name}
               </h2>
 
               {loadingComponents ? (
-                <p style={{ textAlign: 'center', color: '#4a7c59' }}>Loading components...</p>
+                <p style={{ textAlign: 'center', color: 'var(--color-text-subtle)' }}>Loading components...</p>
               ) : (
                 <>
-                  <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
+                  <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
                     A composite item is made up of other items. When sold, inventory is deducted from its components.
                     <br />
                     Example: Hot Dog = 1 Bun + 1 Wiener
@@ -3179,11 +2813,11 @@ function CashBoxAdmin({ user, onLogout }) {
 
                   {/* Current Components */}
                   <div style={{ marginBottom: '20px' }}>
-                    <h3 style={{ color: '#4ade80', marginBottom: '12px', fontSize: '15px' }}>
+                    <h3 style={{ color: 'var(--color-text-muted)', marginBottom: '12px', fontSize: '15px' }}>
                       Current Components
                     </h3>
                     {compositeComponents.length === 0 ? (
-                      <p style={{ color: '#666', fontSize: '13px' }}>
+                      <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
                         No components yet. This item is not composite.
                       </p>
                     ) : (
@@ -3196,11 +2830,11 @@ function CashBoxAdmin({ user, onLogout }) {
                               alignItems: 'center',
                               gap: '12px',
                               padding: '10px',
-                              background: '#1a1a1a',
+                              background: 'var(--color-bg-input)',
                               borderRadius: '6px'
                             }}
                           >
-                            <span style={{ flex: 1, color: '#4ade80' }}>
+                            <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>
                               {comp.componentName}
                             </span>
                             <input
@@ -3226,11 +2860,11 @@ function CashBoxAdmin({ user, onLogout }) {
 
                   {/* Add Component */}
                   <div style={{ marginBottom: '20px' }}>
-                    <h3 style={{ color: '#4ade80', marginBottom: '12px', fontSize: '15px' }}>
+                    <h3 style={{ color: 'var(--color-text-muted)', marginBottom: '12px', fontSize: '15px' }}>
                       Add Component
                     </h3>
                     {availableComponents.length === 0 ? (
-                      <p style={{ color: '#666', fontSize: '13px' }}>
+                      <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
                         No available items to add as components.
                       </p>
                     ) : (
@@ -3247,7 +2881,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               className="btn btn-small"
                               onClick={() => addComponent(item)}
                               style={{
-                                background: '#2a2a2a',
+                                background: 'var(--color-border)',
                                 padding: '8px 12px',
                                 textAlign: 'left'
                               }}
@@ -3264,7 +2898,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     <button
                       className="btn"
                       onClick={closeCompositeEditor}
-                      style={{ background: '#666' }}
+                      style={{ background: 'var(--color-text-muted)' }}
                     >
                       Cancel
                     </button>
@@ -3285,7 +2919,7 @@ function CashBoxAdmin({ user, onLogout }) {
           {activeSection === 'purchases' && (activeSubSection === 'history' || activeSubSection === 'new') && (
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-              <h2 style={{ fontSize: '18px', color: '#22c55e', margin: 0 }}>
+              <h2 style={{ fontSize: '18px', color: 'var(--color-primary)', margin: 0 }}>
                 Purchase Entry & Stock Updates
               </h2>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -3298,24 +2932,24 @@ function CashBoxAdmin({ user, onLogout }) {
                 <button
                   className="btn"
                   onClick={() => setShowStockUpdateForm(true)}
-                  style={{ background: '#4a7c59' }}
+                  style={{ background: 'var(--color-text-subtle)' }}
                 >
                   + Stock Update
                 </button>
               </div>
             </div>
 
-            <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
+            <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
               <strong>New Purchase:</strong> Enter receipts with tax/fees - costs are distributed to calculate true unit costs (reimbursable).<br />
               <strong>Stock Update:</strong> Manual inventory additions without receipts (non-reimbursable).
             </p>
 
             {/* Purchase History */}
-            <h3 style={{ marginBottom: '12px', fontSize: '16px', color: '#4ade80' }}>
+            <h3 style={{ marginBottom: '12px', fontSize: '16px', color: 'var(--color-text-muted)' }}>
               Recent Purchases
             </h3>
             {purchases.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4a7c59' }}>No purchases yet.</p>
+              <p style={{ textAlign: 'center', color: 'var(--color-text-subtle)' }}>No purchases yet.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table>
@@ -3334,7 +2968,7 @@ function CashBoxAdmin({ user, onLogout }) {
                         <td style={{ fontSize: '13px' }}>{purchase.purchase_date}</td>
                         <td>{purchase.vendor || '-'}</td>
                         <td>{purchase.item_count} item(s)</td>
-                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#22c55e' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)' }}>
                           {formatCurrency(purchase.total)}
                         </td>
                         <td>
@@ -3359,7 +2993,7 @@ function CashBoxAdmin({ user, onLogout }) {
         {showPurchaseForm && (
           <div className="pos-modal-overlay" onClick={resetPurchaseForm}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '90vh', overflow: 'auto' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>New Purchase Entry</h3>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>New Purchase Entry</h3>
 
               <form onSubmit={handleSubmitPurchase}>
                 <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
@@ -3385,10 +3019,10 @@ function CashBoxAdmin({ user, onLogout }) {
                   </div>
                 </div>
 
-                <h4 style={{ color: '#4ade80', marginBottom: '8px' }}>Line Items</h4>
+                <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Line Items</h4>
                 {purchaseFormData.items.map((item, index) => (
                   <div key={index} style={{
-                    background: '#1a1a1a',
+                    background: 'var(--color-bg-input)',
                     padding: '12px',
                     borderRadius: '8px',
                     marginBottom: '8px'
@@ -3403,12 +3037,12 @@ function CashBoxAdmin({ user, onLogout }) {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            background: '#2a2a2a',
-                            border: '1px solid #4ade80',
+                            background: 'var(--color-border)',
+                            border: '1px solid var(--color-text-muted)',
                             borderRadius: '4px',
                             padding: '8px 12px'
                           }}>
-                            <span style={{ flex: 1, color: '#fff' }}>
+                            <span style={{ flex: 1, color: 'var(--color-text)' }}>
                               {item.itemName || getAllPurchaseItems().all.find(m => m.id === parseInt(item.menuItemId))?.name}
                             </span>
                             <button
@@ -3417,7 +3051,7 @@ function CashBoxAdmin({ user, onLogout }) {
                               style={{
                                 background: 'none',
                                 border: 'none',
-                                color: '#9ca3af',
+                                color: 'var(--color-text-muted)',
                                 cursor: 'pointer',
                                 padding: '2px 6px'
                               }}
@@ -3445,8 +3079,8 @@ function CashBoxAdmin({ user, onLogout }) {
                                 top: '100%',
                                 left: 0,
                                 right: 0,
-                                background: '#1a1a1a',
-                                border: '1px solid #333',
+                                background: 'var(--color-bg-input)',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: '4px',
                                 maxHeight: '200px',
                                 overflowY: 'auto',
@@ -3462,7 +3096,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                     <>
                                       {sellableItems.length > 0 && (
                                         <>
-                                          <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: '11px', borderBottom: '1px solid #333' }}>
+                                          <div style={{ padding: '6px 12px', color: 'var(--color-text-muted)', fontSize: '11px', borderBottom: '1px solid var(--color-border)' }}>
                                             MENU ITEMS
                                           </div>
                                           {sellableItems.map(mi => (
@@ -3472,9 +3106,9 @@ function CashBoxAdmin({ user, onLogout }) {
                                               style={{
                                                 padding: '8px 12px',
                                                 cursor: 'pointer',
-                                                borderBottom: '1px solid #222'
+                                                borderBottom: '1px solid var(--color-border)'
                                               }}
-                                              onMouseEnter={(e) => e.target.style.background = '#2a2a2a'}
+                                              onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
                                               onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                             >
                                               {mi.name}
@@ -3484,7 +3118,7 @@ function CashBoxAdmin({ user, onLogout }) {
                                       )}
                                       {supplyItems.length > 0 && (
                                         <>
-                                          <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: '11px', borderBottom: '1px solid #333' }}>
+                                          <div style={{ padding: '6px 12px', color: 'var(--color-text-muted)', fontSize: '11px', borderBottom: '1px solid var(--color-border)' }}>
                                             SUPPLIES
                                           </div>
                                           {supplyItems.map(mi => (
@@ -3494,10 +3128,10 @@ function CashBoxAdmin({ user, onLogout }) {
                                               style={{
                                                 padding: '8px 12px',
                                                 cursor: 'pointer',
-                                                borderBottom: '1px solid #222',
-                                                color: '#9ca3af'
+                                                borderBottom: '1px solid var(--color-border)',
+                                                color: 'var(--color-text-muted)'
                                               }}
-                                              onMouseEnter={(e) => e.target.style.background = '#2a2a2a'}
+                                              onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
                                               onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                             >
                                               {mi.name} <span style={{ fontSize: '10px' }}>(supply)</span>
@@ -3511,10 +3145,10 @@ function CashBoxAdmin({ user, onLogout }) {
                                         style={{
                                           padding: '8px 12px',
                                           cursor: 'pointer',
-                                          color: '#4ade80',
-                                          borderTop: hasResults ? '1px solid #333' : 'none'
+                                          color: 'var(--color-text-muted)',
+                                          borderTop: hasResults ? '1px solid var(--color-border)' : 'none'
                                         }}
-                                        onMouseEnter={(e) => e.target.style.background = '#2a2a2a'}
+                                        onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
                                         onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                       >
                                         + Create "{searchQuery || 'new item'}"
@@ -3530,10 +3164,10 @@ function CashBoxAdmin({ user, onLogout }) {
                                           style={{
                                             padding: '8px 12px',
                                             cursor: 'pointer',
-                                            color: '#9ca3af',
+                                            color: 'var(--color-text-muted)',
                                             fontSize: '12px'
                                           }}
-                                          onMouseEnter={(e) => e.target.style.background = '#2a2a2a'}
+                                          onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
                                           onMouseLeave={(e) => e.target.style.background = 'transparent'}
                                         >
                                           Use "{searchQuery}" without linking
@@ -3548,7 +3182,7 @@ function CashBoxAdmin({ user, onLogout }) {
                         )}
                         {/* Show unlinked item name if set */}
                         {!item.menuItemId && item.itemName && (
-                          <div style={{ marginTop: '4px', fontSize: '11px', color: '#eab308' }}>
+                          <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-warning)' }}>
                             ⚠ Not linked: {item.itemName}
                           </div>
                         )}
@@ -3601,7 +3235,7 @@ function CashBoxAdmin({ user, onLogout }) {
                   + Add Item
                 </button>
 
-                <h4 style={{ color: '#4ade80', marginBottom: '8px' }}>Overhead Costs</h4>
+                <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Overhead Costs</h4>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
                   <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
                     <label>Tax</label>
@@ -3654,24 +3288,24 @@ function CashBoxAdmin({ user, onLogout }) {
 
                 {/* Purchase Summary */}
                 <div style={{
-                  background: '#1a1a1a',
+                  background: 'var(--color-bg-input)',
                   padding: '12px',
                   borderRadius: '8px',
                   marginBottom: '16px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#4a7c59' }}>Subtotal:</span>
-                    <span style={{ color: '#4ade80' }}>{formatCurrency(calculatePurchaseSubtotal())}</span>
+                    <span style={{ color: 'var(--color-text-subtle)' }}>Subtotal:</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(calculatePurchaseSubtotal())}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ color: '#4a7c59' }}>Overhead:</span>
-                    <span style={{ color: '#4ade80' }}>
+                    <span style={{ color: 'var(--color-text-subtle)' }}>Overhead:</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>
                       {formatCurrency((parseFloat(purchaseFormData.tax) || 0) + (parseFloat(purchaseFormData.deliveryFee) || 0) + (parseFloat(purchaseFormData.otherFees) || 0))}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #333', paddingTop: '8px' }}>
-                    <span style={{ color: '#22c55e' }}>Total:</span>
-                    <span style={{ color: '#22c55e' }}>{formatCurrency(calculatePurchaseTotal())}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
+                    <span style={{ color: 'var(--color-primary)' }}>Total:</span>
+                    <span style={{ color: 'var(--color-primary)' }}>{formatCurrency(calculatePurchaseTotal())}</span>
                   </div>
                 </div>
 
@@ -3697,8 +3331,8 @@ function CashBoxAdmin({ user, onLogout }) {
         {showQuickCreateModal && (
           <div className="pos-modal-overlay" onClick={() => setShowQuickCreateModal(false)}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Create New Item</h3>
-              <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Create New Item</h3>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '13px', marginBottom: '16px' }}>
                 Create a new inventory item to link to this purchase.
               </p>
 
@@ -3751,7 +3385,7 @@ function CashBoxAdmin({ user, onLogout }) {
                     onChange={(e) => setQuickCreateData(prev => ({ ...prev, unitCost: e.target.value }))}
                     placeholder="0.00"
                   />
-                  <small style={{ color: '#9ca3af', fontSize: '11px' }}>
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
                     Default cost per unit (can be overridden by purchase)
                   </small>
                 </div>
@@ -3782,8 +3416,8 @@ function CashBoxAdmin({ user, onLogout }) {
         {showStockUpdateForm && (
           <div className="pos-modal-overlay" onClick={resetStockUpdateForm}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Manual Stock Update</h3>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Manual Stock Update</h3>
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
                 Add inventory without a receipt. These items are <strong>non-reimbursable</strong>.
               </p>
 
@@ -3855,102 +3489,26 @@ function CashBoxAdmin({ user, onLogout }) {
 
           {/* Inventory - Stock */}
           {activeSection === 'inventory' && activeSubSection === 'stock' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Inventory Levels
-            </h2>
-            <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
-              View current inventory levels, FIFO lots, and make adjustments for lost/wasted/donated items.
-            </p>
-
-            {inventoryItems.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4a7c59' }}>No inventory items found.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th style={{ textAlign: 'center' }}>On Hand</th>
-                      <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                      <th style={{ textAlign: 'right' }}>Value</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inventoryItems.filter(item => item.active).map((item) => (
-                      <tr key={item.id} style={{ background: item.quantity_on_hand <= 0 ? '#2a1a1a' : 'transparent' }}>
-                        <td>
-                          <span style={{ color: item.quantity_on_hand <= 5 ? '#ef4444' : '#4ade80' }}>
-                            {item.name}
-                          </span>
-                          {item.quantity_on_hand <= 5 && item.quantity_on_hand > 0 && (
-                            <span style={{ color: '#f59e0b', fontSize: '11px', marginLeft: '8px' }}>LOW</span>
-                          )}
-                          {item.quantity_on_hand <= 0 && (
-                            <span style={{ color: '#ef4444', fontSize: '11px', marginLeft: '8px' }}>OUT</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: item.quantity_on_hand <= 0 ? '#ef4444' : '#22c55e' }}>
-                          {item.quantity_on_hand || 0}
-                        </td>
-                        <td style={{ textAlign: 'right', color: '#4a7c59' }}>
-                          {formatCurrency(item.unit_cost || 0)}
-                        </td>
-                        <td style={{ textAlign: 'right', color: '#4ade80' }}>
-                          {formatCurrency((item.quantity_on_hand || 0) * (item.unit_cost || 0))}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                              className="btn btn-small"
-                              onClick={() => handleViewLots(item)}
-                              style={{ padding: '4px 8px', fontSize: '12px' }}
-                            >
-                              Lots
-                            </button>
-                            <button
-                              className="btn btn-small"
-                              onClick={() => handleOpenAdjustment(item)}
-                              style={{ padding: '4px 8px', fontSize: '12px', background: '#4a7c59' }}
-                            >
-                              Adjust
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ borderTop: '2px solid #22c55e' }}>
-                      <td style={{ fontWeight: 'bold', color: '#22c55e' }}>Total Value</td>
-                      <td></td>
-                      <td></td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#22c55e' }}>
-                        {formatCurrency(inventoryItems.filter(i => i.active).reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            <InventoryStockSection
+              inventoryItems={inventoryItems}
+              onViewLots={handleViewLots}
+              onOpenAdjustment={handleOpenAdjustment}
+            />
+          )}
 
         {/* Inventory Lots Modal */}
         {selectedInventoryItem && !showAdjustmentForm && (
           <div className="pos-modal-overlay" onClick={handleCloseLotsView}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '80vh', overflow: 'auto' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>
                 {selectedInventoryItem.name} - FIFO Lots
               </h3>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
                 Inventory is sold using FIFO (First In, First Out). Oldest lots are used first.
               </p>
 
               {inventoryLots.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#4a7c59' }}>No inventory lots found.</p>
+                <p style={{ textAlign: 'center', color: 'var(--color-text-subtle)' }}>No inventory lots found.</p>
               ) : (
                 <table style={{ width: '100%' }}>
                   <thead>
@@ -3964,21 +3522,21 @@ function CashBoxAdmin({ user, onLogout }) {
                   <tbody>
                     {inventoryLots.map((lot) => (
                       <tr key={lot.id}>
-                        <td style={{ fontSize: '13px', color: '#4ade80' }}>
+                        <td style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                           {lot.purchase_date}
-                          {lot.vendor && <span style={{ color: '#4a7c59', marginLeft: '4px' }}>({lot.vendor})</span>}
+                          {lot.vendor && <span style={{ color: 'var(--color-text-subtle)', marginLeft: '4px' }}>({lot.vendor})</span>}
                         </td>
                         <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                           {lot.quantity_remaining} / {lot.quantity_original}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#4a7c59' }}>
+                        <td style={{ textAlign: 'right', color: 'var(--color-text-subtle)' }}>
                           {formatCurrency(lot.unit_cost)}
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           {lot.is_reimbursable ? (
-                            <span style={{ color: '#22c55e' }}>Yes</span>
+                            <span style={{ color: 'var(--color-primary)' }}>Yes</span>
                           ) : (
-                            <span style={{ color: '#f59e0b' }}>No</span>
+                            <span style={{ color: 'var(--color-warning)' }}>No</span>
                           )}
                         </td>
                       </tr>
@@ -4002,10 +3560,10 @@ function CashBoxAdmin({ user, onLogout }) {
         {showAdjustmentForm && selectedInventoryItem && (
           <div className="pos-modal-overlay" onClick={handleCloseAdjustment}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>
                 Adjust: {selectedInventoryItem.name}
               </h3>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
                 Current on hand: <strong>{selectedInventoryItem.quantity_on_hand || 0}</strong>
               </p>
 
@@ -4067,264 +3625,41 @@ function CashBoxAdmin({ user, onLogout }) {
 
           {/* Inventory - Lots */}
           {activeSection === 'inventory' && activeSubSection === 'lots' && (
-            <div className="card">
-              <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-                Inventory Lot Tracking (FIFO)
-              </h2>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
-                View inventory lots by purchase date. Items are sold using First-In-First-Out costing.
-              </p>
-
-              <div className="form-group" style={{ maxWidth: '300px', marginBottom: '16px' }}>
-                <label>Select Item</label>
-                <select
-                  className="input"
-                  value={selectedInventoryItem?.id || ''}
-                  onChange={(e) => {
-                    const item = inventoryItems.find(i => i.id === parseInt(e.target.value));
-                    setSelectedInventoryItem(item);
-                    if (item) fetchInventoryLots(item.id);
-                  }}
-                >
-                  <option value="">-- Select Item --</option>
-                  {inventoryItems.map(item => (
-                    <option key={item.id} value={item.id}>{item.name} ({item.quantity_on_hand} on hand)</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedInventoryItem && inventoryLots.length > 0 && (
-                <div style={{ overflowX: 'auto' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Purchase Date</th>
-                        <th style={{ textAlign: 'center' }}>Original Qty</th>
-                        <th style={{ textAlign: 'center' }}>Remaining</th>
-                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                        <th>Reimbursable</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventoryLots.map(lot => (
-                        <tr key={lot.id}>
-                          <td>{lot.purchase_date}</td>
-                          <td style={{ textAlign: 'center' }}>{lot.quantity_original}</td>
-                          <td style={{ textAlign: 'center', color: lot.quantity_remaining <= 0 ? '#4a7c59' : '#22c55e' }}>
-                            {lot.quantity_remaining}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>{formatCurrency(lot.unit_cost)}</td>
-                          <td>
-                            <span style={{ color: lot.is_reimbursable ? '#22c55e' : '#eab308' }}>
-                              {lot.is_reimbursable ? 'Yes' : 'No'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {selectedInventoryItem && inventoryLots.length === 0 && (
-                <p style={{ color: '#4a7c59', textAlign: 'center' }}>No lots found for this item.</p>
-              )}
-            </div>
+            <InventoryLotsSection
+              inventoryItems={inventoryItems}
+              selectedInventoryItem={selectedInventoryItem}
+              setSelectedInventoryItem={setSelectedInventoryItem}
+              inventoryLots={inventoryLots}
+              onFetchLots={fetchInventoryLots}
+            />
           )}
 
           {/* Inventory - Movements */}
           {activeSection === 'inventory' && activeSubSection === 'movements' && (
-            <div className="card">
-              <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-                Inventory Movements
-              </h2>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
-                Audit log of all inventory changes - sales, purchases, adjustments, and counts.
-              </p>
-
-              {loadingTransactions ? (
-                <p style={{ color: '#4a7c59', textAlign: 'center' }}>Loading transactions...</p>
-              ) : inventoryTransactions.length === 0 ? (
-                <p style={{ color: '#4a7c59', textAlign: 'center' }}>No inventory movements recorded yet.</p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Item</th>
-                        <th>Type</th>
-                        <th style={{ textAlign: 'center' }}>Qty</th>
-                        <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                        <th>Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventoryTransactions.map(tx => (
-                        <tr key={tx.id}>
-                          <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                            {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                          <td>{tx.menu_item_name}</td>
-                          <td>
-                            <span style={{
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              background: tx.transaction_type === 'sale' ? '#ef444433' :
-                                         tx.transaction_type === 'purchase' ? '#22c55e33' :
-                                         tx.transaction_type === 'stock_update' ? '#3b82f633' :
-                                         '#eab30833',
-                              color: tx.transaction_type === 'sale' ? '#ef4444' :
-                                     tx.transaction_type === 'purchase' ? '#22c55e' :
-                                     tx.transaction_type === 'stock_update' ? '#3b82f6' :
-                                     '#eab308'
-                            }}>
-                              {tx.transaction_type}
-                            </span>
-                          </td>
-                          <td style={{
-                            textAlign: 'center',
-                            color: tx.quantity_change > 0 ? '#22c55e' : '#ef4444'
-                          }}>
-                            {tx.quantity_change > 0 ? '+' : ''}{tx.quantity_change}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>{formatCurrency(tx.unit_cost_at_time || 0)}</td>
-                          <td style={{ fontSize: '12px', color: '#4a7c59' }}>{tx.notes || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <InventoryMovementsSection
+              loadingTransactions={loadingTransactions}
+              inventoryTransactions={inventoryTransactions}
+            />
           )}
 
           {/* Inventory - Count */}
           {activeSection === 'inventory' && activeSubSection === 'count' && (
-            <div>
-              <h1 className="page-title">Inventory Count</h1>
-
-              <div className="card" style={{ marginBottom: '16px' }}>
-                <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
-                  Enter actual quantities for each item. Discrepancies will be automatically recorded.
-                </p>
-
-                {inventoryItems.filter(i => i.price !== null).length === 0 ? (
-                  <p style={{ color: '#4a7c59', textAlign: 'center' }}>No inventory items to count.</p>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Item</th>
-                          <th style={{ textAlign: 'center' }}>Expected</th>
-                          <th style={{ textAlign: 'center', width: '120px' }}>Actual Count</th>
-                          <th style={{ textAlign: 'center' }}>Difference</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {inventoryItems.filter(i => i.price !== null && i.active !== 0).map(item => {
-                          const countInputId = `count-${item.id}`;
-                          const inputEl = document.getElementById(countInputId);
-                          const actualValue = inputEl ? parseInt(inputEl.value) : null;
-                          const diff = actualValue !== null && !isNaN(actualValue) ? actualValue - (item.quantity_on_hand || 0) : null;
-
-                          return (
-                            <tr key={item.id}>
-                              <td>{item.name}</td>
-                              <td style={{ textAlign: 'center', color: '#4ade80' }}>{item.quantity_on_hand || 0}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                <input
-                                  id={countInputId}
-                                  type="number"
-                                  className="input"
-                                  min="0"
-                                  placeholder="—"
-                                  style={{ width: '80px', textAlign: 'center' }}
-                                  defaultValue=""
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>—</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      const counts = [];
-                      inventoryItems.filter(i => i.price !== null && i.active !== 0).forEach(item => {
-                        const inputEl = document.getElementById(`count-${item.id}`);
-                        if (inputEl && inputEl.value !== '') {
-                          counts.push({
-                            menuItemId: item.id,
-                            expectedQuantity: item.quantity_on_hand || 0,
-                            actualQuantity: parseInt(inputEl.value) || 0
-                          });
-                        }
-                      });
-
-                      if (counts.length === 0) {
-                        setError('Please enter at least one count');
-                        return;
-                      }
-
-                      try {
-                        const response = await fetch('/api/inventory/count', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ counts, countedBy: 'admin' })
-                        });
-                        const data = await response.json();
-                        if (response.ok) {
-                          const discrepancies = data.results.filter(r => r.discrepancy !== 0);
-                          setSuccess(`Count saved! ${counts.length} items counted, ${discrepancies.length} discrepancies recorded.`);
-                          fetchInventory();
-                          // Clear inputs
-                          inventoryItems.forEach(item => {
-                            const inputEl = document.getElementById(`count-${item.id}`);
-                            if (inputEl) inputEl.value = '';
-                          });
-                        } else {
-                          setError(data.error || 'Failed to save count');
-                        }
-                      } catch (err) {
-                        setError('Failed to save count: ' + err.message);
-                      }
-                    }}
-                  >
-                    Save Count
-                  </button>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      inventoryItems.forEach(item => {
-                        const inputEl = document.getElementById(`count-${item.id}`);
-                        if (inputEl) inputEl.value = '';
-                      });
-                    }}
-                  >
-                    Clear All
-                  </button>
-                </div>
-              </div>
-            </div>
+            <InventoryCountSection
+              inventoryItems={inventoryItems}
+              setError={setError}
+              setSuccess={setSuccess}
+              fetchInventory={fetchInventory}
+            />
           )}
 
           {/* Purchases - Stock Update */}
           {activeSection === 'purchases' && activeSubSection === 'stock' && (
             <div className="card">
-              <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
+              <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>
                 Manual Stock Update
               </h2>
-              <p style={{ color: '#4a7c59', fontSize: '13px', marginBottom: '16px' }}>
-                Add inventory without a receipt. These items are marked as <strong style={{ color: '#eab308' }}>non-reimbursable</strong>.
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
+                Add inventory without a receipt. These items are marked as <strong style={{ color: 'var(--color-warning)' }}>non-reimbursable</strong>.
               </p>
 
               <form onSubmit={handleSubmitStockUpdate} style={{ maxWidth: '400px' }}>
@@ -4393,16 +3728,16 @@ function CashBoxAdmin({ user, onLogout }) {
               <h1 className="page-title">Program Charges</h1>
 
               {loadingCharges ? (
-                <div className="card"><p style={{ color: '#4a7c59', textAlign: 'center' }}>Loading charges...</p></div>
+                <div className="card"><p style={{ color: 'var(--color-text-subtle)', textAlign: 'center' }}>Loading charges...</p></div>
               ) : (
                 <>
                   {/* Summary by Program */}
                   <div className="card" style={{ marginBottom: '16px' }}>
-                    <h2 style={{ marginBottom: '16px', fontSize: '16px', color: '#22c55e' }}>
+                    <h2 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--color-primary)' }}>
                       Charges by Program
                     </h2>
                     {programChargesSummary.length === 0 ? (
-                      <p style={{ color: '#4a7c59', textAlign: 'center' }}>No charges recorded.</p>
+                      <p style={{ color: 'var(--color-text-subtle)', textAlign: 'center' }}>No charges recorded.</p>
                     ) : (
                       <div style={{ overflowX: 'auto' }}>
                         <table>
@@ -4420,9 +3755,9 @@ function CashBoxAdmin({ user, onLogout }) {
                               <tr key={p.program_id}>
                                 <td>{p.program_name}</td>
                                 <td style={{ textAlign: 'center' }}>{p.charge_count}</td>
-                                <td style={{ textAlign: 'right', color: '#eab308' }}>{formatCurrency(p.total_comps)}</td>
-                                <td style={{ textAlign: 'right', color: '#f97316' }}>{formatCurrency(p.total_discounts)}</td>
-                                <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#ef4444' }}>{formatCurrency(p.total_charged)}</td>
+                                <td style={{ textAlign: 'right', color: 'var(--color-warning)' }}>{formatCurrency(p.total_comps)}</td>
+                                <td style={{ textAlign: 'right', color: 'var(--color-warning)' }}>{formatCurrency(p.total_discounts)}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-danger)' }}>{formatCurrency(p.total_charged)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -4433,11 +3768,11 @@ function CashBoxAdmin({ user, onLogout }) {
 
                   {/* Charge History */}
                   <div className="card">
-                    <h2 style={{ marginBottom: '16px', fontSize: '16px', color: '#22c55e' }}>
+                    <h2 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--color-primary)' }}>
                       Recent Charges
                     </h2>
                     {programCharges.length === 0 ? (
-                      <p style={{ color: '#4a7c59', textAlign: 'center' }}>No charges recorded yet.</p>
+                      <p style={{ color: 'var(--color-text-subtle)', textAlign: 'center' }}>No charges recorded yet.</p>
                     ) : (
                       <div style={{ overflowX: 'auto' }}>
                         <table>
@@ -4464,14 +3799,14 @@ function CashBoxAdmin({ user, onLogout }) {
                                     padding: '2px 8px',
                                     borderRadius: '4px',
                                     fontSize: '11px',
-                                    background: charge.charge_type === 'comp' ? '#eab30833' : '#f9731633',
-                                    color: charge.charge_type === 'comp' ? '#eab308' : '#f97316'
+                                    background: charge.charge_type === 'comp' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(249, 115, 22, 0.2)',
+                                    color: 'var(--color-warning)'
                                   }}>
                                     {charge.charge_type}
                                   </span>
                                 </td>
-                                <td style={{ textAlign: 'right', color: '#ef4444' }}>{formatCurrency(charge.amount)}</td>
-                                <td style={{ fontSize: '12px', color: '#4a7c59' }}>{charge.reason || '—'}</td>
+                                <td style={{ textAlign: 'right', color: 'var(--color-danger)' }}>{formatCurrency(charge.amount)}</td>
+                                <td style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>{charge.reason || '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -4486,665 +3821,99 @@ function CashBoxAdmin({ user, onLogout }) {
 
           {/* Financials - Reimbursement */}
           {activeSection === 'financials' && activeSubSection === 'reimbursement' && (
-            <div>
-              <h1 className="page-title">Reimbursement Tracking</h1>
-
-              {loadingReimbursement ? (
-                <div className="card"><p style={{ color: '#4a7c59', textAlign: 'center' }}>Loading reimbursement data...</p></div>
-              ) : reimbursementData && (
-                <>
-                  {/* Summary Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                    <div className="card" style={{ textAlign: 'center', borderLeft: '4px solid #3b82f6' }}>
-                      <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>Total COGS (Reimbursable)</p>
-                      <p style={{ color: '#3b82f6', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                        {formatCurrency(reimbursementData.totalCogsOwed)}
-                      </p>
-                    </div>
-                    <div className="card" style={{ textAlign: 'center', borderLeft: '4px solid #ef4444' }}>
-                      <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>ASB Losses (Deducted)</p>
-                      <p style={{ color: '#ef4444', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                        -{formatCurrency(reimbursementData.asbLosses)}
-                      </p>
-                    </div>
-                    <div className="card" style={{ textAlign: 'center', borderLeft: '4px solid #22c55e' }}>
-                      <p style={{ color: '#4a7c59', fontSize: '12px', margin: '0 0 4px 0' }}>Gross Owed</p>
-                      <p style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold', margin: 0 }}>
-                        {formatCurrency(reimbursementData.grossOwed)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Received Breakdown */}
-                  <div className="card" style={{ marginBottom: '16px' }}>
-                    <h2 style={{ marginBottom: '16px', fontSize: '16px', color: '#22c55e' }}>
-                      Amounts Received
-                    </h2>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-                      <div style={{ background: '#6B1CD122', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                        <p style={{ color: '#a855f7', fontSize: '11px', margin: '0 0 4px 0' }}>Zelle Received</p>
-                        <p style={{ color: '#a855f7', fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
-                          {formatCurrency(reimbursementData.zelleReceived)}
-                        </p>
-                      </div>
-                      <div style={{ background: '#00D63222', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                        <p style={{ color: '#00D632', fontSize: '11px', margin: '0 0 4px 0' }}>CashApp Withdrawn</p>
-                        <p style={{ color: '#00D632', fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
-                          {formatCurrency(reimbursementData.cashappWithdrawn)}
-                        </p>
-                      </div>
-                      <div style={{ background: '#22c55e22', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                        <p style={{ color: '#22c55e', fontSize: '11px', margin: '0 0 4px 0' }}>Cashbox Reimbursed</p>
-                        <p style={{ color: '#22c55e', fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
-                          {formatCurrency(reimbursementData.cashboxReimbursed)}
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: '16px', padding: '12px', background: '#1a1a1a', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#4a7c59' }}>Total Received:</span>
-                      <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{formatCurrency(reimbursementData.totalReceived)}</span>
-                    </div>
-                  </div>
-
-                  {/* Remaining */}
-                  <div className="card" style={{
-                    marginBottom: '16px',
-                    background: reimbursementData.remaining > 0 ? 'linear-gradient(135deg, #eab30811, #eab30822)' : 'linear-gradient(135deg, #22c55e11, #22c55e22)',
-                    borderLeft: `4px solid ${reimbursementData.remaining > 0 ? '#eab308' : '#22c55e'}`
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <h2 style={{ margin: 0, fontSize: '16px', color: reimbursementData.remaining > 0 ? '#eab308' : '#22c55e' }}>
-                          {reimbursementData.remaining > 0 ? 'Remaining to Collect' : 'Fully Reimbursed'}
-                        </h2>
-                        <p style={{ margin: '4px 0 0 0', color: '#4a7c59', fontSize: '13px' }}>
-                          {reimbursementData.remaining > 0 ? 'Outstanding balance to be collected from ASB' : 'All reimbursable costs have been recovered'}
-                        </p>
-                      </div>
-                      <p style={{ color: reimbursementData.remaining > 0 ? '#eab308' : '#22c55e', fontSize: '32px', fontWeight: 'bold', margin: 0 }}>
-                        {formatCurrency(Math.abs(reimbursementData.remaining))}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Ledger History */}
-                  {reimbursementLedger.length > 0 && (
-                    <div className="card">
-                      <h2 style={{ marginBottom: '16px', fontSize: '16px', color: '#22c55e' }}>
-                        Recent Ledger Entries
-                      </h2>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Date</th>
-                              <th>Type</th>
-                              <th>Session</th>
-                              <th style={{ textAlign: 'right' }}>Amount</th>
-                              <th>Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reimbursementLedger.map(entry => (
-                              <tr key={entry.id}>
-                                <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                                  {new Date(entry.created_at).toLocaleDateString()}
-                                </td>
-                                <td>
-                                  <span style={{
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    fontSize: '11px',
-                                    background: entry.entry_type.includes('received') || entry.entry_type.includes('withdrawal') || entry.entry_type.includes('reimbursement') ? '#22c55e33' : '#3b82f633',
-                                    color: entry.entry_type.includes('received') || entry.entry_type.includes('withdrawal') || entry.entry_type.includes('reimbursement') ? '#22c55e' : '#3b82f6'
-                                  }}>
-                                    {entry.entry_type.replace(/_/g, ' ')}
-                                  </span>
-                                </td>
-                                <td>{entry.session_name || '—'}</td>
-                                <td style={{ textAlign: 'right', color: '#22c55e' }}>{formatCurrency(entry.amount)}</td>
-                                <td style={{ fontSize: '12px', color: '#4a7c59' }}>{entry.notes || '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <ReimbursementSection
+              loadingReimbursement={loadingReimbursement}
+              reimbursementData={reimbursementData}
+              reimbursementLedger={reimbursementLedger}
+            />
           )}
 
           {/* Financials - CashApp */}
           {activeSection === 'financials' && activeSubSection === 'cashapp' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Digital Payments
-            </h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {/* CashApp Balance Card */}
-              <div style={{ background: '#00D632', padding: '20px', borderRadius: '12px' }}>
-                <h3 style={{ color: '#000', fontSize: '14px', marginBottom: '4px', fontWeight: 'normal' }}>
-                  CashApp Balance
-                </h3>
-                <p style={{ color: '#000', fontSize: '28px', fontWeight: 'bold', marginBottom: '12px' }}>
-                  {formatCurrency(cashAppBalance)}
-                </p>
-                {cashAppBalance > 0 && (
-                  <button
-                    className="btn"
-                    onClick={() => setShowWithdrawModal(true)}
-                    style={{ background: '#000', color: '#00D632', padding: '8px 16px' }}
-                  >
-                    Withdraw
-                  </button>
-                )}
-              </div>
-
-              {/* Zelle Info Card */}
-              <div style={{ background: '#6B1CD1', padding: '20px', borderRadius: '12px' }}>
-                <h3 style={{ color: '#fff', fontSize: '14px', marginBottom: '4px', fontWeight: 'normal' }}>
-                  Zelle Payments
-                </h3>
-                <p style={{ color: '#fff', fontSize: '14px', marginBottom: '8px' }}>
-                  Zelle payments go directly to your bank account
-                </p>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
-                  Auto-applied to reimbursement
-                </p>
-              </div>
-            </div>
-
-            <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-              <h3 style={{ color: '#4ade80', fontSize: '14px', marginBottom: '12px' }}>How Digital Payments Work</h3>
-              <ul style={{ color: '#4a7c59', fontSize: '13px', lineHeight: '1.8', paddingLeft: '20px' }}>
-                <li><strong style={{ color: '#00D632' }}>CashApp</strong>: Payments accumulate in your CashApp balance. Withdraw when needed for reimbursement.</li>
-                <li><strong style={{ color: '#6B1CD1' }}>Zelle</strong>: Goes directly to your bank - automatically applied to what ASB owes you.</li>
-                <li><strong style={{ color: '#4ade80' }}>Cash</strong>: Stays in the session drawer, then goes to the main cashbox.</li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Withdraw Modal */}
-        {showWithdrawModal && (
-          <div className="pos-modal-overlay" onClick={() => setShowWithdrawModal(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <h3 style={{ color: '#00D632', marginBottom: '16px' }}>Withdraw from CashApp</h3>
-
-              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#4a7c59' }}>Available Balance:</span>
-                  <span style={{ color: '#00D632', fontWeight: 'bold' }}>{formatCurrency(cashAppBalance)}</span>
-                </div>
-              </div>
-
-              <form onSubmit={handleCashAppWithdraw}>
-                <div className="form-group">
-                  <label>Amount to Withdraw</label>
-                  <input
-                    type="number"
-                    className="input"
-                    step="0.01"
-                    min="0.01"
-                    max={cashAppBalance}
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder="0.00"
-                    style={{ fontSize: '20px', textAlign: 'center' }}
-                    autoFocus
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  onClick={() => setWithdrawAmount(String(cashAppBalance))}
-                  style={{ marginBottom: '16px', width: '100%' }}
-                >
-                  Withdraw All ({formatCurrency(cashAppBalance)})
-                </button>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="button" className="btn" onClick={() => setShowWithdrawModal(false)} style={{ flex: 1 }}>
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={(parseFloat(withdrawAmount) || 0) <= 0 || (parseFloat(withdrawAmount) || 0) > cashAppBalance}
-                    style={{ flex: 1, background: '#00D632' }}
-                  >
-                    Withdraw
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+            <CashAppSection
+              cashAppBalance={cashAppBalance}
+              showWithdrawModal={showWithdrawModal}
+              setShowWithdrawModal={setShowWithdrawModal}
+              withdrawAmount={withdrawAmount}
+              setWithdrawAmount={setWithdrawAmount}
+              onWithdraw={handleCashAppWithdraw}
+            />
+          )}
 
           {/* Financials - Losses */}
           {activeSection === 'financials' && activeSubSection === 'losses' && (
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '18px', color: '#22c55e', margin: 0 }}>
-                Loss Tracking
-              </h2>
-              <button
-                className="btn btn-primary"
-                onClick={() => setShowAddLossForm(true)}
-              >
-                + Record Loss
-              </button>
-            </div>
-
-            {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
-              <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                <p style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '4px' }}>Total Losses</p>
-                <p style={{ color: '#ef4444', fontSize: '24px', fontWeight: 'bold' }}>
-                  {formatCurrency(lossesSummary.totals?.total_amount || 0)}
-                </p>
-                <p style={{ color: '#4a7c59', fontSize: '11px' }}>
-                  {lossesSummary.totals?.total_count || 0} records
-                </p>
-              </div>
-              {lossesSummary.byType?.map(item => (
-                <div key={item.loss_type} style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-                  <p style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '4px' }}>{getLossTypeLabel(item.loss_type)}</p>
-                  <p style={{ color: '#fbbf24', fontSize: '20px', fontWeight: 'bold' }}>
-                    {formatCurrency(item.total_amount)}
-                  </p>
-                  <p style={{ color: '#4a7c59', fontSize: '11px' }}>
-                    {item.count} records
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Loss Records Table */}
-            {losses.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4ade80' }}>No losses recorded.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th>Amount</th>
-                      <th>Description</th>
-                      <th>Session/Program</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {losses.map(loss => (
-                      <tr key={loss.id}>
-                        <td>{new Date(loss.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <span style={{
-                            background: loss.loss_type === 'cash_discrepancy' ? '#ef444433' :
-                                       loss.loss_type === 'inventory_discrepancy' ? '#f9731633' :
-                                       loss.loss_type === 'spoilage' ? '#eab30833' : '#6b728033',
-                            color: loss.loss_type === 'cash_discrepancy' ? '#ef4444' :
-                                   loss.loss_type === 'inventory_discrepancy' ? '#f97316' :
-                                   loss.loss_type === 'spoilage' ? '#eab308' : '#9ca3af',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px'
-                          }}>
-                            {getLossTypeLabel(loss.loss_type)}
-                          </span>
-                        </td>
-                        <td style={{ color: '#ef4444', fontWeight: 'bold' }}>{formatCurrency(loss.amount)}</td>
-                        <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {loss.description || '-'}
-                        </td>
-                        <td>
-                          {loss.session_start ? new Date(loss.session_start).toLocaleDateString() : ''}
-                          {loss.program_name ? ` (${loss.program_name})` : ''}
-                          {!loss.session_start && !loss.program_name && '-'}
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-small"
-                            onClick={() => handleDeleteLoss(loss.id)}
-                            style={{ background: '#ef4444', color: '#fff', padding: '4px 8px' }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Add Loss Modal */}
-        {showAddLossForm && (
-          <div className="pos-modal-overlay" onClick={() => setShowAddLossForm(false)}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-              <h3 style={{ color: '#ef4444', marginBottom: '16px' }}>Record Loss</h3>
-
-              <form onSubmit={handleAddLoss}>
-                <div className="form-group">
-                  <label>Loss Type *</label>
-                  <select
-                    className="input"
-                    value={lossFormData.lossType}
-                    onChange={(e) => setLossFormData({ ...lossFormData, lossType: e.target.value })}
-                    required
-                  >
-                    <option value="spoilage">Spoilage</option>
-                    <option value="cash_discrepancy">Cash Discrepancy</option>
-                    <option value="inventory_discrepancy">Inventory Discrepancy</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Amount ($) *</label>
-                  <input
-                    type="number"
-                    className="input"
-                    step="0.01"
-                    min="0.01"
-                    value={lossFormData.amount}
-                    onChange={(e) => setLossFormData({ ...lossFormData, amount: e.target.value })}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Description</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={lossFormData.description}
-                    onChange={(e) => setLossFormData({ ...lossFormData, description: e.target.value })}
-                    placeholder="What happened?"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Related Session (optional)</label>
-                  <select
-                    className="input"
-                    value={lossFormData.sessionId}
-                    onChange={(e) => setLossFormData({ ...lossFormData, sessionId: e.target.value })}
-                  >
-                    <option value="">-- None --</option>
-                    {sessions.filter(s => s.status === 'closed').map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} - {new Date(s.start_time).toLocaleDateString()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Charged To Program (optional)</label>
-                  <select
-                    className="input"
-                    value={lossFormData.programId}
-                    onChange={(e) => setLossFormData({ ...lossFormData, programId: e.target.value })}
-                  >
-                    <option value="">-- ASB (General) --</option>
-                    {programs.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                  <button type="button" className="btn" onClick={() => setShowAddLossForm(false)} style={{ flex: 1 }}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1, background: '#ef4444' }}>
-                    Record Loss
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+            <LossesSection
+              losses={losses}
+              lossesSummary={lossesSummary}
+              showAddLossForm={showAddLossForm}
+              setShowAddLossForm={setShowAddLossForm}
+              lossFormData={lossFormData}
+              setLossFormData={setLossFormData}
+              sessions={sessions}
+              programs={programs}
+              onAddLoss={handleAddLoss}
+              onDeleteLoss={handleDeleteLoss}
+            />
+          )}
 
           {/* Reports Section */}
           {activeSection === 'reports' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Reports & Exports
-            </h2>
-
-            {/* Date Filters */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', alignItems: 'flex-end' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>Start Date</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={reportStartDate}
-                  onChange={(e) => setReportStartDate(e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>End Date</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={reportEndDate}
-                  onChange={(e) => setReportEndDate(e.target.value)}
-                />
-              </div>
-              <button
-                className="btn btn-primary"
-                onClick={fetchReportSummary}
-                disabled={loadingReport}
-              >
-                {loadingReport ? 'Loading...' : 'Update Summary'}
-              </button>
-              <button
-                className="btn"
-                onClick={() => { setReportStartDate(''); setReportEndDate(''); fetchReportSummary(); }}
-              >
-                Clear Filters
-              </button>
-            </div>
-
-            {/* Summary Cards */}
-            {reportSummary && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                  <h3 style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '8px' }}>Sessions</h3>
-                  <p style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold' }}>{reportSummary.sessions?.closed_sessions || 0}</p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>Total Profit: {formatCurrency(reportSummary.sessions?.total_profit || 0)}</p>
-                </div>
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                  <h3 style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '8px' }}>Orders</h3>
-                  <p style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold' }}>{reportSummary.orders?.total_orders || 0}</p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>Revenue: {formatCurrency(reportSummary.orders?.total_revenue || 0)}</p>
-                </div>
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                  <h3 style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '8px' }}>COGS</h3>
-                  <p style={{ color: '#f97316', fontSize: '24px', fontWeight: 'bold' }}>{formatCurrency(reportSummary.orders?.total_cogs || 0)}</p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>Discounts: {formatCurrency(reportSummary.orders?.total_discounts || 0)}</p>
-                </div>
-                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                  <h3 style={{ color: '#4a7c59', fontSize: '12px', marginBottom: '8px' }}>Losses</h3>
-                  <p style={{ color: '#ef4444', fontSize: '24px', fontWeight: 'bold' }}>{formatCurrency(reportSummary.losses?.total_loss_amount || 0)}</p>
-                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>{reportSummary.losses?.total_losses || 0} records</p>
-                </div>
-              </div>
-            )}
-
-            {/* Payment Breakdown */}
-            {reportSummary?.orders && (
-              <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
-                <h3 style={{ color: '#22c55e', fontSize: '14px', marginBottom: '12px' }}>Revenue by Payment Method</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ color: '#22c55e', fontSize: '20px', fontWeight: 'bold' }}>
-                      {formatCurrency(reportSummary.orders.cash_revenue || 0)}
-                    </p>
-                    <p style={{ color: '#4a7c59', fontSize: '12px' }}>Cash</p>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ color: '#00D632', fontSize: '20px', fontWeight: 'bold' }}>
-                      {formatCurrency(reportSummary.orders.cashapp_revenue || 0)}
-                    </p>
-                    <p style={{ color: '#4a7c59', fontSize: '12px' }}>CashApp</p>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ color: '#a855f7', fontSize: '20px', fontWeight: 'bold' }}>
-                      {formatCurrency(reportSummary.orders.zelle_revenue || 0)}
-                    </p>
-                    <p style={{ color: '#4a7c59', fontSize: '12px' }}>Zelle</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Export Buttons */}
-            <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-              <h3 style={{ color: '#22c55e', fontSize: '14px', marginBottom: '16px' }}>Export Data (CSV)</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-                <button className="btn" onClick={() => downloadReport('sessions')}>
-                  Sessions
-                </button>
-                <button className="btn" onClick={() => downloadReport('orders')}>
-                  Orders
-                </button>
-                <button className="btn" onClick={() => downloadReport('inventory')}>
-                  Inventory
-                </button>
-                <button className="btn" onClick={() => downloadReport('purchases')}>
-                  Purchases
-                </button>
-                <button className="btn" onClick={() => downloadReport('losses')}>
-                  Losses
-                </button>
-                <button className="btn" onClick={() => downloadReport('programs')}>
-                  Programs
-                </button>
-                <button className="btn" onClick={() => downloadReport('reimbursement')}>
-                  Reimbursement
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+            <ReportsSection
+              reportStartDate={reportStartDate}
+              setReportStartDate={setReportStartDate}
+              reportEndDate={reportEndDate}
+              setReportEndDate={setReportEndDate}
+              reportSummary={reportSummary}
+              loadingReport={loadingReport}
+              onFetchReport={fetchReportSummary}
+              onClearFilters={() => { setReportStartDate(''); setReportEndDate(''); fetchReportSummary(); }}
+              onDownloadReport={downloadReport}
+            />
+          )}
 
           {/* Sessions - History */}
           {activeSection === 'sessions' && activeSubSection === 'history' && (
-          <div className="card">
-            <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>
-              Session History
-            </h2>
-            {sessions.filter(s => s.status === 'closed' || s.status === 'cancelled').length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#4ade80' }}>No closed sessions yet.</p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Session</th>
-                      <th>Program</th>
-                      <th>Start</th>
-                      <th>End</th>
-                      <th>Profit</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.filter(s => s.status === 'closed' || s.status === 'cancelled').map((session) => (
-                      <tr key={session.id}>
-                        <td style={{ fontSize: '13px' }}>{formatDateTime(session.closed_at || session.created_at)}</td>
-                        <td>{session.name}</td>
-                        <td>{session.program_name}</td>
-                        <td>{formatCurrency(session.start_total)}</td>
-                        <td>{formatCurrency(session.end_total)}</td>
-                        <td style={{
-                          color: session.profit >= 0 ? '#22c55e' : '#ef4444',
-                          fontWeight: 'bold'
-                        }}>
-                          {formatCurrency(session.profit)}
-                        </td>
-                        <td>
-                          <span className={`status-badge ${getStatusBadgeClass(session.status)}`}>
-                            {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                              className="btn btn-small"
-                              onClick={() => fetchSessionDetails(session)}
-                              style={{ padding: '4px 8px', fontSize: '12px', background: '#3b82f6' }}
-                            >
-                              View
-                            </button>
-                            {session.status === 'closed' && session.profit > 0 && (
-                              <button
-                                className="btn btn-small btn-primary"
-                                onClick={() => handleOpenDistribute(session)}
-                                style={{ padding: '4px 8px', fontSize: '12px' }}
-                              >
-                                Distribute
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            <SessionHistorySection
+              sessions={sessions}
+              getStatusBadgeClass={getStatusBadgeClass}
+              onViewSession={fetchSessionDetails}
+              onDistribute={handleOpenDistribute}
+            />
+          )}
 
         {/* Profit Distribution Modal */}
         {showDistributeModal && selectedSession && (
           <div className="pos-modal-overlay" onClick={() => setShowDistributeModal(false)}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>
                 Distribute Profit: {selectedSession.name}
               </h3>
 
-              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+              <div style={{ background: 'var(--color-bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#4a7c59' }}>Session Profit:</span>
-                  <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                  <span style={{ color: 'var(--color-text-subtle)' }}>Session Profit:</span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
                     {formatCurrency(selectedSession.profit)}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#4a7c59' }}>Total Allocated:</span>
+                  <span style={{ color: 'var(--color-text-subtle)' }}>Total Allocated:</span>
                   <span style={{
-                    color: Math.abs(getTotalDistribution() - selectedSession.profit) < 0.01 ? '#22c55e' : '#eab308',
+                    color: Math.abs(getTotalDistribution() - selectedSession.profit) < 0.01 ? 'var(--color-primary)' : 'var(--color-warning)',
                     fontWeight: 'bold'
                   }}>
                     {formatCurrency(getTotalDistribution())}
                   </span>
                 </div>
                 {Math.abs(getTotalDistribution() - selectedSession.profit) >= 0.01 && (
-                  <p style={{ color: '#eab308', fontSize: '12px', marginTop: '8px' }}>
+                  <p style={{ color: 'var(--color-warning)', fontSize: '12px', marginTop: '8px' }}>
                     Remaining: {formatCurrency(selectedSession.profit - getTotalDistribution())}
                   </p>
                 )}
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ color: '#4ade80', display: 'block', marginBottom: '8px' }}>
+                <label style={{ color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px' }}>
                   Allocate to Programs:
                 </label>
                 {programs.map(program => (
@@ -5153,11 +3922,11 @@ function CashBoxAdmin({ user, onLogout }) {
                     alignItems: 'center',
                     gap: '12px',
                     marginBottom: '8px',
-                    background: '#1a1a1a',
+                    background: 'var(--color-bg-input)',
                     padding: '8px 12px',
                     borderRadius: '6px'
                   }}>
-                    <span style={{ flex: 1, color: '#4ade80' }}>{program.name}</span>
+                    <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>{program.name}</span>
                     <input
                       type="number"
                       className="input"
@@ -5225,10 +3994,10 @@ function CashBoxAdmin({ user, onLogout }) {
           <div className="pos-modal-overlay" onClick={() => setShowSessionDetails(false)}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', maxHeight: '85vh', overflow: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ color: '#22c55e', margin: 0 }}>
+                <h3 style={{ color: 'var(--color-primary)', margin: 0 }}>
                   {selectedSession.name}
                   {selectedSession.is_test === 1 && (
-                    <span style={{ marginLeft: '8px', padding: '2px 8px', background: '#eab308', color: '#000', fontSize: '12px', borderRadius: '4px' }}>
+                    <span style={{ marginLeft: '8px', padding: '2px 8px', background: 'var(--color-warning)', color: 'var(--color-bg)', fontSize: '12px', borderRadius: '4px' }}>
                       PRACTICE
                     </span>
                   )}
@@ -5237,28 +4006,28 @@ function CashBoxAdmin({ user, onLogout }) {
               </div>
 
               {loadingSessionDetails ? (
-                <p style={{ textAlign: 'center', color: '#4a7c59' }}>Loading session details...</p>
+                <p style={{ textAlign: 'center', color: 'var(--color-text-subtle)' }}>Loading session details...</p>
               ) : (
                 <>
                   {/* Session Summary */}
-                  <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                    <h4 style={{ color: '#4ade80', margin: '0 0 12px 0', fontSize: '14px' }}>Session Summary</h4>
+                  <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                    <h4 style={{ color: 'var(--color-text-muted)', margin: '0 0 12px 0', fontSize: '14px' }}>Session Summary</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
                       <div>
-                        <p style={{ color: '#4a7c59', fontSize: '11px', margin: 0 }}>Program</p>
-                        <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, fontWeight: 'bold' }}>{selectedSession.program_name}</p>
+                        <p style={{ color: 'var(--color-text-subtle)', fontSize: '11px', margin: 0 }}>Program</p>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '14px', margin: 0, fontWeight: 'bold' }}>{selectedSession.program_name}</p>
                       </div>
                       <div>
-                        <p style={{ color: '#4a7c59', fontSize: '11px', margin: 0 }}>Orders</p>
-                        <p style={{ color: '#22c55e', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{sessionDetailsData?.total_orders || 0}</p>
+                        <p style={{ color: 'var(--color-text-subtle)', fontSize: '11px', margin: 0 }}>Orders</p>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{sessionDetailsData?.total_orders || 0}</p>
                       </div>
                       <div>
-                        <p style={{ color: '#4a7c59', fontSize: '11px', margin: 0 }}>Revenue</p>
-                        <p style={{ color: '#22c55e', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{formatCurrency(sessionDetailsData?.total_revenue || 0)}</p>
+                        <p style={{ color: 'var(--color-text-subtle)', fontSize: '11px', margin: 0 }}>Revenue</p>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>{formatCurrency(sessionDetailsData?.total_revenue || 0)}</p>
                       </div>
                       <div>
-                        <p style={{ color: '#4a7c59', fontSize: '11px', margin: 0 }}>Profit</p>
-                        <p style={{ color: selectedSession.profit >= 0 ? '#22c55e' : '#ef4444', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
+                        <p style={{ color: 'var(--color-text-subtle)', fontSize: '11px', margin: 0 }}>Profit</p>
+                        <p style={{ color: selectedSession.profit >= 0 ? 'var(--color-primary)' : 'var(--color-danger)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
                           {formatCurrency(selectedSession.profit || 0)}
                         </p>
                       </div>
@@ -5266,39 +4035,39 @@ function CashBoxAdmin({ user, onLogout }) {
                   </div>
 
                   {/* Cash Flow */}
-                  <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                    <h4 style={{ color: '#4ade80', margin: '0 0 12px 0', fontSize: '14px' }}>Cash Flow</h4>
+                  <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                    <h4 style={{ color: 'var(--color-text-muted)', margin: '0 0 12px 0', fontSize: '14px' }}>Cash Flow</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#4a7c59' }}>Starting Cash:</span>
-                        <span style={{ color: '#4ade80' }}>{formatCurrency(selectedSession.start_total || 0)}</span>
+                        <span style={{ color: 'var(--color-text-subtle)' }}>Starting Cash:</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(selectedSession.start_total || 0)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#4a7c59' }}>Ending Cash:</span>
-                        <span style={{ color: '#4ade80' }}>{formatCurrency(selectedSession.end_total || 0)}</span>
+                        <span style={{ color: 'var(--color-text-subtle)' }}>Ending Cash:</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(selectedSession.end_total || 0)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Revenue by Payment Method */}
-                  <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                    <h4 style={{ color: '#4ade80', margin: '0 0 12px 0', fontSize: '14px' }}>Revenue by Payment Method</h4>
+                  <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                    <h4 style={{ color: 'var(--color-text-muted)', margin: '0 0 12px 0', fontSize: '14px' }}>Revenue by Payment Method</h4>
                     <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                      <div style={{ flex: '1 1 100px', background: '#22c55e22', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
-                        <p style={{ color: '#22c55e', fontSize: '10px', margin: '0 0 4px 0' }}>CASH</p>
-                        <p style={{ color: '#22c55e', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
+                      <div style={{ flex: '1 1 100px', background: 'rgba(34, 197, 94, 0.13)', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '10px', margin: '0 0 4px 0' }}>CASH</p>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
                           {formatCurrency(sessionDetailsData?.cash_total || 0)}
                         </p>
                       </div>
-                      <div style={{ flex: '1 1 100px', background: '#00D63222', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
-                        <p style={{ color: '#00D632', fontSize: '10px', margin: '0 0 4px 0' }}>CASHAPP</p>
-                        <p style={{ color: '#00D632', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
+                      <div style={{ flex: '1 1 100px', background: 'rgba(0, 214, 50, 0.13)', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '10px', margin: '0 0 4px 0' }}>CASHAPP</p>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
                           {formatCurrency(sessionDetailsData?.cashapp_total || 0)}
                         </p>
                       </div>
-                      <div style={{ flex: '1 1 100px', background: '#6B1CD122', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
-                        <p style={{ color: '#a855f7', fontSize: '10px', margin: '0 0 4px 0' }}>ZELLE</p>
-                        <p style={{ color: '#a855f7', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
+                      <div style={{ flex: '1 1 100px', background: 'rgba(107, 28, 209, 0.13)', padding: '12px', borderRadius: '6px', textAlign: 'center' }}>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '10px', margin: '0 0 4px 0' }}>ZELLE</p>
+                        <p style={{ color: 'var(--color-primary)', fontSize: '18px', margin: 0, fontWeight: 'bold' }}>
                           {formatCurrency(sessionDetailsData?.zelle_total || 0)}
                         </p>
                       </div>
@@ -5307,29 +4076,29 @@ function CashBoxAdmin({ user, onLogout }) {
 
                   {/* Discounts & COGS */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                      <h4 style={{ color: '#eab308', margin: '0 0 12px 0', fontSize: '14px' }}>Discounts & Comps</h4>
+                    <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px' }}>
+                      <h4 style={{ color: 'var(--color-warning)', margin: '0 0 12px 0', fontSize: '14px' }}>Discounts & Comps</h4>
                       <div style={{ fontSize: '13px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span style={{ color: '#4a7c59' }}>Total Discounts:</span>
-                          <span style={{ color: '#eab308' }}>{formatCurrency(sessionDetailsData?.total_discounts || 0)}</span>
+                          <span style={{ color: 'var(--color-text-subtle)' }}>Total Discounts:</span>
+                          <span style={{ color: 'var(--color-warning)' }}>{formatCurrency(sessionDetailsData?.total_discounts || 0)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#4a7c59' }}>Comp Orders:</span>
-                          <span style={{ color: '#eab308' }}>{sessionDetailsData?.comp_count || 0}</span>
+                          <span style={{ color: 'var(--color-text-subtle)' }}>Comp Orders:</span>
+                          <span style={{ color: 'var(--color-warning)' }}>{sessionDetailsData?.comp_count || 0}</span>
                         </div>
                       </div>
                     </div>
-                    <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                      <h4 style={{ color: '#3b82f6', margin: '0 0 12px 0', fontSize: '14px' }}>Cost of Goods Sold</h4>
+                    <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px' }}>
+                      <h4 style={{ color: 'var(--color-info)', margin: '0 0 12px 0', fontSize: '14px' }}>Cost of Goods Sold</h4>
                       <div style={{ fontSize: '13px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span style={{ color: '#4a7c59' }}>Total COGS:</span>
-                          <span style={{ color: '#3b82f6' }}>{formatCurrency(sessionDetailsData?.total_cogs || 0)}</span>
+                          <span style={{ color: 'var(--color-text-subtle)' }}>Total COGS:</span>
+                          <span style={{ color: 'var(--color-info)' }}>{formatCurrency(sessionDetailsData?.total_cogs || 0)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#4a7c59' }}>Reimbursable:</span>
-                          <span style={{ color: '#3b82f6' }}>{formatCurrency(sessionDetailsData?.total_cogs_reimbursable || 0)}</span>
+                          <span style={{ color: 'var(--color-text-subtle)' }}>Reimbursable:</span>
+                          <span style={{ color: 'var(--color-info)' }}>{formatCurrency(sessionDetailsData?.total_cogs_reimbursable || 0)}</span>
                         </div>
                       </div>
                     </div>
@@ -5337,22 +4106,22 @@ function CashBoxAdmin({ user, onLogout }) {
 
                   {/* Items Sold Breakdown */}
                   {sessionDetailsData?.itemBreakdown && sessionDetailsData.itemBreakdown.length > 0 && (
-                    <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-                      <h4 style={{ color: '#4ade80', margin: '0 0 12px 0', fontSize: '14px' }}>Items Sold</h4>
+                    <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                      <h4 style={{ color: 'var(--color-text-muted)', margin: '0 0 12px 0', fontSize: '14px' }}>Items Sold</h4>
                       <table style={{ width: '100%', fontSize: '13px' }}>
                         <thead>
                           <tr>
-                            <th style={{ textAlign: 'left', color: '#4a7c59', padding: '4px 8px' }}>Item</th>
-                            <th style={{ textAlign: 'right', color: '#4a7c59', padding: '4px 8px' }}>Qty</th>
-                            <th style={{ textAlign: 'right', color: '#4a7c59', padding: '4px 8px' }}>Revenue</th>
+                            <th style={{ textAlign: 'left', color: 'var(--color-text-subtle)', padding: '4px 8px' }}>Item</th>
+                            <th style={{ textAlign: 'right', color: 'var(--color-text-subtle)', padding: '4px 8px' }}>Qty</th>
+                            <th style={{ textAlign: 'right', color: 'var(--color-text-subtle)', padding: '4px 8px' }}>Revenue</th>
                           </tr>
                         </thead>
                         <tbody>
                           {sessionDetailsData.itemBreakdown.map((item, idx) => (
                             <tr key={idx}>
-                              <td style={{ padding: '4px 8px', color: '#e5e7eb' }}>{item.name}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right', color: '#4ade80' }}>{item.total_quantity}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right', color: '#22c55e' }}>{formatCurrency(item.total_sales)}</td>
+                              <td style={{ padding: '4px 8px', color: 'var(--color-text)' }}>{item.name}</td>
+                              <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-text-muted)' }}>{item.total_quantity}</td>
+                              <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--color-primary)' }}>{formatCurrency(item.total_sales)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -5361,56 +4130,56 @@ function CashBoxAdmin({ user, onLogout }) {
                   )}
 
                   {/* Order History */}
-                  <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px' }}>
-                    <h4 style={{ color: '#4ade80', margin: '0 0 12px 0', fontSize: '14px' }}>
+                  <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px' }}>
+                    <h4 style={{ color: 'var(--color-text-muted)', margin: '0 0 12px 0', fontSize: '14px' }}>
                       Order History ({sessionOrders.length} orders)
                     </h4>
                     {sessionOrders.length === 0 ? (
-                      <p style={{ color: '#4a7c59', textAlign: 'center', fontSize: '13px' }}>No orders in this session.</p>
+                      <p style={{ color: 'var(--color-text-subtle)', textAlign: 'center', fontSize: '13px' }}>No orders in this session.</p>
                     ) : (
                       <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                         {sessionOrders.map(order => (
                           <div
                             key={order.id}
                             style={{
-                              background: '#111',
+                              background: 'var(--color-bg)',
                               padding: '10px',
                               borderRadius: '6px',
                               marginBottom: '8px',
-                              borderLeft: order.is_comp ? '3px solid #eab308' : order.discount_amount > 0 ? '3px solid #f97316' : '3px solid #22c55e'
+                              borderLeft: order.is_comp ? '3px solid var(--color-warning)' : order.discount_amount > 0 ? '3px solid var(--color-warning)' : '3px solid var(--color-primary)'
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                <span style={{ color: '#4a7c59', fontSize: '11px' }}>
+                                <span style={{ color: 'var(--color-text-subtle)', fontSize: '11px' }}>
                                   {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                                 <span style={{
                                   padding: '2px 6px',
                                   borderRadius: '4px',
                                   fontSize: '10px',
-                                  background: order.payment_method === 'cash' ? '#22c55e33' :
-                                             order.payment_method === 'cashapp' ? '#00D63233' : '#6B1CD133',
-                                  color: order.payment_method === 'cash' ? '#22c55e' :
-                                         order.payment_method === 'cashapp' ? '#00D632' : '#a855f7'
+                                  background: order.payment_method === 'cash' ? 'rgba(34, 197, 94, 0.2)' :
+                                             order.payment_method === 'cashapp' ? 'rgba(0, 214, 50, 0.2)' : 'rgba(107, 28, 209, 0.2)',
+                                  color: order.payment_method === 'cash' ? 'var(--color-primary)' :
+                                         order.payment_method === 'cashapp' ? 'var(--color-primary)' : 'rgb(168, 85, 247)'
                                 }}>
                                   {order.payment_method === 'cashapp' ? 'CashApp' : order.payment_method === 'zelle' ? 'Zelle' : 'Cash'}
                                 </span>
                                 {order.is_comp ? (
-                                  <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', background: '#eab30833', color: '#eab308' }}>
+                                  <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', background: 'rgba(234, 179, 8, 0.2)', color: 'var(--color-warning)' }}>
                                     COMP
                                   </span>
                                 ) : null}
                               </div>
-                              <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '14px' }}>
+                              <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '14px' }}>
                                 {formatCurrency(order.final_total || order.subtotal)}
                               </span>
                             </div>
-                            <p style={{ color: '#e5e7eb', fontSize: '12px', margin: '4px 0 0 0' }}>
+                            <p style={{ color: 'var(--color-text)', fontSize: '12px', margin: '4px 0 0 0' }}>
                               {order.items_summary || 'Items not available'}
                             </p>
                             {order.discount_amount > 0 && !order.is_comp && (
-                              <p style={{ color: '#f97316', fontSize: '11px', margin: '4px 0 0 0' }}>
+                              <p style={{ color: 'var(--color-warning)', fontSize: '11px', margin: '4px 0 0 0' }}>
                                 Discount: -{formatCurrency(order.discount_amount)}
                                 {order.discount_reason && ` (${order.discount_reason})`}
                               </p>

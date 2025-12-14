@@ -1,0 +1,14 @@
+export { default as DashboardSection } from './DashboardSection';
+export { default as ReportsSection } from './ReportsSection';
+export { default as ActiveSessionsSection } from './ActiveSessionsSection';
+export { default as SessionHistorySection } from './SessionHistorySection';
+export { default as CashboxSection } from './CashboxSection';
+export { default as ProgramsListSection } from './ProgramsListSection';
+export { default as InventoryStockSection } from './InventoryStockSection';
+export { default as ReimbursementSection } from './ReimbursementSection';
+export { default as CashAppSection } from './CashAppSection';
+export { default as LossesSection } from './LossesSection';
+export { default as ProgramsEarningsSection } from './ProgramsEarningsSection';
+export { default as InventoryLotsSection } from './InventoryLotsSection';
+export { default as InventoryMovementsSection } from './InventoryMovementsSection';
+export { default as InventoryCountSection } from './InventoryCountSection';

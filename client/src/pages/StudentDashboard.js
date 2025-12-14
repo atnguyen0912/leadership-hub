@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatDecimalHours } from '../utils/formatters';
+import { useAuth } from '../contexts';
 
-function StudentDashboard({ user, onLogout }) {
+function StudentDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +29,7 @@ function StudentDashboard({ user, onLogout }) {
 
   return (
     <div>
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar />
       <div className="container">
         <h1 className="page-title">Student Dashboard</h1>
 

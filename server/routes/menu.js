@@ -375,8 +375,6 @@ router.post('/reorder', (req, res) => {
 router.post('/reorder-subitems', (req, res) => {
   const { parentId, items } = req.body;
 
-  console.log('reorder-subitems called:', { parentId, itemCount: items?.length });
-
   if (!parentId || !items || !Array.isArray(items)) {
     return res.status(400).json({ error: 'Parent ID and items array are required' });
   }
@@ -387,19 +385,11 @@ router.post('/reorder-subitems', (req, res) => {
     const stmt = db.prepare('UPDATE menu_items SET display_order = ? WHERE id = ? AND parent_id = ?');
 
     items.forEach((item, index) => {
-      console.log(`Updating item ${item.id} to display_order ${index} for parent ${parentId}`);
-      stmt.run(index, item.id, parentId, function(err) {
-        if (err) {
-          console.error('Error updating item:', err);
-        } else {
-          console.log(`Updated item ${item.id}, changes: ${this.changes}`);
-        }
-      });
+      stmt.run(index, item.id, parentId);
     });
 
     stmt.finalize((err) => {
       if (err) {
-        console.error('Finalize error:', err);
         return res.status(500).json({ error: 'Database error' });
       }
       res.json({ success: true });
