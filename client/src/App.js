@@ -8,6 +8,7 @@ import Events from './pages/Events';
 import AdminDashboard from './pages/AdminDashboard';
 import ManageStudents from './pages/ManageStudents';
 import ViewAllHours from './pages/ViewAllHours';
+import AdminStudentProfile from './pages/AdminStudentProfile';
 import EventsAdmin from './pages/EventsAdmin';
 import CashBox from './pages/CashBox';
 import CashBoxAdmin from './pages/CashBoxAdmin';
@@ -51,6 +52,8 @@ function App() {
           <Route path="/" element={<AdminDashboard user={user} onLogout={handleLogout} />} />
           <Route path="/manage-students" element={<ManageStudents user={user} onLogout={handleLogout} />} />
           <Route path="/view-all-hours" element={<ViewAllHours user={user} onLogout={handleLogout} />} />
+          <Route path="/admin/hours" element={<ViewAllHours user={user} onLogout={handleLogout} />} />
+          <Route path="/admin/student/:studentId" element={<AdminStudentProfile user={user} onLogout={handleLogout} />} />
           <Route path="/events-admin" element={<EventsAdmin user={user} onLogout={handleLogout} />} />
           <Route path="/cashbox" element={<CashBox user={user} onLogout={handleLogout} />} />
           <Route path="/cashbox-admin" element={<CashBoxAdmin user={user} onLogout={handleLogout} />} />

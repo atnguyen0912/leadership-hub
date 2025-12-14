@@ -225,6 +225,9 @@ const initialize = () => {
         // Add item column if it doesn't exist (migration for existing DBs)
         db.run(`ALTER TABLE hours ADD COLUMN item TEXT DEFAULT ''`, [], () => {});
 
+        // Add hour_type column for categorizing hours (migration)
+        db.run(`ALTER TABLE hours ADD COLUMN hour_type TEXT DEFAULT 'other'`, [], () => {});
+
         // Admin table
         db.run(`
           CREATE TABLE IF NOT EXISTS admin (
@@ -265,6 +268,7 @@ const initialize = () => {
             name TEXT NOT NULL,
             program_id INTEGER NOT NULL,
             status TEXT DEFAULT 'created' CHECK (status IN ('created', 'active', 'closed', 'cancelled')),
+            is_test INTEGER DEFAULT 0,
 
             start_quarters INTEGER DEFAULT 0,
             start_bills_1 INTEGER DEFAULT 0,
@@ -296,6 +300,9 @@ const initialize = () => {
             FOREIGN KEY (program_id) REFERENCES cashbox_programs(id)
           )
         `);
+
+        // Migration: Add is_test column to existing concession_sessions tables
+        db.run(`ALTER TABLE concession_sessions ADD COLUMN is_test INTEGER DEFAULT 0`, [], () => {});
 
         // Program Earnings table
         db.run(`
@@ -397,6 +404,265 @@ const initialize = () => {
           )
         `);
 
+        // =====================
+        // PERMISSION SYSTEM
+        // =====================
+
+        // Permission groups table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS permission_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Group permissions table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS group_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            permission TEXT NOT NULL,
+            FOREIGN KEY (group_id) REFERENCES permission_groups(id),
+            UNIQUE(group_id, permission)
+          )
+        `);
+
+        // Student groups table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS student_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            group_id INTEGER NOT NULL,
+            assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (group_id) REFERENCES permission_groups(id),
+            UNIQUE(student_id, group_id)
+          )
+        `);
+
+        // =====================
+        // INVENTORY & PURCHASES
+        // =====================
+
+        // Add inventory columns to menu_items (migrations)
+        db.run(`ALTER TABLE menu_items ADD COLUMN unit_cost REAL DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN quantity_on_hand INTEGER DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN track_inventory INTEGER DEFAULT 1`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN is_composite INTEGER DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN is_supply INTEGER DEFAULT 0`, [], () => {});
+
+        // Purchases table (receipt entry)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS purchases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vendor TEXT,
+            purchase_date TEXT NOT NULL,
+            subtotal REAL NOT NULL,
+            tax REAL DEFAULT 0,
+            delivery_fee REAL DEFAULT 0,
+            other_fees REAL DEFAULT 0,
+            total REAL NOT NULL,
+            notes TEXT,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Purchase items table (line items from receipt)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS purchase_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchase_id INTEGER NOT NULL,
+            menu_item_id INTEGER,
+            item_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            line_total REAL NOT NULL,
+            distributed_cost REAL,
+            unit_cost REAL,
+            FOREIGN KEY (purchase_id) REFERENCES purchases(id)
+          )
+        `);
+
+        // Inventory lots table (FIFO tracking)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_lots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            purchase_item_id INTEGER,
+            quantity_original INTEGER NOT NULL,
+            quantity_remaining INTEGER NOT NULL,
+            unit_cost REAL NOT NULL,
+            is_reimbursable INTEGER DEFAULT 1,
+            purchase_date TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+            FOREIGN KEY (purchase_item_id) REFERENCES purchase_items(id)
+          )
+        `);
+
+        // Menu item components table (for composites like Hot Dog = Wiener + Bun)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS menu_item_components (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            component_item_id INTEGER NOT NULL,
+            quantity REAL DEFAULT 1,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+            FOREIGN KEY (component_item_id) REFERENCES menu_items(id)
+          )
+        `);
+
+        // Inventory transactions table (audit trail)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            transaction_type TEXT CHECK (transaction_type IN ('sale', 'purchase', 'stock_update', 'lost', 'wasted', 'donated', 'count_adjustment')),
+            quantity_change INTEGER NOT NULL,
+            unit_cost_at_time REAL,
+            is_reimbursable INTEGER DEFAULT 1,
+            reference_id INTEGER,
+            notes TEXT,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Inventory counts table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_counts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            menu_item_id INTEGER NOT NULL,
+            expected_quantity INTEGER NOT NULL,
+            actual_quantity INTEGER NOT NULL,
+            discrepancy INTEGER NOT NULL,
+            cost_impact REAL,
+            counted_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+          )
+        `);
+
+        // =====================
+        // ORDERS & PAYMENTS
+        // =====================
+
+        // Add order columns (migrations)
+        db.run(`ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN discount_charged_to INTEGER`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN discount_reason TEXT`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN final_total REAL`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN is_comp INTEGER DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT 'cash'`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN cogs_total REAL DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE orders ADD COLUMN cogs_reimbursable REAL DEFAULT 0`, [], () => {});
+
+        // Program charges table (discounts charged to other programs)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS program_charges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_program_id INTEGER NOT NULL,
+            session_id INTEGER NOT NULL,
+            order_id INTEGER,
+            amount REAL NOT NULL,
+            charge_type TEXT CHECK (charge_type IN ('discount', 'comp')),
+            reason TEXT,
+            authorized_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Add auth_pin to programs (migration)
+        db.run(`ALTER TABLE cashbox_programs ADD COLUMN auth_pin TEXT`, [], () => {});
+
+        // =====================
+        // DIGITAL PAYMENTS
+        // =====================
+
+        // CashApp account balance (singleton)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS cashapp_account (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            balance REAL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // CashApp transactions
+        db.run(`
+          CREATE TABLE IF NOT EXISTS cashapp_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_type TEXT CHECK (transaction_type IN ('sale', 'withdrawal')),
+            amount REAL NOT NULL,
+            order_id INTEGER,
+            session_id INTEGER,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Zelle payments (auto-applied to reimbursement)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS zelle_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            session_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // =====================
+        // REIMBURSEMENT & LOSSES
+        // =====================
+
+        // Reimbursement ledger
+        db.run(`
+          CREATE TABLE IF NOT EXISTS reimbursement_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_type TEXT CHECK (entry_type IN ('cogs_owed', 'asb_loss', 'zelle_received', 'cashapp_withdrawal', 'cashbox_reimbursement')),
+            amount REAL NOT NULL,
+            session_id INTEGER,
+            reference_id INTEGER,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Losses tracking
+        db.run(`
+          CREATE TABLE IF NOT EXISTS losses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            program_id INTEGER,
+            loss_type TEXT CHECK (loss_type IN ('cash_discrepancy', 'inventory_discrepancy', 'spoilage', 'other')),
+            amount REAL NOT NULL,
+            description TEXT,
+            recorded_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // =====================
+        // PROFIT DISTRIBUTION
+        // =====================
+
+        // Program profit distributions
+        db.run(`
+          CREATE TABLE IF NOT EXISTS profit_distributions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            program_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            distributed_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES concession_sessions(id),
+            FOREIGN KEY (program_id) REFERENCES cashbox_programs(id)
+          )
+        `);
+
         // Create indexes for better query performance
         db.run(`CREATE INDEX IF NOT EXISTS idx_hours_student_id ON hours(student_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_hours_date ON hours(date)`);
@@ -407,7 +673,18 @@ const initialize = () => {
         db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_status ON concession_sessions(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_program ON concession_sessions(program_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(session_id)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)`, [], (err) => {
+        db.run(`CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)`);
+
+        // New indexes for inventory and permissions
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inventory_lots_menu_item ON inventory_lots(menu_item_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inventory_lots_remaining ON inventory_lots(quantity_remaining)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inventory_transactions_menu_item ON inventory_transactions(menu_item_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_student_groups_student ON student_groups(student_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_student_groups_group ON student_groups(group_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_group_permissions_group ON group_permissions(group_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_losses_session ON losses(session_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_profit_distributions_session ON profit_distributions(session_id)`, [], (err) => {
           if (err) {
             reject(err);
             return;
@@ -415,6 +692,38 @@ const initialize = () => {
 
           // Initialize cashbox singleton row
           db.run('INSERT OR IGNORE INTO cashbox (id) VALUES (1)');
+
+          // Initialize CashApp account singleton row
+          db.run('INSERT OR IGNORE INTO cashapp_account (id, balance) VALUES (1, 0)');
+
+          // Insert default permission groups if none exist
+          db.get('SELECT COUNT(*) as count FROM permission_groups', [], (err, row) => {
+            if (!err && row && row.count === 0) {
+              // Create default groups
+              const defaultGroups = [
+                { name: 'Admin', description: 'Full system access', permissions: ['admin.*'] },
+                { name: 'Concessions Lead', description: 'Manage concessions, inventory, purchases', permissions: ['sessions.create', 'sessions.start', 'sessions.run', 'sessions.close', 'inventory.view', 'inventory.count', 'inventory.adjust', 'purchases.enter', 'purchases.stock_update', 'menu.edit', 'cashbox.view'] },
+                { name: 'Concessions Worker', description: 'Run POS and count inventory', permissions: ['sessions.run', 'inventory.view', 'inventory.count'] },
+                { name: 'Events Lead', description: 'Manage events and approve hours', permissions: ['hours.approve', 'hours.view_all'] },
+                { name: 'Member', description: 'Basic member access', permissions: ['hours.log_own'] }
+              ];
+
+              defaultGroups.forEach((group) => {
+                db.run(
+                  'INSERT INTO permission_groups (name, description) VALUES (?, ?)',
+                  [group.name, group.description],
+                  function(err) {
+                    if (!err && this.lastID) {
+                      const groupId = this.lastID;
+                      group.permissions.forEach((perm) => {
+                        db.run('INSERT INTO group_permissions (group_id, permission) VALUES (?, ?)', [groupId, perm]);
+                      });
+                    }
+                  }
+                );
+              });
+            }
+          });
 
           // Insert default programs if none exist
           db.get('SELECT COUNT(*) as count FROM cashbox_programs', [], (err, row) => {

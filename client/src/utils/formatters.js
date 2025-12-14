@@ -120,3 +120,16 @@ export const calculateDecimalHours = (timeIn, timeOut) => {
   const minutes = calculateMinutes(timeIn, timeOut);
   return minutes / 60;
 };
+
+/**
+ * Format decimal hours as hours and minutes string
+ * @param {number} decimalHours - Hours as decimal (e.g., 2.5)
+ * @returns {string} Formatted string (e.g., "2h 30m")
+ */
+export const formatDecimalHours = (decimalHours) => {
+  if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '0h 0m';
+  const totalMinutes = Math.round(decimalHours * 60);
+  const hrs = Math.floor(Math.abs(totalMinutes) / 60);
+  const mins = Math.abs(totalMinutes) % 60;
+  return `${hrs}h ${mins}m`;
+};

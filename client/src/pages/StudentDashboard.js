@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { formatDecimalHours } from '../utils/formatters';
 
 function StudentDashboard({ user, onLogout }) {
   const [stats, setStats] = useState(null);
@@ -34,15 +35,15 @@ function StudentDashboard({ user, onLogout }) {
         {!loading && stats && (
           <div className="stats-grid">
             <div className="stat-card stat-card-primary">
-              <div className="stat-value">{stats.totalHours}</div>
+              <div className="stat-value">{formatDecimalHours(stats.totalHours)}</div>
               <div className="stat-label">Total Hours</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{stats.monthHours}</div>
+              <div className="stat-value">{formatDecimalHours(stats.monthHours)}</div>
               <div className="stat-label">This Month</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{stats.weekHours}</div>
+              <div className="stat-value">{formatDecimalHours(stats.weekHours)}</div>
               <div className="stat-label">This Week</div>
             </div>
             <div className="stat-card">

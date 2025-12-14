@@ -7,6 +7,9 @@ function ManageStudents({ user, onLogout }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState('students');
+
   // Add student form
   const [newStudentId, setNewStudentId] = useState('');
   const [newName, setNewName] = useState('');
@@ -21,6 +24,16 @@ function ManageStudents({ user, onLogout }) {
   // CSV save/download state
   const [savingCSV, setSavingCSV] = useState(false);
 
+  // Permission groups state
+  const [permissionGroups, setPermissionGroups] = useState([]);
+  const [availablePermissions, setAvailablePermissions] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [groupFormData, setGroupFormData] = useState({ name: '', description: '', permissions: [] });
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState([]);
+
   // Student ID validation: 6 digits + M/F/X + 3 digits (e.g., 123456M789)
   const STUDENT_ID_REGEX = /^\d{6}[MFX]\d{3}$/;
 
@@ -30,7 +43,210 @@ function ManageStudents({ user, onLogout }) {
 
   useEffect(() => {
     fetchStudents();
+    fetchPermissionGroups();
+    fetchAvailablePermissions();
   }, []);
+
+  const fetchPermissionGroups = async () => {
+    try {
+      const response = await fetch('/api/permissions/groups');
+      const data = await response.json();
+      if (response.ok) {
+        setPermissionGroups(data);
+      }
+    } catch (err) {
+      console.error('Error fetching permission groups:', err);
+    }
+  };
+
+  const fetchAvailablePermissions = async () => {
+    try {
+      const response = await fetch('/api/permissions/available');
+      const data = await response.json();
+      if (response.ok) {
+        setAvailablePermissions(data);
+      }
+    } catch (err) {
+      console.error('Error fetching permissions:', err);
+    }
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch('/api/permissions/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(groupFormData)
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setSuccess('Permission group created successfully!');
+      setShowGroupForm(false);
+      setGroupFormData({ name: '', description: '', permissions: [] });
+      fetchPermissionGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleUpdateGroup = async (e) => {
+    e.preventDefault();
+    if (!selectedGroup) return;
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/permissions/groups/${selectedGroup.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(groupFormData)
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setSuccess('Permission group updated successfully!');
+      setShowGroupForm(false);
+      setSelectedGroup(null);
+      setGroupFormData({ name: '', description: '', permissions: [] });
+      fetchPermissionGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId) => {
+    if (!window.confirm('Are you sure you want to delete this permission group?')) return;
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/permissions/groups/${groupId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setSuccess('Permission group deleted successfully!');
+      fetchPermissionGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleEditGroup = (group) => {
+    setSelectedGroup(group);
+    setGroupFormData({
+      name: group.name,
+      description: group.description || '',
+      permissions: group.permissions || []
+    });
+    setShowGroupForm(true);
+  };
+
+  const handleManageMembers = async (group) => {
+    setSelectedGroup(group);
+    setShowMemberModal(true);
+    setSelectedStudents([]);
+    setMemberSearch('');
+
+    // Fetch fresh group data with members
+    try {
+      const response = await fetch(`/api/permissions/groups/${group.id}`);
+      const data = await response.json();
+      if (response.ok) {
+        setSelectedGroup(data);
+      }
+    } catch (err) {
+      console.error('Error fetching group details:', err);
+    }
+  };
+
+  const handleAddMembers = async () => {
+    if (!selectedGroup || selectedStudents.length === 0) return;
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/permissions/groups/${selectedGroup.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentIds: selectedStudents })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setSuccess(`Added ${data.added} member(s) to ${selectedGroup.name}`);
+      setSelectedStudents([]);
+      handleManageMembers(selectedGroup);
+      fetchPermissionGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleRemoveMember = async (studentId) => {
+    if (!selectedGroup) return;
+    setError('');
+
+    try {
+      const response = await fetch(`/api/permissions/groups/${selectedGroup.id}/members/${studentId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      handleManageMembers(selectedGroup);
+      fetchPermissionGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const togglePermission = (permission) => {
+    setGroupFormData(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(permission)
+        ? prev.permissions.filter(p => p !== permission)
+        : [...prev.permissions, permission]
+    }));
+  };
+
+  const toggleStudentSelection = (studentId) => {
+    setSelectedStudents(prev =>
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  const getFilteredStudentsForModal = () => {
+    if (!selectedGroup) return [];
+    const memberIds = (selectedGroup.members || []).map(m => m.student_id);
+    return students.filter(s =>
+      !memberIds.includes(s.student_id) &&
+      (s.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+       s.student_id.toLowerCase().includes(memberSearch.toLowerCase()))
+    );
+  };
+
+  const groupPermissionsByCategory = () => {
+    const grouped = {};
+    availablePermissions.forEach(p => {
+      if (!grouped[p.category]) grouped[p.category] = [];
+      grouped[p.category].push(p);
+    });
+    return grouped;
+  };
 
   const fetchStudents = async () => {
     try {
@@ -228,15 +444,346 @@ function ManageStudents({ user, onLogout }) {
     );
   }
 
+  const renderPermissionGroupsTab = () => (
+    <>
+      {/* Permission Groups List */}
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', color: '#22c55e' }}>Permission Groups</h2>
+          <button
+            className="btn btn-primary btn-small"
+            onClick={() => {
+              setSelectedGroup(null);
+              setGroupFormData({ name: '', description: '', permissions: [] });
+              setShowGroupForm(true);
+            }}
+          >
+            + New Group
+          </button>
+        </div>
+
+        {permissionGroups.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#4ade80' }}>No permission groups yet.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: '12px' }}>
+            {permissionGroups.map(group => (
+              <div
+                key={group.id}
+                style={{
+                  padding: '16px',
+                  background: '#1a1a1a',
+                  borderRadius: '8px',
+                  border: '1px solid #2a2a2a'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ margin: 0, color: '#22c55e', fontSize: '16px' }}>{group.name}</h3>
+                    {group.description && (
+                      <p style={{ margin: '4px 0 0', color: '#4a7c59', fontSize: '13px' }}>{group.description}</p>
+                    )}
+                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        background: '#4a7c5930',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        color: '#4ade80'
+                      }}>
+                        {group.member_count || 0} member{group.member_count !== 1 ? 's' : ''}
+                      </span>
+                      <span style={{
+                        padding: '2px 8px',
+                        background: '#3b82f630',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        color: '#60a5fa'
+                      }}>
+                        {(group.permissions || []).length} permission{(group.permissions || []).length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn btn-small"
+                      onClick={() => handleManageMembers(group)}
+                      style={{ background: '#3b82f6' }}
+                    >
+                      Members
+                    </button>
+                    <button
+                      className="btn btn-small"
+                      onClick={() => handleEditGroup(group)}
+                    >
+                      Edit
+                    </button>
+                    {!['Admin', 'Member'].includes(group.name) && (
+                      <button
+                        className="btn btn-danger btn-small"
+                        onClick={() => handleDeleteGroup(group.id)}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Group Form Modal */}
+      {showGroupForm && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#111',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>
+              {selectedGroup ? 'Edit Permission Group' : 'Create Permission Group'}
+            </h2>
+            <form onSubmit={selectedGroup ? handleUpdateGroup : handleCreateGroup}>
+              <div className="form-group">
+                <label>Group Name</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={groupFormData.name}
+                  onChange={(e) => setGroupFormData({ ...groupFormData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={groupFormData.description}
+                  onChange={(e) => setGroupFormData({ ...groupFormData, description: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label style={{ marginBottom: '12px', display: 'block' }}>Permissions</label>
+                {Object.entries(groupPermissionsByCategory()).map(([category, perms]) => (
+                  <div key={category} style={{ marginBottom: '16px' }}>
+                    <h4 style={{ color: '#4ade80', fontSize: '14px', marginBottom: '8px' }}>{category}</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                      {perms.map(perm => (
+                        <label
+                          key={perm.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px',
+                            background: groupFormData.permissions.includes(perm.key) ? '#22c55e20' : '#1a1a1a',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: `1px solid ${groupFormData.permissions.includes(perm.key) ? '#22c55e' : '#2a2a2a'}`
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={groupFormData.permissions.includes(perm.key)}
+                            onChange={() => togglePermission(perm.key)}
+                          />
+                          <span style={{ fontSize: '13px', color: '#4ade80' }}>{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setShowGroupForm(false);
+                    setSelectedGroup(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {selectedGroup ? 'Update Group' : 'Create Group'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Member Management Modal */}
+      {showMemberModal && selectedGroup && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#111',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '700px',
+            width: '100%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>
+              Manage Members: {selectedGroup.name}
+            </h2>
+
+            {/* Current Members */}
+            <div style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '14px', color: '#4ade80', marginBottom: '12px' }}>
+                Current Members ({(selectedGroup.members || []).length})
+              </h3>
+              {(selectedGroup.members || []).length === 0 ? (
+                <p style={{ color: '#4a7c59', fontSize: '13px' }}>No members in this group yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {(selectedGroup.members || []).map(member => (
+                    <div
+                      key={member.student_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 12px',
+                        background: '#1a1a1a',
+                        borderRadius: '20px',
+                        fontSize: '13px'
+                      }}
+                    >
+                      <span style={{ color: '#4ade80' }}>{member.name}</span>
+                      <button
+                        onClick={() => handleRemoveMember(member.student_id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          padding: '0 4px',
+                          fontSize: '16px'
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add Members */}
+            <div>
+              <h3 style={{ fontSize: '14px', color: '#4ade80', marginBottom: '12px' }}>Add Members</h3>
+              <input
+                type="text"
+                className="input"
+                placeholder="Search students..."
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                style={{ marginBottom: '12px' }}
+              />
+              <div style={{ maxHeight: '200px', overflow: 'auto', marginBottom: '12px' }}>
+                {getFilteredStudentsForModal().slice(0, 50).map(student => (
+                  <label
+                    key={student.student_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px',
+                      background: selectedStudents.includes(student.student_id) ? '#22c55e20' : 'transparent',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedStudents.includes(student.student_id)}
+                      onChange={() => toggleStudentSelection(student.student_id)}
+                    />
+                    <span style={{ color: '#4ade80' }}>{student.name}</span>
+                    <span style={{ color: '#4a7c59', fontSize: '12px' }}>({student.student_id})</span>
+                  </label>
+                ))}
+              </div>
+              {selectedStudents.length > 0 && (
+                <button className="btn btn-primary" onClick={handleAddMembers}>
+                  Add {selectedStudents.length} Selected
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowMemberModal(false);
+                  setSelectedGroup(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div>
       <Navbar user={user} onLogout={onLogout} />
       <div className="container">
         <h1 className="page-title">Manage Students</h1>
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <button
+            className={`btn ${activeTab === 'students' ? 'btn-primary' : ''}`}
+            onClick={() => setActiveTab('students')}
+            style={{ flex: 1 }}
+          >
+            Students
+          </button>
+          <button
+            className={`btn ${activeTab === 'permissions' ? 'btn-primary' : ''}`}
+            onClick={() => setActiveTab('permissions')}
+            style={{ flex: 1 }}
+          >
+            Permission Groups
+          </button>
+        </div>
+
         {error && <div className="card"><div className="error-message">{error}</div></div>}
         {success && <div className="card"><div className="success-message">{success}</div></div>}
 
+        {activeTab === 'permissions' ? renderPermissionGroupsTab() : (
+        <>
         {/* Add Student Form */}
         <div className="card">
           <h2 style={{ marginBottom: '16px', fontSize: '18px', color: '#22c55e' }}>Add Student</h2>
@@ -397,6 +944,8 @@ function ManageStudents({ user, onLogout }) {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

@@ -191,7 +191,7 @@ router.get('/all', (req, res) => {
 
 // Log hours for a student
 router.post('/', (req, res) => {
-  const { studentId, date, timeIn, timeOut, item } = req.body;
+  const { studentId, date, timeIn, timeOut, item, hourType } = req.body;
   const db = getDb();
 
   if (!studentId || !date || !timeIn || !timeOut) {
@@ -217,8 +217,8 @@ router.post('/', (req, res) => {
       }
 
       db.run(
-        'INSERT INTO hours (student_id, date, time_in, time_out, item) VALUES (?, ?, ?, ?, ?)',
-        [studentId, date, timeIn, timeOut, item || ''],
+        'INSERT INTO hours (student_id, date, time_in, time_out, item, hour_type) VALUES (?, ?, ?, ?, ?, ?)',
+        [studentId, date, timeIn, timeOut, item || '', hourType || 'other'],
         function(err) {
           if (err) {
             return res.status(500).json({ error: 'Database error' });
@@ -233,7 +233,7 @@ router.post('/', (req, res) => {
 // Update an hour entry
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { date, timeIn, timeOut, item } = req.body;
+  const { date, timeIn, timeOut, item, hourType } = req.body;
   const db = getDb();
 
   if (!date || !timeIn || !timeOut) {
@@ -245,8 +245,8 @@ router.put('/:id', (req, res) => {
   }
 
   db.run(
-    'UPDATE hours SET date = ?, time_in = ?, time_out = ?, item = ? WHERE id = ?',
-    [date, timeIn, timeOut, item || '', id],
+    'UPDATE hours SET date = ?, time_in = ?, time_out = ?, item = ?, hour_type = ? WHERE id = ?',
+    [date, timeIn, timeOut, item || '', hourType || 'other', id],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Database error' });

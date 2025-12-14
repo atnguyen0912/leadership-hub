@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatDateWithWeekday, formatTime, calculateHours } from '../utils/formatters';
 
@@ -348,6 +349,7 @@ function ViewAllHours({ user, onLogout }) {
                     <th>Student ID</th>
                     <th>Total Hours</th>
                     <th>Entries</th>
+                    <th style={{ width: '100px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,6 +359,15 @@ function ViewAllHours({ user, onLogout }) {
                       <td>{student.studentId}</td>
                       <td style={{ fontWeight: 600, color: '#22c55e' }}>{student.totalFormatted}</td>
                       <td>{student.entries}</td>
+                      <td>
+                        <Link
+                          to={`/admin/student/${student.studentId}`}
+                          className="btn btn-small"
+                          style={{ textDecoration: 'none', padding: '4px 12px', fontSize: '12px' }}
+                        >
+                          View Profile
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

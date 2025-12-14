@@ -43,31 +43,51 @@ router.get('/all', (req, res) => {
         return res.status(500).json({ error: 'Database error' });
       }
 
-      const topLevel = rows.filter(item => item.parent_id === null);
-      const subItems = rows.filter(item => item.parent_id !== null);
+      // Get all components
+      db.all(
+        `SELECT mc.*, mi.name as component_name
+         FROM menu_item_components mc
+         JOIN menu_items mi ON mc.component_item_id = mi.id`,
+        [],
+        (compErr, components) => {
+          if (compErr) {
+            console.error('Error fetching components:', compErr);
+            components = [];
+          }
 
-      const menuItems = topLevel.map(item => ({
-        ...item,
-        hasSubMenu: item.price === null,
-        subItems: subItems.filter(sub => sub.parent_id === item.id)
-      }));
+          const topLevel = rows.filter(item => item.parent_id === null);
+          const subItems = rows.filter(item => item.parent_id !== null);
 
-      res.json(menuItems);
+          const attachComponents = (item) => ({
+            ...item,
+            components: components.filter(c => c.menu_item_id === item.id)
+          });
+
+          const menuItems = topLevel.map(item => ({
+            ...attachComponents(item),
+            hasSubMenu: item.price === null,
+            subItems: subItems.filter(sub => sub.parent_id === item.id).map(attachComponents)
+          }));
+
+          res.json(menuItems);
+        }
+      );
     }
   );
 });
 
 // POST /api/menu - Create a new menu item (Admin)
 router.post('/', (req, res) => {
-  const { name, price, parentId, displayOrder } = req.body;
+  const { name, price, parentId, displayOrder, isSupply } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Item name is required' });
   }
 
+  // Supply items don't need a price
   // If no parentId and no price, it's a category with sub-menu
-  // If parentId provided, price is required
-  if (parentId && (price === undefined || price === null)) {
+  // If parentId provided, price is required (unless it's a supply)
+  if (parentId && !isSupply && (price === undefined || price === null)) {
     return res.status(400).json({ error: 'Price is required for sub-items' });
   }
 
@@ -94,8 +114,8 @@ router.post('/', (req, res) => {
 
   function insertMenuItem() {
     db.run(
-      'INSERT INTO menu_items (name, price, parent_id, display_order) VALUES (?, ?, ?, ?)',
-      [name.trim(), price || null, parentId || null, displayOrder || 0],
+      'INSERT INTO menu_items (name, price, parent_id, display_order, is_supply, track_inventory) VALUES (?, ?, ?, ?, ?, ?)',
+      [name.trim(), price || null, parentId || null, displayOrder || 0, isSupply ? 1 : 0, 1],
       function (err) {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
@@ -683,6 +703,196 @@ router.post('/reset-from-csv', (req, res) => {
       }
     });
   });
+});
+
+// GET /api/menu/:id/components - Get components for a composite menu item
+router.get('/:id/components', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  db.all(
+    `SELECT mc.*, mi.name as component_name, mi.unit_cost, mi.quantity_on_hand
+     FROM menu_item_components mc
+     JOIN menu_items mi ON mc.component_item_id = mi.id
+     WHERE mc.menu_item_id = ?
+     ORDER BY mi.name`,
+    [id],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// PUT /api/menu/:id/components - Set components for a composite menu item
+router.put('/:id/components', (req, res) => {
+  const { id } = req.params;
+  const { components } = req.body; // Array of { componentItemId, quantity }
+
+  if (!Array.isArray(components)) {
+    return res.status(400).json({ error: 'Components must be an array' });
+  }
+
+  const db = getDb();
+
+  // First verify the item exists
+  db.get('SELECT * FROM menu_items WHERE id = ?', [id], (err, item) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!item) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+
+    // Delete existing components
+    db.run('DELETE FROM menu_item_components WHERE menu_item_id = ?', [id], (err) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to clear existing components' });
+      }
+
+      // Update is_composite flag
+      const isComposite = components.length > 0 ? 1 : 0;
+      db.run('UPDATE menu_items SET is_composite = ? WHERE id = ?', [isComposite, id]);
+
+      if (components.length === 0) {
+        return res.json({ success: true, message: 'Components cleared' });
+      }
+
+      // Insert new components
+      const stmt = db.prepare(
+        'INSERT INTO menu_item_components (menu_item_id, component_item_id, quantity) VALUES (?, ?, ?)'
+      );
+
+      let inserted = 0;
+      let errors = [];
+
+      components.forEach((comp, index) => {
+        stmt.run(id, comp.componentItemId, comp.quantity || 1, function(err) {
+          if (err) {
+            errors.push(`Component ${index}: ${err.message}`);
+          } else {
+            inserted++;
+          }
+
+          if (inserted + errors.length === components.length) {
+            stmt.finalize(() => {
+              if (errors.length > 0) {
+                res.status(400).json({ error: errors.join(', '), inserted });
+              } else {
+                res.json({ success: true, inserted });
+              }
+            });
+          }
+        });
+      });
+    });
+  });
+});
+
+// PUT /api/menu/:id/inventory - Update inventory settings for a menu item
+router.put('/:id/inventory', (req, res) => {
+  const { id } = req.params;
+  const { unitCost, quantityOnHand, trackInventory, isComposite } = req.body;
+
+  const db = getDb();
+
+  const updates = [];
+  const params = [];
+
+  if (unitCost !== undefined) {
+    updates.push('unit_cost = ?');
+    params.push(parseFloat(unitCost) || 0);
+  }
+  if (quantityOnHand !== undefined) {
+    updates.push('quantity_on_hand = ?');
+    params.push(parseInt(quantityOnHand) || 0);
+  }
+  if (trackInventory !== undefined) {
+    updates.push('track_inventory = ?');
+    params.push(trackInventory ? 1 : 0);
+  }
+  if (isComposite !== undefined) {
+    updates.push('is_composite = ?');
+    params.push(isComposite ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  params.push(id);
+
+  db.run(
+    `UPDATE menu_items SET ${updates.join(', ')} WHERE id = ?`,
+    params,
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Menu item not found' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// GET /api/menu/flat - Get all menu items in flat format with inventory data
+router.get('/flat', (req, res) => {
+  const db = getDb();
+
+  db.all(
+    `SELECT mi.*,
+     (SELECT COUNT(*) FROM menu_item_components WHERE menu_item_id = mi.id) as component_count
+     FROM menu_items mi
+     WHERE mi.active = 1 AND mi.price IS NOT NULL
+     ORDER BY mi.name`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// GET /api/menu/with-components - Get all menu items with their components
+router.get('/with-components', (req, res) => {
+  const db = getDb();
+
+  db.all(
+    'SELECT * FROM menu_items WHERE active = 1 ORDER BY display_order, name',
+    [],
+    (err, items) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      // Get all components
+      db.all(
+        `SELECT mc.*, mi.name as component_name
+         FROM menu_item_components mc
+         JOIN menu_items mi ON mc.component_item_id = mi.id`,
+        [],
+        (err, components) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+
+          // Attach components to items
+          const itemsWithComponents = items.map(item => ({
+            ...item,
+            components: components.filter(c => c.menu_item_id === item.id)
+          }));
+
+          res.json(itemsWithComponents);
+        }
+      );
+    }
+  );
 });
 
 module.exports = router;

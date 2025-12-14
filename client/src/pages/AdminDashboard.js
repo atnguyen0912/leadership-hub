@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { formatDecimalHours } from '../utils/formatters';
 
 function AdminDashboard({ user, onLogout }) {
   const [stats, setStats] = useState(null);
@@ -33,9 +34,9 @@ function AdminDashboard({ user, onLogout }) {
       i + 1,
       s.name,
       s.studentId,
-      s.totalHours,
-      s.monthHours,
-      s.weekHours,
+      formatDecimalHours(s.totalHours),
+      formatDecimalHours(s.monthHours),
+      formatDecimalHours(s.weekHours),
       s.entries
     ]);
 
@@ -68,15 +69,15 @@ function AdminDashboard({ user, onLogout }) {
           <>
             <div className="stats-grid">
               <div className="stat-card stat-card-primary">
-                <div className="stat-value">{stats.classStats.totalHours}</div>
+                <div className="stat-value">{formatDecimalHours(stats.classStats.totalHours)}</div>
                 <div className="stat-label">Class Total Hours</div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">{stats.classStats.averageHours}</div>
+                <div className="stat-value">{formatDecimalHours(stats.classStats.averageHours)}</div>
                 <div className="stat-label">Avg per Student</div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">{stats.classStats.monthHours}</div>
+                <div className="stat-value">{formatDecimalHours(stats.classStats.monthHours)}</div>
                 <div className="stat-label">This Month</div>
               </div>
               <div className="stat-card">
@@ -117,13 +118,13 @@ function AdminDashboard({ user, onLogout }) {
                           <span style={{ fontWeight: index < 3 ? 600 : 400 }}>{student.name}</span>
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 600, color: '#22c55e' }}>
-                          {student.totalHours}h
+                          {formatDecimalHours(student.totalHours)}
                         </td>
                         <td style={{ textAlign: 'right', color: '#4ade80' }}>
-                          {student.monthHours}h
+                          {formatDecimalHours(student.monthHours)}
                         </td>
                         <td style={{ textAlign: 'right', color: '#4a7c59' }}>
-                          {student.weekHours}h
+                          {formatDecimalHours(student.weekHours)}
                         </td>
                       </tr>
                     ))}

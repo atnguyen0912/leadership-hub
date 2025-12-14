@@ -1,47 +1,56 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatDateWithWeekday, formatTime, calculateMinutes, formatMinutes, calculateHours } from '../utils/formatters';
 import { HOUR_TYPES, getHourTypeLabel, getHourTypeColor } from '../utils/hourTypes';
 
 // Helper to get date string in local timezone (YYYY-MM-DD format)
 const getLocalDateString = (date = new Date()) => {
-  return date.toLocaleDateString('en-CA'); // en-CA uses YYYY-MM-DD format
+  return date.toLocaleDateString('en-CA');
 };
 
-function ViewHours({ user, onLogout }) {
+function AdminStudentProfile({ user, onLogout }) {
+  const { studentId } = useParams();
+  const navigate = useNavigate();
+
+  const [student, setStudent] = useState(null);
   const [hours, setHours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [viewMode, setViewMode] = useState('calendar');
+  const [viewMode, setViewMode] = useState('list');
   const [currentDate, setCurrentDate] = useState(new Date());
-
-  // Edit modal state
-  const [editingEntry, setEditingEntry] = useState(null);
-  const [editForm, setEditForm] = useState({ date: '', timeIn: '', timeOut: '', item: '', hourType: 'other' });
-  const [saving, setSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => {
-    fetchHours();
-  }, []);
+    fetchStudentData();
+  }, [studentId]);
 
-  const fetchHours = async () => {
+  const fetchStudentData = async () => {
+    setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch(`/api/hours/student/${user.studentId}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch hours');
+      // Fetch student info
+      const studentRes = await fetch(`/api/students/${studentId}`);
+      if (!studentRes.ok) {
+        throw new Error('Student not found');
       }
+      const studentData = await studentRes.json();
+      setStudent(studentData);
 
-      setHours(data);
+      // Fetch student's hours
+      const hoursRes = await fetch(`/api/hours/student/${studentId}`);
+      if (!hoursRes.ok) {
+        throw new Error('Failed to fetch hours');
+      }
+      const hoursData = await hoursRes.json();
+      setHours(hoursData);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
-
 
   const getAggregateHours = () => {
     const now = new Date();
@@ -82,6 +91,25 @@ function ViewHours({ user, onLogout }) {
     };
   };
 
+  const getHoursByType = () => {
+    const byType = {};
+    HOUR_TYPES.forEach(type => {
+      byType[type.value] = 0;
+    });
+
+    hours.forEach(entry => {
+      const mins = calculateMinutes(entry.time_in, entry.time_out);
+      const type = entry.hour_type || 'other';
+      if (byType[type] !== undefined) {
+        byType[type] += mins;
+      } else {
+        byType['other'] += mins;
+      }
+    });
+
+    return byType;
+  };
+
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   };
@@ -106,88 +134,12 @@ function ViewHours({ user, onLogout }) {
       newDate.setMonth(prev.getMonth() + direction);
       return newDate;
     });
+    setSelectedDate(null);
   };
 
-  // Edit/Delete handlers
-  const handleEdit = (entry) => {
-    setEditingEntry(entry);
-    setEditForm({
-      date: entry.date,
-      timeIn: entry.time_in,
-      timeOut: entry.time_out,
-      item: entry.item || '',
-      hourType: entry.hour_type || 'other'
-    });
-    setError('');
-    setSuccess('');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingEntry(null);
-    setEditForm({ date: '', timeIn: '', timeOut: '', item: '', hourType: 'other' });
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editForm.date || !editForm.timeIn || !editForm.timeOut) {
-      setError('Please fill in all required fields');
-      return;
-    }
-
-    if (editForm.timeOut <= editForm.timeIn) {
-      setError('Time out must be after time in');
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-
-    try {
-      const response = await fetch(`/api/hours/${editingEntry.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update entry');
-      }
-
-      setSuccess('Entry updated successfully!');
-      setEditingEntry(null);
-      fetchHours();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (entry) => {
-    if (!window.confirm(`Delete this entry from ${formatDateWithWeekday(entry.date)}?`)) {
-      return;
-    }
-
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await fetch(`/api/hours/${entry.id}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete entry');
-      }
-
-      setSuccess('Entry deleted successfully!');
-      fetchHours();
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleDateClick = (day) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    setSelectedDate(date);
   };
 
   const renderCalendar = () => {
@@ -205,17 +157,20 @@ function ViewHours({ user, onLogout }) {
       const totalMins = getTotalMinutesForDate(date);
       const isToday = date.toDateString() === new Date().toDateString();
       const hasHours = totalMins > 0;
+      const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
 
       days.push(
-        <div
+        <button
           key={day}
-          className={`calendar-day ${isToday ? 'today' : ''} ${hasHours ? 'has-hours' : ''}`}
+          type="button"
+          className={`calendar-day clickable ${isToday ? 'today' : ''} ${hasHours ? 'has-hours' : ''} ${isSelected ? 'selected' : ''}`}
+          onClick={() => handleDateClick(day)}
         >
           <span className="day-number">{day}</span>
           {hasHours && (
             <span className="day-hours">{formatMinutes(totalMins)}</span>
           )}
-        </div>
+        </button>
       );
     }
 
@@ -234,6 +189,60 @@ function ViewHours({ user, onLogout }) {
           ))}
           {days}
         </div>
+      </div>
+    );
+  };
+
+  const renderSelectedDateEntries = () => {
+    if (!selectedDate) return null;
+
+    const entries = getHoursForDate(selectedDate);
+    if (entries.length === 0) {
+      return (
+        <div className="card" style={{ marginTop: '16px' }}>
+          <p style={{ color: '#6b7280', textAlign: 'center' }}>No hours logged on this day</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="card" style={{ marginTop: '16px' }}>
+        <h3 style={{ color: '#22c55e', marginBottom: '12px' }}>
+          {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        </h3>
+        {entries.map(entry => (
+          <div key={entry.id} style={{
+            padding: '12px',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            borderRadius: '8px',
+            marginBottom: '8px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span
+                style={{
+                  backgroundColor: getHourTypeColor(entry.hour_type),
+                  color: 'white',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px'
+                }}
+              >
+                {getHourTypeLabel(entry.hour_type)}
+              </span>
+              <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                {calculateHours(entry.time_in, entry.time_out)}
+              </span>
+            </div>
+            <div style={{ color: '#9ca3af' }}>
+              {formatTime(entry.time_in)} - {formatTime(entry.time_out)}
+            </div>
+            {entry.item && (
+              <div style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px' }}>
+                {entry.item}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     );
   };
@@ -280,7 +289,7 @@ function ViewHours({ user, onLogout }) {
                       <th>Time In</th>
                       <th>Time Out</th>
                       <th>Hours</th>
-                      <th style={{ width: '120px' }}>Actions</th>
+                      <th>Activity</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -289,7 +298,6 @@ function ViewHours({ user, onLogout }) {
                         <td>{formatDateWithWeekday(entry.date)}</td>
                         <td>
                           <span
-                            className="hour-type-badge"
                             style={{
                               backgroundColor: getHourTypeColor(entry.hour_type),
                               color: 'white',
@@ -304,24 +312,7 @@ function ViewHours({ user, onLogout }) {
                         <td>{formatTime(entry.time_in)}</td>
                         <td>{formatTime(entry.time_out)}</td>
                         <td>{calculateHours(entry.time_in, entry.time_out)}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              className="btn btn-small"
-                              onClick={() => handleEdit(entry)}
-                              style={{ padding: '4px 8px', fontSize: '12px' }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="btn btn-danger btn-small"
-                              onClick={() => handleDelete(entry)}
-                              style={{ padding: '4px 8px', fontSize: '12px' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
+                        <td style={{ color: '#9ca3af' }}>{entry.item || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -355,26 +346,62 @@ function ViewHours({ user, onLogout }) {
                     {entry.item && (
                       <div className="hours-entry-item">{entry.item}</div>
                     )}
-                    <div className="hours-entry-actions">
-                      <button
-                        className="btn btn-small"
-                        onClick={() => handleEdit(entry)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-danger btn-small"
-                        onClick={() => handleDelete(entry)}
-                      >
-                        Delete
-                      </button>
-                    </div>
                   </div>
                 ))}
               </div>
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  const renderTypeBreakdown = () => {
+    const byType = getHoursByType();
+    const totalMinutes = Object.values(byType).reduce((sum, mins) => sum + mins, 0);
+
+    return (
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Hours by Type</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {HOUR_TYPES.map(type => {
+            const minutes = byType[type.value] || 0;
+            const percentage = totalMinutes > 0 ? (minutes / totalMinutes) * 100 : 0;
+
+            return (
+              <div key={type.value}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '2px',
+                        backgroundColor: type.color
+                      }}
+                    ></span>
+                    {type.label}
+                  </span>
+                  <span style={{ color: '#9ca3af' }}>{formatMinutes(minutes)}</span>
+                </div>
+                <div style={{
+                  height: '8px',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${percentage}%`,
+                    backgroundColor: type.color,
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease'
+                  }}></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -390,100 +417,46 @@ function ViewHours({ user, onLogout }) {
     );
   }
 
+  if (error) {
+    return (
+      <div>
+        <Navbar user={user} onLogout={onLogout} />
+        <div className="container">
+          <button
+            className="btn"
+            onClick={() => navigate('/admin/hours')}
+            style={{ marginBottom: '16px' }}
+          >
+            &larr; Back to Hours
+          </button>
+          <div className="card">
+            <div className="error-message">{error}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const aggregates = getAggregateHours();
 
   return (
     <div>
       <Navbar user={user} onLogout={onLogout} />
       <div className="container">
-        <h1 className="page-title">My Hours</h1>
+        <button
+          className="btn"
+          onClick={() => navigate('/admin/hours')}
+          style={{ marginBottom: '16px' }}
+        >
+          &larr; Back to Hours
+        </button>
 
-        {error && <div className="card"><div className="error-message">{error}</div></div>}
-        {success && <div className="card"><div className="success-message">{success}</div></div>}
-
-        {/* Edit Modal */}
-        {editingEntry && (
-          <div className="modal-overlay" onClick={handleCancelEdit}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>Edit Entry</h2>
-              <div className="form-group">
-                <label htmlFor="edit-date">Date</label>
-                <input
-                  type="date"
-                  id="edit-date"
-                  className="input"
-                  value={editForm.date}
-                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="edit-hourType">Type</label>
-                <select
-                  id="edit-hourType"
-                  className="input"
-                  value={editForm.hourType}
-                  onChange={(e) => setEditForm({ ...editForm, hourType: e.target.value })}
-                  required
-                >
-                  {HOUR_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label htmlFor="edit-timeIn">Time In</label>
-                  <input
-                    type="time"
-                    id="edit-timeIn"
-                    className="input"
-                    value={editForm.timeIn}
-                    onChange={(e) => setEditForm({ ...editForm, timeIn: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="edit-timeOut">Time Out</label>
-                  <input
-                    type="time"
-                    id="edit-timeOut"
-                    className="input"
-                    value={editForm.timeOut}
-                    onChange={(e) => setEditForm({ ...editForm, timeOut: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label htmlFor="edit-item">Activity/Item (optional)</label>
-                <input
-                  type="text"
-                  id="edit-item"
-                  className="input"
-                  value={editForm.item}
-                  onChange={(e) => setEditForm({ ...editForm, item: e.target.value })}
-                  placeholder="What did you work on?"
-                />
-              </div>
-              <div className="modal-actions">
-                <button
-                  className="btn btn-secondary"
-                  onClick={handleCancelEdit}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSaveEdit}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+          <h1 className="page-title" style={{ margin: 0 }}>{student?.name}</h1>
+          <div style={{ color: '#22c55e', fontSize: '24px', fontWeight: 'bold' }}>
+            Total: {aggregates.total}
           </div>
-        )}
+        </div>
 
         {/* Aggregate Stats */}
         <div className="stats-grid">
@@ -505,6 +478,9 @@ function ViewHours({ user, onLogout }) {
           </div>
         </div>
 
+        {/* Type Breakdown */}
+        {renderTypeBreakdown()}
+
         {/* View Toggle */}
         <div className="view-toggle">
           <button
@@ -523,11 +499,18 @@ function ViewHours({ user, onLogout }) {
 
         {/* Content */}
         <div className="card">
-          {viewMode === 'calendar' ? renderCalendar() : renderList()}
+          {viewMode === 'calendar' ? (
+            <>
+              {renderCalendar()}
+              {renderSelectedDateEntries()}
+            </>
+          ) : (
+            renderList()
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-export default ViewHours;
+export default AdminStudentProfile;

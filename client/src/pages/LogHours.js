@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import { HOUR_TYPES } from '../utils/hourTypes';
+
+// Helper to get date string in local timezone (YYYY-MM-DD format)
+const getLocalDateString = (date = new Date()) => {
+  return date.toLocaleDateString('en-CA'); // en-CA uses YYYY-MM-DD format
+};
 
 function LogHours({ user, onLogout }) {
   const [mode, setMode] = useState('today'); // 'today' or 'past'
@@ -7,6 +13,7 @@ function LogHours({ user, onLogout }) {
   const [timeIn, setTimeIn] = useState('');
   const [timeOut, setTimeOut] = useState('');
   const [item, setItem] = useState('');
+  const [hourType, setHourType] = useState('other');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,8 +27,7 @@ function LogHours({ user, onLogout }) {
   // Set today's date when mode changes to 'today'
   useEffect(() => {
     if (mode === 'today') {
-      const today = new Date().toISOString().split('T')[0];
-      setSelectedDate(today);
+      setSelectedDate(getLocalDateString());
     } else {
       setSelectedDate('');
     }
@@ -49,7 +55,7 @@ function LogHours({ user, onLogout }) {
   };
 
   const getHoursForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = getLocalDateString(date);
     return hours.filter(entry => entry.date === dateStr);
   };
 
@@ -67,8 +73,7 @@ function LogHours({ user, onLogout }) {
 
   const handleDateClick = (day) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const dateStr = date.toISOString().split('T')[0];
-    setSelectedDate(dateStr);
+    setSelectedDate(getLocalDateString(date));
   };
 
   const handleSubmit = async (e) => {
@@ -103,6 +108,7 @@ function LogHours({ user, onLogout }) {
           timeIn,
           timeOut,
           item,
+          hourType,
         }),
       });
 
@@ -116,6 +122,7 @@ function LogHours({ user, onLogout }) {
       setTimeIn('');
       setTimeOut('');
       setItem('');
+      setHourType('other');
       fetchHours();
     } catch (err) {
       setError(err.message);
@@ -147,7 +154,7 @@ function LogHours({ user, onLogout }) {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = getLocalDateString(date);
       const isToday = date.toDateString() === today.toDateString();
       const isSelected = dateStr === selectedDate;
       const hasHours = hasHoursOnDate(date);
@@ -186,7 +193,7 @@ function LogHours({ user, onLogout }) {
   };
 
   const duration = calculateDuration();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
   const todayHours = hours.filter(h => h.date === todayStr);
 
   return (
@@ -245,7 +252,22 @@ function LogHours({ user, onLogout }) {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="item">Activity / Item</label>
+                <label htmlFor="hourType">Type</label>
+                <select
+                  id="hourType"
+                  className="input"
+                  value={hourType}
+                  onChange={(e) => setHourType(e.target.value)}
+                  required
+                >
+                  {HOUR_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="item">Activity / Item (optional)</label>
                 <input
                   type="text"
                   id="item"
@@ -327,7 +349,22 @@ function LogHours({ user, onLogout }) {
               {selectedDate && (
                 <form onSubmit={handleSubmit}>
                   <div className="form-group">
-                    <label htmlFor="item-past">Activity / Item</label>
+                    <label htmlFor="hourType-past">Type</label>
+                    <select
+                      id="hourType-past"
+                      className="input"
+                      value={hourType}
+                      onChange={(e) => setHourType(e.target.value)}
+                      required
+                    >
+                      {HOUR_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="item-past">Activity / Item (optional)</label>
                     <input
                       type="text"
                       id="item-past"

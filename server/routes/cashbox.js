@@ -369,7 +369,7 @@ router.get('/sessions/:id', (req, res) => {
 
 // POST /api/cashbox/sessions - Create new session (Admin)
 router.post('/sessions', (req, res) => {
-  const { name, programId, createdBy } = req.body;
+  const { name, programId, createdBy, isTest = false } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Session name is required' });
@@ -390,13 +390,13 @@ router.post('/sessions', (req, res) => {
     }
 
     db.run(
-      'INSERT INTO concession_sessions (name, program_id, created_by) VALUES (?, ?, ?)',
-      [name.trim(), programId, createdBy || null],
+      'INSERT INTO concession_sessions (name, program_id, created_by, is_test) VALUES (?, ?, ?, ?)',
+      [name.trim(), programId, createdBy || null, isTest ? 1 : 0],
       function (err) {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
         }
-        res.json({ success: true, id: this.lastID, status: 'created' });
+        res.json({ success: true, id: this.lastID, status: 'created', isTest: isTest });
       }
     );
   });
@@ -435,7 +435,36 @@ router.post('/sessions/:id/start', (req, res) => {
       return res.status(400).json({ error: 'Session has already been started or closed' });
     }
 
-    // Get current main cashbox
+    const startTotal = calculateTotal({ quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100 });
+
+    // For test sessions, skip cashbox deduction
+    if (session.is_test) {
+      db.run(
+        `UPDATE concession_sessions SET
+         status = 'active',
+         start_quarters = ?,
+         start_bills_1 = ?,
+         start_bills_5 = ?,
+         start_bills_10 = ?,
+         start_bills_20 = ?,
+         start_bills_50 = ?,
+         start_bills_100 = ?,
+         start_total = ?,
+         started_by = ?,
+         started_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id],
+        (err) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+          res.json({ success: true, status: 'active', startTotal, isTest: true });
+        }
+      );
+      return;
+    }
+
+    // For real sessions, deduct from main cashbox
     db.get('SELECT * FROM cashbox WHERE id = 1', [], (err, cashbox) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
@@ -453,8 +482,6 @@ router.post('/sessions/:id/start', (req, res) => {
       ) {
         return res.status(400).json({ error: 'Insufficient funds in main cashbox' });
       }
-
-      const startTotal = calculateTotal({ quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100 });
 
       // Subtract from main cashbox
       db.run(
@@ -659,6 +686,323 @@ router.post('/sessions/:id/cancel', (req, res) => {
       );
     }
   });
+});
+
+// POST /api/cashbox/sessions/:id/end-practice - End and cleanup practice session
+router.post('/sessions/:id/end-practice', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  db.get('SELECT * FROM concession_sessions WHERE id = ?', [id], (err, session) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    if (!session.is_test) {
+      return res.status(400).json({ error: 'This endpoint is only for practice sessions' });
+    }
+    if (session.status === 'closed' || session.status === 'cancelled') {
+      return res.status(400).json({ error: 'Session is already closed or cancelled' });
+    }
+
+    // Get all orders for this session
+    db.all('SELECT id FROM orders WHERE session_id = ?', [id], (err, orders) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      const orderIds = orders.map(o => o.id);
+
+      // Delete order_items for all orders
+      if (orderIds.length > 0) {
+        const placeholders = orderIds.map(() => '?').join(',');
+        db.run(
+          `DELETE FROM order_items WHERE order_id IN (${placeholders})`,
+          orderIds,
+          (err) => {
+            if (err) console.error('Error deleting order items:', err);
+          }
+        );
+      }
+
+      // Delete all orders
+      db.run('DELETE FROM orders WHERE session_id = ?', [id], (err) => {
+        if (err) console.error('Error deleting orders:', err);
+
+        // Delete the session
+        db.run('DELETE FROM concession_sessions WHERE id = ?', [id], (err) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error deleting session' });
+          }
+          res.json({
+            success: true,
+            message: 'Practice session ended and all data cleared',
+            ordersDeleted: orderIds.length
+          });
+        });
+      });
+    });
+  });
+});
+
+// ==================== PROFIT DISTRIBUTION ====================
+
+// GET /api/cashbox/sessions/:id/distributions - Get profit distributions for a session
+router.get('/sessions/:id/distributions', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  db.all(
+    `SELECT pd.*, p.name as program_name
+     FROM profit_distributions pd
+     JOIN cashbox_programs p ON pd.program_id = p.id
+     WHERE pd.session_id = ?
+     ORDER BY pd.created_at DESC`,
+    [id],
+    (err, distributions) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(distributions);
+    }
+  );
+});
+
+// POST /api/cashbox/sessions/:id/distribute - Distribute profit to programs
+router.post('/sessions/:id/distribute', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { distributions, distributedBy } = req.body;
+
+  if (!distributions || !Array.isArray(distributions) || distributions.length === 0) {
+    return res.status(400).json({ error: 'Distributions are required' });
+  }
+
+  // Verify session is closed
+  db.get('SELECT * FROM concession_sessions WHERE id = ?', [id], (err, session) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    if (session.status !== 'closed') {
+      return res.status(400).json({ error: 'Session must be closed before distributing profit' });
+    }
+
+    // Check if already distributed
+    db.get('SELECT COUNT(*) as count FROM profit_distributions WHERE session_id = ?', [id], (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      if (result.count > 0) {
+        return res.status(400).json({ error: 'Profit has already been distributed for this session' });
+      }
+
+      // Insert distributions
+      let inserted = 0;
+      const results = [];
+
+      distributions.forEach(dist => {
+        if (dist.amount > 0) {
+          db.run(
+            `INSERT INTO profit_distributions (session_id, program_id, amount, distributed_by)
+             VALUES (?, ?, ?, ?)`,
+            [id, dist.programId, dist.amount, distributedBy || ''],
+            function(insertErr) {
+              inserted++;
+              if (!insertErr) {
+                results.push({ id: this.lastID, programId: dist.programId, amount: dist.amount });
+
+                // Update program earnings
+                db.run(
+                  'UPDATE cashbox_programs SET total_earnings = total_earnings + ? WHERE id = ?',
+                  [dist.amount, dist.programId]
+                );
+              }
+
+              if (inserted === distributions.length) {
+                res.json({ success: true, distributions: results });
+              }
+            }
+          );
+        } else {
+          inserted++;
+          if (inserted === distributions.length) {
+            res.json({ success: true, distributions: results });
+          }
+        }
+      });
+    });
+  });
+});
+
+// DELETE /api/cashbox/sessions/:id/distributions - Remove distributions (admin only)
+router.delete('/sessions/:id/distributions', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  // Get existing distributions to reverse earnings
+  db.all('SELECT * FROM profit_distributions WHERE session_id = ?', [id], (err, distributions) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    // Reverse program earnings
+    distributions.forEach(dist => {
+      db.run(
+        'UPDATE cashbox_programs SET total_earnings = total_earnings - ? WHERE id = ?',
+        [dist.amount, dist.program_id]
+      );
+    });
+
+    // Delete distributions
+    db.run('DELETE FROM profit_distributions WHERE session_id = ?', [id], function(deleteErr) {
+      if (deleteErr) {
+        return res.status(500).json({ error: deleteErr.message });
+      }
+      res.json({ success: true, deleted: this.changes });
+    });
+  });
+});
+
+// ==================== PROGRAM CHARGES ====================
+
+// GET /api/cashbox/program-charges - Get all program charges
+router.get('/program-charges', (req, res) => {
+  const db = getDb();
+  const { programId, limit = 100 } = req.query;
+
+  let query = `
+    SELECT pc.*, p.name as program_name, s.name as session_name
+    FROM program_charges pc
+    LEFT JOIN cashbox_programs p ON pc.from_program_id = p.id
+    LEFT JOIN concession_sessions s ON pc.session_id = s.id
+  `;
+  const params = [];
+
+  if (programId) {
+    query += ' WHERE pc.from_program_id = ?';
+    params.push(programId);
+  }
+
+  query += ' ORDER BY pc.created_at DESC LIMIT ?';
+  params.push(parseInt(limit));
+
+  db.all(query, params, (err, charges) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(charges);
+  });
+});
+
+// GET /api/cashbox/program-charges/summary - Get summary by program
+router.get('/program-charges/summary', (req, res) => {
+  const db = getDb();
+
+  db.all(`
+    SELECT
+      p.id as program_id,
+      p.name as program_name,
+      COUNT(pc.id) as charge_count,
+      COALESCE(SUM(pc.amount), 0) as total_charged,
+      COALESCE(SUM(CASE WHEN pc.charge_type = 'comp' THEN pc.amount ELSE 0 END), 0) as total_comps,
+      COALESCE(SUM(CASE WHEN pc.charge_type = 'discount' THEN pc.amount ELSE 0 END), 0) as total_discounts
+    FROM cashbox_programs p
+    LEFT JOIN program_charges pc ON p.id = pc.from_program_id
+    GROUP BY p.id
+    ORDER BY total_charged DESC
+  `, [], (err, summary) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(summary);
+  });
+});
+
+// ==================== REIMBURSEMENT ====================
+
+// GET /api/cashbox/reimbursement - Get reimbursement summary
+router.get('/reimbursement', (req, res) => {
+  const db = getDb();
+
+  // Get totals from different sources
+  db.get(`
+    SELECT
+      (SELECT COALESCE(SUM(cogs_reimbursable), 0) FROM orders o JOIN concession_sessions s ON o.session_id = s.id WHERE s.is_test = 0) as total_cogs_owed,
+      (SELECT COALESCE(SUM(amount), 0) FROM reimbursement_ledger WHERE entry_type = 'zelle_received') as zelle_received,
+      (SELECT COALESCE(SUM(amount), 0) FROM reimbursement_ledger WHERE entry_type = 'cashapp_withdrawal') as cashapp_withdrawn,
+      (SELECT COALESCE(SUM(amount), 0) FROM reimbursement_ledger WHERE entry_type = 'cashbox_reimbursement') as cashbox_reimbursed,
+      (SELECT COALESCE(SUM(amount), 0) FROM losses WHERE loss_type IN ('cash_discrepancy', 'inventory_discrepancy')) as asb_losses
+  `, [], (err, totals) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    const grossOwed = (totals.total_cogs_owed || 0) - (totals.asb_losses || 0);
+    const totalReceived = (totals.zelle_received || 0) + (totals.cashapp_withdrawn || 0) + (totals.cashbox_reimbursed || 0);
+    const remaining = grossOwed - totalReceived;
+
+    res.json({
+      totalCogsOwed: totals.total_cogs_owed || 0,
+      asbLosses: totals.asb_losses || 0,
+      grossOwed,
+      zelleReceived: totals.zelle_received || 0,
+      cashappWithdrawn: totals.cashapp_withdrawn || 0,
+      cashboxReimbursed: totals.cashbox_reimbursed || 0,
+      totalReceived,
+      remaining
+    });
+  });
+});
+
+// GET /api/cashbox/reimbursement/ledger - Get reimbursement ledger entries
+router.get('/reimbursement/ledger', (req, res) => {
+  const db = getDb();
+  const { limit = 100 } = req.query;
+
+  db.all(`
+    SELECT rl.*, s.name as session_name
+    FROM reimbursement_ledger rl
+    LEFT JOIN concession_sessions s ON rl.session_id = s.id
+    ORDER BY rl.created_at DESC
+    LIMIT ?
+  `, [parseInt(limit)], (err, entries) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(entries);
+  });
+});
+
+// POST /api/cashbox/reimbursement/record - Record a reimbursement
+router.post('/reimbursement/record', (req, res) => {
+  const db = getDb();
+  const { entryType, amount, sessionId, referenceId, notes } = req.body;
+
+  const validTypes = ['cogs_owed', 'asb_loss', 'zelle_received', 'cashapp_withdrawal', 'cashbox_reimbursement'];
+  if (!validTypes.includes(entryType)) {
+    return res.status(400).json({ error: 'Invalid entry type' });
+  }
+
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ error: 'Amount must be positive' });
+  }
+
+  db.run(
+    `INSERT INTO reimbursement_ledger (entry_type, amount, session_id, reference_id, notes)
+     VALUES (?, ?, ?, ?, ?)`,
+    [entryType, amount, sessionId || null, referenceId || null, notes || ''],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, id: this.lastID });
+    }
+  );
 });
 
 module.exports = router;

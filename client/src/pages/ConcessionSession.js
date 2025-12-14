@@ -36,6 +36,24 @@ function ConcessionSession({ user, onLogout }) {
   // Checkout modal
   const [showCheckout, setShowCheckout] = useState(false);
 
+  // Payment modal
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash', 'cashapp', 'zelle'
+
+  // Discount/Comp
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  const [discountChargedTo, setDiscountChargedTo] = useState('asb'); // 'asb', 'program', or program id
+  const [isComp, setIsComp] = useState(false);
+  const [programs, setPrograms] = useState([]);
+  const [sessionDiscountsTotal, setSessionDiscountsTotal] = useState(0);
+
+  // Order history
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [orderHistory, setOrderHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   // Edit mode for reordering menu items
   const [editMode, setEditMode] = useState(false);
   const [draggedItem, setDraggedItem] = useState(null);
@@ -58,15 +76,17 @@ function ConcessionSession({ user, onLogout }) {
 
   const fetchData = async () => {
     try {
-      const [sessionRes, cashboxRes, menuRes] = await Promise.all([
+      const [sessionRes, cashboxRes, menuRes, programsRes] = await Promise.all([
         fetch(`/api/cashbox/sessions/${id}`),
         fetch('/api/cashbox'),
-        fetch('/api/menu')
+        fetch('/api/menu'),
+        fetch('/api/cashbox/programs')
       ]);
 
       const sessionData = await sessionRes.json();
       const cashboxData = await cashboxRes.json();
       const menuData = await menuRes.json();
+      const programsData = await programsRes.json();
 
       if (!sessionRes.ok) throw new Error(sessionData.error);
       if (!cashboxRes.ok) throw new Error(cashboxData.error);
@@ -75,13 +95,15 @@ function ConcessionSession({ user, onLogout }) {
       setSession(sessionData);
       setCashbox(cashboxData);
       setMenuItems(menuData);
+      setPrograms(programsData || []);
 
-      // Fetch session sales total
+      // Fetch session sales and discounts total
       if (sessionData.status === 'active') {
         const salesRes = await fetch(`/api/orders/session/${id}/summary`);
         if (salesRes.ok) {
           const salesData = await salesRes.json();
           setSessionSales(salesData.totalSales || 0);
+          setSessionDiscountsTotal(salesData.totalDiscounts || 0);
         }
       }
     } catch (err) {
@@ -89,6 +111,26 @@ function ConcessionSession({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchOrderHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch(`/api/orders/session/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setOrderHistory(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch order history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleShowOrderHistory = () => {
+    setShowOrderHistory(true);
+    fetchOrderHistory();
   };
 
   const calculateFormTotal = () => {
@@ -237,7 +279,63 @@ function ConcessionSession({ user, onLogout }) {
 
   const calculateChange = () => {
     const tendered = parseFloat(amountTendered) || 0;
-    return tendered - calculateSubtotal();
+    return tendered - getFinalTotal();
+  };
+
+  // Open payment modal when ready to complete order
+  const handleOpenPayment = () => {
+    const subtotal = calculateSubtotal();
+    if (subtotal === 0) {
+      setError('Please add items to the order');
+      return;
+    }
+    setError('');
+    setPaymentMethod('cash');
+    setAmountTendered('');
+    setDiscountAmount('');
+    setDiscountReason('');
+    setDiscountChargedTo('asb');
+    setIsComp(false);
+    setShowPaymentModal(true);
+  };
+
+  // Open discount modal
+  const handleOpenDiscount = (comp = false) => {
+    const subtotal = calculateSubtotal();
+    if (subtotal === 0) {
+      setError('Please add items to the order');
+      return;
+    }
+    setError('');
+    setIsComp(comp);
+    setDiscountAmount(comp ? String(subtotal) : '');
+    setDiscountReason('');
+    setDiscountChargedTo('asb');
+    setShowDiscountModal(true);
+  };
+
+  const handleApplyDiscount = () => {
+    const amount = parseFloat(discountAmount) || 0;
+    const subtotal = calculateSubtotal();
+    if (amount <= 0) {
+      setError('Please enter a valid discount amount');
+      return;
+    }
+    if (amount > subtotal) {
+      setError('Discount cannot exceed order total');
+      return;
+    }
+    setShowDiscountModal(false);
+    // Open payment modal with discount applied
+    setShowPaymentModal(true);
+  };
+
+  const getAppliedDiscount = () => {
+    return parseFloat(discountAmount) || 0;
+  };
+
+  const getFinalTotal = () => {
+    return Math.max(0, calculateSubtotal() - getAppliedDiscount());
   };
 
   const handleCompleteOrder = async () => {
@@ -247,10 +345,16 @@ function ConcessionSession({ user, onLogout }) {
       return;
     }
 
-    const tendered = parseFloat(amountTendered) || 0;
-    if (tendered < subtotal) {
-      setError('Amount tendered is less than total');
-      return;
+    const discount = getAppliedDiscount();
+    const finalTotal = getFinalTotal();
+
+    // For cash payments, validate amount tendered
+    if (paymentMethod === 'cash') {
+      const tendered = parseFloat(amountTendered) || 0;
+      if (tendered < finalTotal) {
+        setError('Amount tendered is less than total');
+        return;
+      }
     }
 
     setError('');
@@ -263,13 +367,30 @@ function ConcessionSession({ user, onLogout }) {
         unitPrice: item.price
       }));
 
+      // Determine charged to program ID
+      let chargedTo = null;
+      if (discount > 0) {
+        if (discountChargedTo === 'asb') {
+          chargedTo = null; // ASB absorbs the cost
+        } else if (discountChargedTo === 'program') {
+          chargedTo = session.program_id; // Current program
+        } else {
+          chargedTo = parseInt(discountChargedTo); // Other program
+        }
+      }
+
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: session.id,
           items,
-          amountTendered: tendered
+          amountTendered: paymentMethod === 'cash' ? parseFloat(amountTendered) || finalTotal : finalTotal,
+          paymentMethod,
+          discountAmount: discount,
+          discountChargedTo: chargedTo,
+          discountReason,
+          isComp
         })
       });
 
@@ -279,10 +400,27 @@ function ConcessionSession({ user, onLogout }) {
         throw new Error(data.error || 'Failed to complete order');
       }
 
-      setSuccess(`Order complete! Change: ${formatCurrency(data.changeGiven)}`);
+      let successMsg = 'Order complete!';
+      if (discount > 0) {
+        successMsg = isComp ? 'Comp order complete!' : `Order complete! (${formatCurrency(discount)} discount)`;
+      } else if (paymentMethod === 'cash' && data.changeGiven > 0) {
+        successMsg = `Order complete! Change: ${formatCurrency(data.changeGiven)}`;
+      } else if (paymentMethod === 'cashapp') {
+        successMsg = `Order complete! CashApp: ${formatCurrency(finalTotal)}`;
+      } else if (paymentMethod === 'zelle') {
+        successMsg = `Order complete! Zelle: ${formatCurrency(finalTotal)}`;
+      }
+
+      setSuccess(successMsg);
       setOrderItems({});
       setAmountTendered('');
-      setSessionSales(prev => prev + subtotal);
+      setDiscountAmount('');
+      setDiscountReason('');
+      setShowPaymentModal(false);
+      setSessionSales(prev => prev + finalTotal);
+      if (discount > 0) {
+        setSessionDiscountsTotal(prev => prev + discount);
+      }
 
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -294,6 +432,16 @@ function ConcessionSession({ user, onLogout }) {
 
   const getItemQuantity = (itemId) => {
     return orderItems[itemId]?.quantity || 0;
+  };
+
+  // Get stock status for inventory display
+  const getStockStatus = (item) => {
+    // Don't show stock for categories (no price), composite items, or items that don't track inventory
+    if (item.price === null || item.is_composite || item.track_inventory === 0) return 'none';
+    const qty = item.quantity_on_hand || 0;
+    if (qty <= 0) return 'out';
+    if (qty <= 5) return 'low';
+    return 'ok';
   };
 
   // Get item at a specific grid position
@@ -518,19 +666,22 @@ function ConcessionSession({ user, onLogout }) {
     }
   };
 
-  // Get items that are on the grid (have valid positions)
+  // Get items that are on the grid (have valid positions) - excludes supplies
   const getItemsOnGrid = () => {
     return menuItems.filter(item =>
+      !item.is_supply &&
       item.grid_row >= 0 && item.grid_row < GRID_ROWS &&
       item.grid_col >= 0 && item.grid_col < GRID_COLS
     );
   };
 
-  // Get items that are NOT on the grid (available in bank)
+  // Get items that are NOT on the grid (available in bank) - excludes supplies
   const getItemsInBank = () => {
     return menuItems.filter(item =>
-      item.grid_row < 0 || item.grid_col < 0 ||
-      item.grid_row >= GRID_ROWS || item.grid_col >= GRID_COLS
+      !item.is_supply && (
+        item.grid_row < 0 || item.grid_col < 0 ||
+        item.grid_row >= GRID_ROWS || item.grid_col >= GRID_COLS
+      )
     );
   };
 
@@ -547,9 +698,10 @@ function ConcessionSession({ user, onLogout }) {
     return cells;
   };
 
-  // In normal mode, get items with safe spans (no overlaps, no overflow)
+  // In normal mode, get items with safe spans (no overlaps, no overflow) - excludes supplies
   const getActiveGridItems = () => {
     const validItems = menuItems.filter(item =>
+      !item.is_supply &&
       item.grid_row >= 0 && item.grid_row < GRID_ROWS &&
       item.grid_col >= 0 && item.grid_col < GRID_COLS
     );
@@ -677,13 +829,66 @@ function ConcessionSession({ user, onLogout }) {
   const isActiveMode = session.status === 'active';
   const isClosed = session.status === 'closed' || session.status === 'cancelled';
 
+  // Handle ending practice session
+  const handleEndPracticeSession = async () => {
+    if (!window.confirm('End practice session? All practice orders will be deleted.')) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/cashbox/sessions/${id}/end-practice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to end practice session');
+      }
+
+      setSuccess(`Practice session ended. ${data.ordersDeleted} practice orders cleared.`);
+      setShowCheckout(false);
+      setTimeout(() => navigate('/cashbox'), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Active session - show POS interface
   if (isActiveMode) {
     const subtotal = calculateSubtotal();
     const change = calculateChange();
+    const isTestSession = session.is_test === 1;
 
     return (
       <div className="pos-container">
+        {/* Practice Mode Banner */}
+        {isTestSession && (
+          <div style={{
+            background: 'linear-gradient(90deg, #eab308, #ca8a04)',
+            color: '#000',
+            textAlign: 'center',
+            padding: '8px 16px',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            letterSpacing: '1px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '18px' }}>⚠</span>
+            PRACTICE MODE - No real transactions
+            <span style={{ fontSize: '18px' }}>⚠</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="pos-header" style={{
           display: 'flex',
@@ -719,6 +924,14 @@ function ConcessionSession({ user, onLogout }) {
                 {formatCurrency(expectedCashInBox)}
               </div>
             </div>
+            {sessionDiscountsTotal > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: '#eab308', fontSize: '10px' }}>Given:</div>
+                <div style={{ color: '#eab308', fontSize: '13px', fontWeight: 'bold' }}>
+                  {formatCurrency(sessionDiscountsTotal)}
+                </div>
+              </div>
+            )}
           </div>
           {/* Action buttons */}
           <div className="pos-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -729,10 +942,21 @@ function ConcessionSession({ user, onLogout }) {
               {editMode ? 'Done' : 'Edit'}
             </button>
             <button
-              className="btn btn-danger btn-small"
-              onClick={() => setShowCheckout(true)}
+              className="btn btn-small"
+              onClick={handleShowOrderHistory}
+              style={{ background: '#3b82f6' }}
             >
-              Close
+              History
+            </button>
+            <button
+              className={`btn btn-small ${isTestSession ? '' : 'btn-danger'}`}
+              onClick={() => {
+                if (isTestSession) fetchOrderHistory();
+                setShowCheckout(true);
+              }}
+              style={isTestSession ? { background: '#eab308', color: '#000' } : {}}
+            >
+              {isTestSession ? 'End Practice' : 'Close'}
             </button>
             <button
               className="btn btn-small"
@@ -1016,10 +1240,11 @@ function ConcessionSession({ user, onLogout }) {
                     // Use safe spans that account for overlaps and boundaries
                     const rowSpan = item.safe_row_span || 1;
                     const colSpan = item.safe_col_span || 1;
+                    const stockStatus = getStockStatus(item);
                     return (
                       <button
                         key={item.id}
-                        className={`pos-item-btn ${item.hasSubMenu ? 'has-submenu' : ''}`}
+                        className={`pos-item-btn ${item.hasSubMenu ? 'has-submenu' : ''} ${stockStatus !== 'none' ? `stock-${stockStatus}` : ''}`}
                         onClick={() => handleItemClick(item)}
                         style={{
                           gridRow: `${item.grid_row + 1} / span ${rowSpan}`,
@@ -1037,6 +1262,11 @@ function ConcessionSession({ user, onLogout }) {
                         )}
                         {getItemQuantity(item.id) > 0 && (
                           <div className="pos-item-qty">{getItemQuantity(item.id)}</div>
+                        )}
+                        {stockStatus !== 'none' && (
+                          <div className={`pos-stock-badge ${stockStatus}`}>
+                            {stockStatus === 'out' ? 'OUT' : item.quantity_on_hand}
+                          </div>
                         )}
                       </button>
                     );
@@ -1115,21 +1345,37 @@ function ConcessionSession({ user, onLogout }) {
               )}
             </div>
 
-            <div className="pos-actions">
+            <div className="pos-actions" style={{ flexWrap: 'wrap', gap: '6px' }}>
               <button
                 className="btn"
                 onClick={clearOrder}
-                style={{ flex: 1 }}
+                style={{ flex: '1 1 45%' }}
               >
                 Clear
               </button>
               <button
-                className="btn btn-primary"
-                onClick={handleCompleteOrder}
+                className="btn"
+                onClick={() => handleOpenDiscount(false)}
                 disabled={submittingOrder || subtotal === 0}
-                style={{ flex: 2 }}
+                style={{ flex: '1 1 45%', background: '#6b5b00' }}
               >
-                {submittingOrder ? 'Processing...' : 'Complete Order'}
+                Discount
+              </button>
+              <button
+                className="btn"
+                onClick={() => handleOpenDiscount(true)}
+                disabled={submittingOrder || subtotal === 0}
+                style={{ flex: '1 1 45%', background: '#5b006b' }}
+              >
+                Comp
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleOpenPayment}
+                disabled={submittingOrder || subtotal === 0}
+                style={{ flex: '1 1 45%' }}
+              >
+                Pay
               </button>
             </div>
           </div>
@@ -1143,16 +1389,24 @@ function ConcessionSession({ user, onLogout }) {
                 Select {subMenuParent.name}
               </h3>
               <div className="pos-submenu-grid">
-                {subMenuParent.subItems.map((item) => (
-                  <button
-                    key={item.id}
-                    className="pos-item-btn"
-                    onClick={() => addToOrder(item)}
-                  >
-                    <div className="pos-item-name">{item.name}</div>
-                    <div className="pos-item-price">{formatCurrency(item.price)}</div>
-                  </button>
-                ))}
+                {subMenuParent.subItems.map((item) => {
+                  const stockStatus = getStockStatus(item);
+                  return (
+                    <button
+                      key={item.id}
+                      className={`pos-item-btn ${stockStatus !== 'none' ? `stock-${stockStatus}` : ''}`}
+                      onClick={() => addToOrder(item)}
+                    >
+                      <div className="pos-item-name">{item.name}</div>
+                      <div className="pos-item-price">{formatCurrency(item.price)}</div>
+                      {stockStatus !== 'none' && (
+                        <div className={`pos-stock-badge ${stockStatus}`}>
+                          {stockStatus === 'out' ? 'OUT' : item.quantity_on_hand}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <button
                 className="btn"
@@ -1165,10 +1419,319 @@ function ConcessionSession({ user, onLogout }) {
           </div>
         )}
 
+        {/* Discount Modal */}
+        {showDiscountModal && (
+          <div className="pos-modal-overlay" onClick={() => setShowDiscountModal(false)}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+              <h3 style={{ color: isComp ? '#9333ea' : '#eab308', marginBottom: '16px' }}>
+                {isComp ? 'Comp Order' : 'Apply Discount'}
+              </h3>
+
+              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#4a7c59' }}>Order Total:</span>
+                  <span style={{ color: '#22c55e', fontWeight: 'bold' }}>
+                    {formatCurrency(calculateSubtotal())}
+                  </span>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>{isComp ? 'Comp Amount' : 'Discount Amount'}</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.01"
+                  min="0.01"
+                  max={calculateSubtotal()}
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                  placeholder="0.00"
+                  style={{ fontSize: '20px', textAlign: 'center' }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Charge To</label>
+                <select
+                  className="input"
+                  value={discountChargedTo}
+                  onChange={(e) => setDiscountChargedTo(e.target.value)}
+                >
+                  <option value="asb">ASB (Loss)</option>
+                  <option value="program">This Program ({session?.program_name || 'Current'})</option>
+                  {programs.filter(p => p.id !== session?.program_id).map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Reason</label>
+                <input
+                  type="text"
+                  className="input"
+                  value={discountReason}
+                  onChange={(e) => setDiscountReason(e.target.value)}
+                  placeholder={isComp ? 'e.g., Staff appreciation' : 'e.g., Coupon, loyalty'}
+                />
+              </div>
+
+              {error && <div className="error-message" style={{ marginBottom: '12px' }}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowDiscountModal(false)}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleApplyDiscount}
+                  disabled={(parseFloat(discountAmount) || 0) <= 0}
+                  style={{ flex: 1, background: isComp ? '#9333ea' : '#eab308' }}
+                >
+                  Apply {isComp ? 'Comp' : 'Discount'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Modal */}
+        {showPaymentModal && (
+          <div className="pos-modal-overlay" onClick={() => setShowPaymentModal(false)}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+              <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>
+                {isComp ? 'Complete Comp' : getAppliedDiscount() > 0 ? 'Complete with Discount' : 'Payment'}
+              </h3>
+
+              <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: getAppliedDiscount() > 0 ? '8px' : 0 }}>
+                  <span style={{ color: '#4a7c59' }}>Subtotal:</span>
+                  <span style={{ color: '#4ade80' }}>
+                    {formatCurrency(calculateSubtotal())}
+                  </span>
+                </div>
+                {getAppliedDiscount() > 0 && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ color: isComp ? '#9333ea' : '#eab308' }}>
+                        {isComp ? 'Comp' : 'Discount'}:
+                      </span>
+                      <span style={{ color: isComp ? '#9333ea' : '#eab308' }}>
+                        -{formatCurrency(getAppliedDiscount())}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '8px' }}>
+                      <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Total Due:</span>
+                      <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '20px' }}>
+                        {formatCurrency(getFinalTotal())}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {getAppliedDiscount() === 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Total:</span>
+                    <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '20px' }}>
+                      {formatCurrency(calculateSubtotal())}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label>Payment Method</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : ''}`}
+                    onClick={() => setPaymentMethod('cash')}
+                    style={{ flex: 1, padding: '12px' }}
+                  >
+                    Cash
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${paymentMethod === 'cashapp' ? 'btn-primary' : ''}`}
+                    onClick={() => setPaymentMethod('cashapp')}
+                    style={{ flex: 1, padding: '12px', background: paymentMethod === 'cashapp' ? '#00D632' : undefined }}
+                  >
+                    CashApp
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${paymentMethod === 'zelle' ? 'btn-primary' : ''}`}
+                    onClick={() => setPaymentMethod('zelle')}
+                    style={{ flex: 1, padding: '12px', background: paymentMethod === 'zelle' ? '#6B1CD1' : undefined }}
+                  >
+                    Zelle
+                  </button>
+                </div>
+              </div>
+
+              {paymentMethod === 'cash' && (
+                <div className="form-group">
+                  <label>Amount Tendered</label>
+                  <input
+                    type="number"
+                    className="input"
+                    step="0.01"
+                    min={getFinalTotal()}
+                    value={amountTendered}
+                    onChange={(e) => setAmountTendered(e.target.value)}
+                    placeholder="0.00"
+                    style={{ fontSize: '24px', textAlign: 'center' }}
+                    autoFocus
+                  />
+                  {parseFloat(amountTendered) >= getFinalTotal() && (
+                    <div style={{ marginTop: '8px', textAlign: 'center' }}>
+                      <span style={{ color: '#4a7c59' }}>Change: </span>
+                      <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '18px' }}>
+                        {formatCurrency(calculateChange())}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
+                    {[1, 5, 10, 20].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        className="btn btn-small"
+                        onClick={() => setAmountTendered(String(Math.ceil(getFinalTotal() / amt) * amt))}
+                        style={{ flex: 1 }}
+                      >
+                        ${amt}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => setAmountTendered(String(getFinalTotal()))}
+                      style={{ flex: 1 }}
+                    >
+                      Exact
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'cashapp' && (
+                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                  <p style={{ color: '#00D632', fontSize: '14px', marginBottom: '8px' }}>
+                    Confirm customer sent CashApp payment
+                  </p>
+                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>
+                    Payment will be added to CashApp balance for withdrawal
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === 'zelle' && (
+                <div style={{ background: '#1a1a1a', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                  <p style={{ color: '#6B1CD1', fontSize: '14px', marginBottom: '8px' }}>
+                    Confirm customer sent Zelle payment
+                  </p>
+                  <p style={{ color: '#4a7c59', fontSize: '12px' }}>
+                    Zelle payments are auto-applied to reimbursement
+                  </p>
+                </div>
+              )}
+
+              {error && <div className="error-message" style={{ marginTop: '12px' }}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowPaymentModal(false)}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleCompleteOrder}
+                  disabled={submittingOrder || (paymentMethod === 'cash' && (parseFloat(amountTendered) || 0) < getFinalTotal())}
+                  style={{ flex: 2 }}
+                >
+                  {submittingOrder ? 'Processing...' : 'Complete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Checkout Modal */}
         {showCheckout && (
           <div className="pos-modal-overlay" onClick={() => setShowCheckout(false)}>
             <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              {/* Practice Session - Simplified close */}
+              {isTestSession ? (
+                <>
+                  <h3 style={{ color: '#eab308', marginBottom: '16px' }}>End Practice Session</h3>
+
+                  <div style={{
+                    background: 'linear-gradient(135deg, #eab30822, #ca8a0422)',
+                    border: '1px solid #eab308',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    marginBottom: '16px',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ color: '#eab308', fontSize: '16px', marginBottom: '8px', fontWeight: 'bold' }}>
+                      This is a Practice Session
+                    </p>
+                    <p style={{ color: '#4a7c59', fontSize: '14px' }}>
+                      No real inventory or cash was affected.
+                    </p>
+                  </div>
+
+                  <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ color: '#4a7c59' }}>Practice Orders:</span>
+                      <span style={{ color: '#eab308' }}>{orderHistory.length || '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#4a7c59' }}>Practice Sales:</span>
+                      <span style={{ color: '#eab308' }}>{formatCurrency(sessionSales)}</span>
+                    </div>
+                  </div>
+
+                  <p style={{ color: '#f97316', marginBottom: '16px', fontSize: '13px', textAlign: 'center' }}>
+                    All practice orders will be permanently deleted.
+                  </p>
+
+                  {error && <div className="error-message" style={{ marginBottom: '12px' }}>{error}</div>}
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setShowCheckout(false)}
+                      style={{ flex: 1 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={handleEndPracticeSession}
+                      disabled={submitting}
+                      style={{ flex: 1, background: '#eab308', color: '#000' }}
+                    >
+                      {submitting ? 'Ending...' : 'End Practice'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Real Session - Full close flow */
+                <>
               <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>Close Session</h3>
 
               <div style={{ background: '#1a1a1a', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
@@ -1267,6 +1830,96 @@ function ConcessionSession({ user, onLogout }) {
                   </button>
                 </div>
               </form>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Order History Modal */}
+        {showOrderHistory && (
+          <div className="pos-modal-overlay" onClick={() => setShowOrderHistory(false)}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ color: '#3b82f6', margin: 0 }}>Order History</h3>
+                <button
+                  className="btn btn-small"
+                  onClick={() => setShowOrderHistory(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              {loadingHistory ? (
+                <p style={{ textAlign: 'center', color: '#4a7c59' }}>Loading orders...</p>
+              ) : orderHistory.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#4a7c59' }}>No orders yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {orderHistory.map(order => (
+                    <div
+                      key={order.id}
+                      style={{
+                        background: '#1a1a1a',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        borderLeft: order.is_comp ? '3px solid #eab308' : order.discount_amount > 0 ? '3px solid #f97316' : '3px solid #22c55e'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <span style={{ color: '#4a7c59', fontSize: '11px' }}>
+                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span style={{
+                            marginLeft: '8px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            background: order.payment_method === 'cash' ? '#22c55e33' :
+                                       order.payment_method === 'cashapp' ? '#00D63233' : '#6B1CD133',
+                            color: order.payment_method === 'cash' ? '#22c55e' :
+                                   order.payment_method === 'cashapp' ? '#00D632' : '#a855f7'
+                          }}>
+                            {order.payment_method === 'cashapp' ? 'CashApp' : order.payment_method === 'zelle' ? 'Zelle' : 'Cash'}
+                          </span>
+                          {order.is_comp ? (
+                            <span style={{ marginLeft: '4px', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', background: '#eab30833', color: '#eab308' }}>
+                              COMP
+                            </span>
+                          ) : null}
+                        </div>
+                        <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '16px' }}>
+                          {formatCurrency(order.final_total || order.subtotal)}
+                        </span>
+                      </div>
+
+                      <p style={{ color: '#e5e7eb', fontSize: '13px', marginBottom: '4px' }}>
+                        {order.items_summary || 'Items not available'}
+                      </p>
+
+                      {order.discount_amount > 0 && !order.is_comp && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#f97316', marginTop: '4px' }}>
+                          <span>Discount{order.discount_reason ? `: ${order.discount_reason}` : ''}</span>
+                          <span>-{formatCurrency(order.discount_amount)}</span>
+                        </div>
+                      )}
+
+                      {order.payment_method === 'cash' && order.change_given > 0 && (
+                        <div style={{ fontSize: '11px', color: '#4a7c59', marginTop: '4px' }}>
+                          Paid: {formatCurrency(order.amount_tendered)} | Change: {formatCurrency(order.change_given)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop: '16px', padding: '12px', background: '#1a1a1a', borderRadius: '8px', textAlign: 'center' }}>
+                <span style={{ color: '#4a7c59', fontSize: '12px' }}>
+                  Total: {orderHistory.length} orders | {formatCurrency(orderHistory.reduce((sum, o) => sum + (o.final_total || o.subtotal), 0))}
+                </span>
+              </div>
             </div>
           </div>
         )}

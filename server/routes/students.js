@@ -28,6 +28,22 @@ router.get('/', (req, res) => {
   });
 });
 
+// Get a single student by student_id
+router.get('/:studentId', (req, res) => {
+  const { studentId } = req.params;
+  const db = getDb();
+
+  db.get('SELECT * FROM students WHERE student_id = ?', [studentId], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    res.json(row);
+  });
+});
+
 // Add a single student
 router.post('/', (req, res) => {
   const { studentId, name } = req.body;
