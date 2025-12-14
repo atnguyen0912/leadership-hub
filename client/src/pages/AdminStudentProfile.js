@@ -17,9 +17,15 @@ function AdminStudentProfile({ user, onLogout }) {
   const [hours, setHours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [viewMode, setViewMode] = useState('list');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Edit modal state
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [editForm, setEditForm] = useState({ date: '', timeIn: '', timeOut: '', item: '', hourType: 'other' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchStudentData();
@@ -49,6 +55,88 @@ function AdminStudentProfile({ user, onLogout }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Edit/Delete handlers
+  const handleEdit = (entry) => {
+    setEditingEntry(entry);
+    setEditForm({
+      date: entry.date,
+      timeIn: entry.time_in,
+      timeOut: entry.time_out,
+      item: entry.item || '',
+      hourType: entry.hour_type || 'other'
+    });
+    setError('');
+    setSuccess('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEntry(null);
+    setEditForm({ date: '', timeIn: '', timeOut: '', item: '', hourType: 'other' });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.date || !editForm.timeIn || !editForm.timeOut) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    if (editForm.timeOut <= editForm.timeIn) {
+      setError('Time out must be after time in');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/hours/${editingEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update entry');
+      }
+
+      setSuccess('Entry updated successfully!');
+      setEditingEntry(null);
+      fetchStudentData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (entry) => {
+    if (!window.confirm(`Delete this entry from ${formatDateWithWeekday(entry.date)}?`)) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`/api/hours/${entry.id}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete entry');
+      }
+
+      setSuccess('Entry deleted successfully!');
+      fetchStudentData();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -290,6 +378,7 @@ function AdminStudentProfile({ user, onLogout }) {
                       <th>Time Out</th>
                       <th>Hours</th>
                       <th>Activity</th>
+                      <th style={{ width: '120px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -313,6 +402,24 @@ function AdminStudentProfile({ user, onLogout }) {
                         <td>{formatTime(entry.time_out)}</td>
                         <td>{calculateHours(entry.time_in, entry.time_out)}</td>
                         <td style={{ color: '#9ca3af' }}>{entry.item || '-'}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn btn-small"
+                              onClick={() => handleEdit(entry)}
+                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-danger btn-small"
+                              onClick={() => handleDelete(entry)}
+                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -346,6 +453,20 @@ function AdminStudentProfile({ user, onLogout }) {
                     {entry.item && (
                       <div className="hours-entry-item">{entry.item}</div>
                     )}
+                    <div className="hours-entry-actions">
+                      <button
+                        className="btn btn-small"
+                        onClick={() => handleEdit(entry)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-danger btn-small"
+                        onClick={() => handleDelete(entry)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -450,6 +571,93 @@ function AdminStudentProfile({ user, onLogout }) {
         >
           &larr; Back to Hours
         </button>
+
+        {error && <div className="card"><div className="error-message">{error}</div></div>}
+        {success && <div className="card"><div className="success-message">{success}</div></div>}
+
+        {/* Edit Modal */}
+        {editingEntry && (
+          <div className="modal-overlay" onClick={handleCancelEdit}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2 style={{ marginBottom: '16px', color: '#22c55e' }}>Edit Entry</h2>
+              <div className="form-group">
+                <label htmlFor="edit-date">Date</label>
+                <input
+                  type="date"
+                  id="edit-date"
+                  className="input"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="edit-hourType">Type</label>
+                <select
+                  id="edit-hourType"
+                  className="input"
+                  value={editForm.hourType}
+                  onChange={(e) => setEditForm({ ...editForm, hourType: e.target.value })}
+                  required
+                >
+                  {HOUR_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label htmlFor="edit-timeIn">Time In</label>
+                  <input
+                    type="time"
+                    id="edit-timeIn"
+                    className="input"
+                    value={editForm.timeIn}
+                    onChange={(e) => setEditForm({ ...editForm, timeIn: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="edit-timeOut">Time Out</label>
+                  <input
+                    type="time"
+                    id="edit-timeOut"
+                    className="input"
+                    value={editForm.timeOut}
+                    onChange={(e) => setEditForm({ ...editForm, timeOut: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="edit-item">Activity/Item (optional)</label>
+                <input
+                  type="text"
+                  id="edit-item"
+                  className="input"
+                  value={editForm.item}
+                  onChange={(e) => setEditForm({ ...editForm, item: e.target.value })}
+                  placeholder="What did they work on?"
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleCancelEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <h1 className="page-title" style={{ margin: 0 }}>{student?.name}</h1>
