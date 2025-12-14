@@ -32,7 +32,9 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (same-origin, mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    // Case-insensitive origin check
+    const originLower = origin.toLowerCase();
+    if (allowedOrigins.some(allowed => allowed.toLowerCase() === originLower)) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
