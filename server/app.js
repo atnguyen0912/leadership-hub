@@ -28,17 +28,13 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
   : ['http://localhost:3000', 'http://localhost:5000', 'https://leadership-hub.fly.dev', 'https://hawkinsasb.com', 'https://www.hawkinsasb.com'];
 
-console.log('Allowed origins:', allowedOrigins);
-
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (same-origin, mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     // Case-insensitive origin check
     const originLower = origin.toLowerCase();
-    const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === originLower);
-    console.log('CORS check - Origin:', origin, 'OriginLower:', originLower, 'Allowed:', isAllowed, 'List:', JSON.stringify(allowedOrigins));
-    if (isAllowed) {
+    if (allowedOrigins.some(allowed => allowed.toLowerCase() === originLower)) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
