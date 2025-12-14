@@ -26,7 +26,7 @@ app.use(helmet({
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:5000', 'https://leadership-hub.fly.dev'];
+  : ['http://localhost:3000', 'http://localhost:5000', 'https://leadership-hub.fly.dev', 'https://hawkinsasb.com', 'https://www.hawkinsasb.com'];
 
 app.use(cors({
   origin: (origin, callback) => {
