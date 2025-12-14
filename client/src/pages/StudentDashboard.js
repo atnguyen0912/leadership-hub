@@ -30,47 +30,54 @@ function StudentDashboard() {
   return (
     <div>
       <Navbar />
-      <div className="container-narrow">
-        <h1 className="page-title">Student Dashboard</h1>
+      <div className="student-dashboard">
+        <div className="welcome-section">
+          <h1>Welcome back, {user.name?.split(' ')[0] || 'Student'}</h1>
+        </div>
 
-        {/* Stats Cards */}
         {!loading && stats && (
-          <div className="stats-grid">
-            <div className="stat-card stat-card-primary">
-              <div className="stat-value">{formatDecimalHours(stats.totalHours)}</div>
-              <div className="stat-label">Total Hours</div>
+          <>
+            {/* Featured Stat */}
+            <div className="featured-stat">
+              <span className="featured-stat-value">{formatDecimalHours(stats.totalHours)}</span>
+              <span className="featured-stat-label">Total Hours Logged</span>
             </div>
-            <div className="stat-card">
-              <div className="stat-value">{formatDecimalHours(stats.monthHours)}</div>
-              <div className="stat-label">This Month</div>
+
+            {/* Secondary Stats Row */}
+            <div className="stats-row">
+              <div className="stat-inline">
+                <span className="stat-inline-value">{formatDecimalHours(stats.monthHours)}</span>
+                <span className="stat-inline-label">This Month</span>
+              </div>
+              <div className="stat-inline">
+                <span className="stat-inline-value">{formatDecimalHours(stats.weekHours)}</span>
+                <span className="stat-inline-label">This Week</span>
+              </div>
+              <div className="stat-inline">
+                <span className="stat-inline-value">{stats.totalEntries}</span>
+                <span className="stat-inline-label">Entries</span>
+              </div>
             </div>
-            <div className="stat-card">
-              <div className="stat-value">{formatDecimalHours(stats.weekHours)}</div>
-              <div className="stat-label">This Week</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{stats.totalEntries}</div>
-              <div className="stat-label">Log Entries</div>
-            </div>
-          </div>
+          </>
         )}
 
-        <div className="menu-grid">
-          <Link to="/log-hours" className="menu-card">
-            <div className="menu-card-icon">📝</div>
-            <div className="menu-card-title">Log Hours</div>
+        {/* Action Cards */}
+        <div className="action-row">
+          <Link to="/log-hours" className="action-card primary">
+            <span className="action-icon">📝</span>
+            <span className="action-label">Log Hours</span>
           </Link>
-          <Link to="/view-hours" className="menu-card">
-            <div className="menu-card-icon">📊</div>
-            <div className="menu-card-title">View My Hours</div>
+          <Link to="/view-hours" className="action-card">
+            <span className="action-icon">📊</span>
+            <span className="action-label">My Hours</span>
           </Link>
-          <Link to="/events" className="menu-card">
-            <div className="menu-card-icon">📅</div>
-            <div className="menu-card-title">Events</div>
+          <Link to="/events" className="action-card">
+            <span className="action-icon">📅</span>
+            <span className="action-label">Events</span>
           </Link>
-          <Link to="/cashbox" className="menu-card">
-            <div className="menu-card-icon">🍿</div>
-            <div className="menu-card-title">Concessions</div>
+          <Link to="/cashbox" className="action-card">
+            <span className="action-icon">🍿</span>
+            <span className="action-label">Concessions</span>
           </Link>
         </div>
       </div>

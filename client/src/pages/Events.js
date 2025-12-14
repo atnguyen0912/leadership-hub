@@ -162,7 +162,7 @@ function Events() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="container-narrow">
           <p>Loading...</p>
         </div>
       </div>
@@ -172,7 +172,7 @@ function Events() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="container-narrow">
         <h1 className="page-title">Events</h1>
 
         {error && <div className="card"><div className="error-message">{error}</div></div>}

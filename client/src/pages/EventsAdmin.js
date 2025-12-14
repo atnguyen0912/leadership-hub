@@ -181,7 +181,7 @@ function EventsAdmin() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="admin-table-layout">
           <p>Loading...</p>
         </div>
       </div>
@@ -191,7 +191,7 @@ function EventsAdmin() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="admin-table-layout">
         <h1 className="page-title">Events Management</h1>
 
         {error && <div className="card"><div className="error-message">{error}</div></div>}

@@ -167,7 +167,7 @@ function ViewAllHours() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="admin-table-layout">
           <p>Loading...</p>
         </div>
       </div>
@@ -179,7 +179,7 @@ function ViewAllHours() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="admin-table-layout">
         <h1 className="page-title">All Hours</h1>
 
         {error && <div className="card"><div className="error-message">{error}</div></div>}

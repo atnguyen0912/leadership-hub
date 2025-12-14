@@ -437,7 +437,7 @@ function ManageStudents() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="admin-table-layout">
           <p>Loading...</p>
         </div>
       </div>
@@ -758,7 +758,7 @@ function ManageStudents() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="admin-table-layout">
         <h1 className="page-title">Manage Students</h1>
 
         {/* Tabs */}

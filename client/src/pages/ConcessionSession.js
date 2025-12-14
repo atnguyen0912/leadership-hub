@@ -806,7 +806,7 @@ function ConcessionSession() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="admin-table-layout">
           <p style={{ color: 'var(--color-primary)' }}>Loading...</p>
         </div>
       </div>
@@ -817,7 +817,7 @@ function ConcessionSession() {
     return (
       <div>
         <Navbar />
-        <div className="container">
+        <div className="admin-table-layout">
           <button
             className="btn"
             onClick={() => navigate('/cashbox')}
@@ -1617,7 +1617,7 @@ function ConcessionSession() {
   return (
     <div>
       <Navbar />
-      <div className="container">
+      <div className="admin-table-layout">
         <button
           className="btn"
           onClick={() => navigate('/cashbox')}
