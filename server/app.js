@@ -34,7 +34,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Case-insensitive origin check
     const originLower = origin.toLowerCase();
-    if (allowedOrigins.some(allowed => allowed.toLowerCase() === originLower)) {
+    const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === originLower);
+    console.log('CORS check - Origin:', origin, 'Allowed:', isAllowed);
+    if (isAllowed) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
