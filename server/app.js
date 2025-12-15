@@ -12,6 +12,7 @@ const ordersRoutes = require('./routes/orders');
 const eventsRoutes = require('./routes/events');
 const permissionsRoutes = require('./routes/permissions');
 const purchasesRoutes = require('./routes/purchases');
+const purchaseTemplatesRoutes = require('./routes/purchaseTemplates');
 const inventoryRoutes = require('./routes/inventory');
 const cashappRoutes = require('./routes/cashapp');
 const lossesRoutes = require('./routes/losses');
@@ -58,6 +59,7 @@ app.use('/api/events', authenticateToken, eventsRoutes);
 app.use('/api/cashbox', authenticateToken, attachPermissions, cashboxRoutes);
 app.use('/api/inventory', authenticateToken, attachPermissions, inventoryRoutes);
 app.use('/api/purchases', authenticateToken, attachPermissions, purchasesRoutes);
+app.use('/api/purchase-templates', authenticateToken, attachPermissions, purchaseTemplatesRoutes);
 
 // Admin-only routes
 app.use('/api/permissions', authenticateToken, requireAdmin, permissionsRoutes);

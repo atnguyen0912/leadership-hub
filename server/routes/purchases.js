@@ -91,11 +91,19 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'At least one item is required' });
   }
 
-  // Calculate subtotal and distributed costs
+  // Calculate subtotal (line totals only) and total CRV
   const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.lineTotal) || 0), 0);
+  const totalCrv = items.reduce((sum, item) => {
+    const qty = parseInt(item.quantity) || 1;
+    const crvPerUnit = parseFloat(item.crvPerUnit) || 0;
+    return sum + (crvPerUnit * qty);
+  }, 0);
   const totalOverhead = (parseFloat(tax) || 0) + (parseFloat(deliveryFee) || 0) + (parseFloat(otherFees) || 0);
-  const total = subtotal + totalOverhead;
-  const overheadPercent = subtotal > 0 ? totalOverhead / subtotal : 0;
+  // Total includes subtotal + CRV + overhead
+  const total = subtotal + totalCrv + totalOverhead;
+  // Overhead is distributed based on subtotal + CRV (the base product cost)
+  const baseCost = subtotal + totalCrv;
+  const overheadPercent = baseCost > 0 ? totalOverhead / baseCost : 0;
 
   // Calculate distributed cost and unit cost for each item (including CRV)
   const processedItems = items.map(item => {
@@ -104,8 +112,8 @@ router.post('/', (req, res) => {
     const crvPerUnit = parseFloat(item.crvPerUnit) || 0;
     const crvTotal = crvPerUnit * quantity;
     // Include CRV in the base cost before overhead distribution
-    const baseCost = lineTotal + crvTotal;
-    const distributedCost = baseCost * (1 + overheadPercent);
+    const itemBaseCost = lineTotal + crvTotal;
+    const distributedCost = itemBaseCost * (1 + overheadPercent);
     const unitCost = quantity > 0 ? distributedCost / quantity : 0;
 
     return {
@@ -266,11 +274,19 @@ router.put('/:id', (req, res) => {
         db.run('DELETE FROM purchase_items WHERE purchase_id = ?', [id], (err) => {
           if (err) return res.status(500).json({ error: err.message });
 
-          // 5. Calculate new totals
+          // 5. Calculate new totals (including CRV)
           const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.lineTotal) || 0), 0);
+          const totalCrv = items.reduce((sum, item) => {
+            const qty = parseInt(item.quantity) || 1;
+            const crvPerUnit = parseFloat(item.crvPerUnit) || 0;
+            return sum + (crvPerUnit * qty);
+          }, 0);
           const totalOverhead = (parseFloat(tax) || 0) + (parseFloat(deliveryFee) || 0) + (parseFloat(otherFees) || 0);
-          const total = subtotal + totalOverhead;
-          const overheadPercent = subtotal > 0 ? totalOverhead / subtotal : 0;
+          // Total includes subtotal + CRV + overhead
+          const total = subtotal + totalCrv + totalOverhead;
+          // Overhead is distributed based on subtotal + CRV (the base product cost)
+          const baseCost = subtotal + totalCrv;
+          const overheadPercent = baseCost > 0 ? totalOverhead / baseCost : 0;
 
           // 6. Process new items with CRV
           const processedItems = items.map(item => {

@@ -489,6 +489,32 @@ const initialize = () => {
         db.run(`ALTER TABLE purchase_items ADD COLUMN crv_per_unit REAL DEFAULT 0`, [], () => {});
         db.run(`ALTER TABLE purchase_items ADD COLUMN crv_total REAL DEFAULT 0`, [], () => {});
 
+        // Add liquid/fill tracking columns to menu_items
+        db.run(`ALTER TABLE menu_items ADD COLUMN fill_percentage INTEGER DEFAULT 100`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN is_liquid INTEGER DEFAULT 0`, [], () => {});
+
+        // Purchase templates table (for quick-add bundles)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS purchase_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Purchase template items table
+        db.run(`
+          CREATE TABLE IF NOT EXISTS purchase_template_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            menu_item_id INTEGER,
+            item_name TEXT NOT NULL,
+            default_quantity INTEGER DEFAULT 1,
+            FOREIGN KEY (template_id) REFERENCES purchase_templates(id),
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+          )
+        `);
+
         // Inventory lots table (FIFO tracking)
         db.run(`
           CREATE TABLE IF NOT EXISTS inventory_lots (

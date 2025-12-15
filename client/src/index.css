@@ -2090,6 +2090,255 @@ td {
   background: rgba(239, 68, 68, 0.3);
 }
 
+/* ==================== PURCHASE SPREADSHEET ==================== */
+.purchase-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-bg-card);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-md);
+}
+
+.purchase-spreadsheet th {
+  background: var(--color-bg-card-solid);
+  color: var(--color-primary-muted);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.purchase-spreadsheet th:last-child {
+  border-right: none;
+}
+
+.purchase-spreadsheet td {
+  padding: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  vertical-align: middle;
+  background: var(--color-bg-input);
+  position: relative;
+}
+
+.purchase-spreadsheet td:last-child {
+  border-right: none;
+}
+
+.purchase-spreadsheet tr:last-child td {
+  border-bottom: none;
+}
+
+.purchase-spreadsheet tr.focused-row td {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.purchase-spreadsheet tr.confirmed-row td {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.purchase-spreadsheet tr.confirmed-row td:first-child {
+  border-left: 3px solid var(--color-primary);
+}
+
+/* Purchase spreadsheet inputs */
+.purchase-spreadsheet .spreadsheet-input,
+.purchase-spreadsheet .spreadsheet-select {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.purchase-spreadsheet .spreadsheet-input:focus,
+.purchase-spreadsheet .spreadsheet-select:focus {
+  outline: none;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+/* Item search cell - wider */
+.purchase-spreadsheet td.item-cell {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+/* Quantity cell - narrow */
+.purchase-spreadsheet td.qty-cell {
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+}
+
+/* Currency cells */
+.purchase-spreadsheet td.currency-cell {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
+
+.purchase-spreadsheet td.currency-cell .spreadsheet-input {
+  text-align: right;
+}
+
+/* Total cell - readonly */
+.purchase-spreadsheet td.total-cell {
+  width: 90px;
+  min-width: 90px;
+  background: var(--color-bg-card-solid);
+  text-align: right;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* Actions cell */
+.purchase-spreadsheet td.actions-cell {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
+  padding: var(--spacing-xs);
+}
+
+.purchase-spreadsheet td.actions-cell button {
+  padding: 4px 8px;
+  font-size: 12px;
+  margin: 0 2px;
+}
+
+/* Item dropdown in purchase spreadsheet */
+.purchase-item-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: 0 0 4px 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.purchase-item-dropdown-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.purchase-item-dropdown-option:hover {
+  background: var(--color-border);
+}
+
+.purchase-item-dropdown-header {
+  padding: 6px 12px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-card-solid);
+}
+
+/* Selected item display */
+.purchase-item-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  min-height: 44px;
+}
+
+.purchase-item-selected span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.purchase-item-selected button {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+/* Hint text below inputs */
+.purchase-hint {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 10px;
+  color: var(--color-text-subtle);
+  pointer-events: none;
+}
+
+/* Unlinked warning */
+.purchase-unlinked-warning {
+  font-size: 10px;
+  color: var(--color-warning);
+  padding: 2px var(--spacing-md);
+}
+
+/* Quick add toolbar */
+.purchase-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.quick-add-select {
+  min-width: 200px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  color: var(--color-text);
+}
+
+/* Liquid item fill indicator */
+.fill-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.fill-bar {
+  width: 40px;
+  height: 8px;
+  background: var(--color-bg-card-solid);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.fill-bar-inner {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.fill-bar-inner.low {
+  background: var(--color-warning);
+}
+
+.fill-bar-inner.empty {
+  background: var(--color-danger);
+}
+
 /* ==================== CASHBOX STYLES ==================== */
 .cashbox-totals {
   display: grid;

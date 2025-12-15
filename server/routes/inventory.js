@@ -8,6 +8,7 @@ router.get('/', (req, res) => {
 
   db.all(
     `SELECT m.id, m.name, m.price, m.unit_cost, m.quantity_on_hand, m.track_inventory, m.is_composite, m.parent_id, m.active,
+     m.fill_percentage, m.is_liquid,
      (SELECT SUM(quantity_remaining) FROM inventory_lots WHERE menu_item_id = m.id) as lot_quantity
      FROM menu_items m
      WHERE m.price IS NOT NULL
@@ -314,6 +315,136 @@ router.get('/counts', (req, res) => {
     }
     res.json(counts);
   });
+});
+
+// Mark usage percentage for liquid items (jars, bottles, etc.)
+router.post('/:id/mark-usage', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { usagePercent, createdBy } = req.body;
+
+  if (usagePercent === undefined || usagePercent < 0 || usagePercent > 100) {
+    return res.status(400).json({ error: 'Usage percent must be between 0 and 100' });
+  }
+
+  // Get current item state
+  db.get('SELECT * FROM menu_items WHERE id = ?', [id], (err, item) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const currentFill = item.fill_percentage || 100;
+    const newFill = Math.max(0, currentFill - usagePercent);
+
+    // Check if the item is now empty (0% fill)
+    if (newFill <= 0 && item.quantity_on_hand > 0) {
+      // Decrement quantity and reset fill to 100%
+      const newQuantity = item.quantity_on_hand - 1;
+      const resetFill = newQuantity > 0 ? 100 : 0;
+
+      // Deduct from FIFO lots
+      deductFromLots(db, id, 1, 'sale', (deductErr, costInfo) => {
+        if (deductErr) {
+          console.warn('FIFO deduction failed:', deductErr.message);
+        }
+
+        db.run(
+          'UPDATE menu_items SET quantity_on_hand = ?, fill_percentage = ? WHERE id = ?',
+          [newQuantity, resetFill, id],
+          (updateErr) => {
+            if (updateErr) {
+              return res.status(500).json({ error: updateErr.message });
+            }
+
+            // Log the transaction
+            db.run(
+              `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by)
+               VALUES (?, 'sale', -1, ?, ?, ?, ?)`,
+              [id, costInfo?.avgCost || item.unit_cost || 0, costInfo?.reimbursable ? 1 : 0, `Liquid item emptied (was ${currentFill}%)`, createdBy || '']
+            );
+
+            res.json({
+              success: true,
+              itemId: id,
+              previousFill: currentFill,
+              newFill: resetFill,
+              quantityDecremented: true,
+              newQuantity
+            });
+          }
+        );
+      });
+    } else {
+      // Just update the fill percentage
+      db.run(
+        'UPDATE menu_items SET fill_percentage = ? WHERE id = ?',
+        [newFill, id],
+        (updateErr) => {
+          if (updateErr) {
+            return res.status(500).json({ error: updateErr.message });
+          }
+
+          res.json({
+            success: true,
+            itemId: id,
+            previousFill: currentFill,
+            newFill,
+            quantityDecremented: false,
+            newQuantity: item.quantity_on_hand
+          });
+        }
+      );
+    }
+  });
+});
+
+// Set fill percentage directly (for manual adjustments)
+router.put('/:id/fill', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { fillPercentage } = req.body;
+
+  if (fillPercentage === undefined || fillPercentage < 0 || fillPercentage > 100) {
+    return res.status(400).json({ error: 'Fill percentage must be between 0 and 100' });
+  }
+
+  db.run(
+    'UPDATE menu_items SET fill_percentage = ? WHERE id = ?',
+    [fillPercentage, id],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      res.json({ success: true, itemId: id, fillPercentage });
+    }
+  );
+});
+
+// Toggle liquid flag for an item
+router.put('/:id/liquid', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { isLiquid } = req.body;
+
+  db.run(
+    'UPDATE menu_items SET is_liquid = ? WHERE id = ?',
+    [isLiquid ? 1 : 0, id],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+      res.json({ success: true, itemId: id, isLiquid: !!isLiquid });
+    }
+  );
 });
 
 // Helper function to deduct from FIFO lots

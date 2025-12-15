@@ -138,9 +138,16 @@ function CashBoxAdmin() {
     name: '',
     isSupply: false,
     unitCost: '',
-    quantity: ''
+    quantity: '',
+    price: '',
+    componentOf: '' // Parent menu item ID if making this a component
   });
   const [quickCreateForIndex, setQuickCreateForIndex] = useState(null);
+
+  // Purchase templates (quick-add bundles)
+  const [purchaseTemplates, setPurchaseTemplates] = useState([]);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
 
   // Stock update state
   const [showStockUpdateForm, setShowStockUpdateForm] = useState(false);
@@ -220,6 +227,7 @@ function CashBoxAdmin() {
   useEffect(() => {
     fetchData();
     fetchPurchases();
+    fetchPurchaseTemplates();
     fetchInventory();
     fetchCashAppBalance();
     fetchLosses();
@@ -241,6 +249,18 @@ function CashBoxAdmin() {
       }
     } catch (err) {
       console.error('Failed to fetch purchases:', err);
+    }
+  };
+
+  const fetchPurchaseTemplates = async () => {
+    try {
+      const response = await fetch('/api/purchase-templates');
+      const data = await response.json();
+      if (response.ok) {
+        setPurchaseTemplates(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch purchase templates:', err);
     }
   };
 
@@ -1424,6 +1444,86 @@ function CashBoxAdmin() {
     }));
   };
 
+  // Quick-add template - expand template into multiple rows
+  const handleQuickAddTemplate = async (templateId) => {
+    if (!templateId) return;
+    try {
+      const response = await fetch(`/api/purchase-templates/${templateId}/items`);
+      const items = await response.json();
+      if (response.ok && items.length > 0) {
+        // Convert template items to purchase form items
+        const newItems = items.map(item => ({
+          menuItemId: item.menu_item_id ? item.menu_item_id.toString() : '',
+          itemName: item.menu_item_name || item.item_name,
+          quantity: (item.default_quantity || 1).toString(),
+          lineTotal: '',
+          crvPerUnit: ''
+        }));
+        // Add to existing items (replace first empty item or append)
+        setPurchaseFormData(prev => {
+          const existingItems = prev.items.filter(i => i.menuItemId || i.itemName || i.quantity || i.lineTotal);
+          return {
+            ...prev,
+            items: [...existingItems, ...newItems]
+          };
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load template items:', err);
+    }
+  };
+
+  // Save current items as a new template
+  const handleSaveAsTemplate = async () => {
+    if (!newTemplateName.trim()) {
+      setError('Please enter a template name');
+      return;
+    }
+    const validItems = purchaseFormData.items.filter(i => i.menuItemId || i.itemName);
+    if (validItems.length === 0) {
+      setError('Add some items first before saving as template');
+      return;
+    }
+    try {
+      const response = await fetch('/api/purchase-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newTemplateName.trim(),
+          items: validItems.map(item => ({
+            menuItemId: item.menuItemId ? parseInt(item.menuItemId) : null,
+            itemName: item.itemName,
+            defaultQuantity: parseInt(item.quantity) || 1
+          }))
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSuccess(`Template "${newTemplateName}" created!`);
+        setNewTemplateName('');
+        setShowCreateTemplateModal(false);
+        fetchPurchaseTemplates();
+      } else {
+        setError(data.error || 'Failed to create template');
+      }
+    } catch (err) {
+      setError('Failed to create template');
+    }
+  };
+
+  // Delete a template
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Delete this template?')) return;
+    try {
+      const response = await fetch(`/api/purchase-templates/${templateId}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchPurchaseTemplates();
+      }
+    } catch (err) {
+      console.error('Failed to delete template:', err);
+    }
+  };
+
   // Load purchase for editing
   const loadPurchaseForEdit = async (purchaseId) => {
     setLoadingPurchaseDetails(true);
@@ -1624,6 +1724,12 @@ function CashBoxAdmin() {
     e.preventDefault();
     setError('');
 
+    // Validate price for sellable items
+    if (!quickCreateData.isSupply && !quickCreateData.price) {
+      setError('Price is required for sellable items');
+      return;
+    }
+
     try {
       // Create the menu item with is_supply flag
       const response = await fetch('/api/menu', {
@@ -1631,7 +1737,7 @@ function CashBoxAdmin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: quickCreateData.name,
-          price: quickCreateData.isSupply ? null : 0, // Supplies have no price
+          price: quickCreateData.isSupply ? null : parseFloat(quickCreateData.price) || 0,
           isSupply: quickCreateData.isSupply
         })
       });
@@ -1655,6 +1761,24 @@ function CashBoxAdmin() {
         });
       }
 
+      // If componentOf is set, add this item as a component of the parent menu item
+      if (quickCreateData.componentOf) {
+        await fetch(`/api/menu/${quickCreateData.componentOf}/components`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            components: [{ componentItemId: newItemId, quantity: 1 }],
+            append: true // Append to existing components
+          })
+        });
+        // Mark the parent as composite
+        await fetch(`/api/menu/${quickCreateData.componentOf}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isComposite: true })
+        });
+      }
+
       // Refresh menu items
       await fetchData();
 
@@ -1665,8 +1789,9 @@ function CashBoxAdmin() {
 
       // Close modal
       setShowQuickCreateModal(false);
-      setQuickCreateData({ name: '', isSupply: false, unitCost: '', quantity: '' });
+      setQuickCreateData({ name: '', isSupply: false, unitCost: '', quantity: '', price: '', componentOf: '' });
       setQuickCreateForIndex(null);
+      setSuccess(`Item "${quickCreateData.name}" created${quickCreateData.componentOf ? ' and linked as component' : ''}`);
 
     } catch (err) {
       setError(err.message);
@@ -2043,6 +2168,45 @@ function CashBoxAdmin() {
       quantity: '',
       notes: ''
     });
+  };
+
+  // Mark liquid item usage (percentage)
+  const handleMarkUsage = async (itemId, usagePercent) => {
+    try {
+      const response = await fetch(`/api/inventory/${itemId}/mark-usage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usagePercent,
+          createdBy: user?.name || 'admin'
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSuccess(`Usage marked: ${usagePercent}%${data.quantityDecremented ? ' (jar emptied)' : ''}`);
+      } else {
+        setError(data.error || 'Failed to mark usage');
+      }
+    } catch (err) {
+      setError('Failed to mark usage');
+    }
+  };
+
+  // Toggle liquid tracking for an item
+  const handleToggleLiquid = async (itemId, isLiquid) => {
+    try {
+      const response = await fetch(`/api/inventory/${itemId}/liquid`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isLiquid })
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Failed to update item');
+      }
+    } catch (err) {
+      setError('Failed to update item');
+    }
   };
 
   const handleCloseAdjustment = () => {
@@ -3278,263 +3442,193 @@ function CashBoxAdmin() {
                   </div>
                 </div>
 
-                <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Line Items</h4>
-                <div style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginBottom: '8px' }}>
-                  <strong>Keyboard:</strong> ↑↓ navigate rows • Enter confirms row • Esc unlocks row
-                </div>
-                {purchaseFormData.items.map((item, index) => (
-                  <div
-                    key={index}
-                    ref={el => purchaseRowRefs.current[index] = el}
-                    tabIndex={0}
-                    onKeyDown={(e) => handlePurchaseKeyDown(e, index)}
-                    onFocus={() => setFocusedRowIndex(index)}
-                    className={`purchase-row ${focusedRowIndex === index ? 'purchase-row-focused' : ''} ${confirmedRows.has(index) ? 'purchase-row-confirmed' : ''}`}
-                    style={{
-                      background: confirmedRows.has(index) ? 'rgba(34, 197, 94, 0.1)' : 'var(--color-bg-input)',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      marginBottom: '8px',
-                      border: focusedRowIndex === index ? '2px solid var(--color-primary)' : '2px solid transparent',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                      {/* Searchable Item Dropdown */}
-                      <div className="form-group" style={{ flex: 3, minWidth: '200px', marginBottom: 0, position: 'relative' }}>
-                        <label>Link to Inventory Item</label>
-                        {item.menuItemId ? (
-                          // Selected item display
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            background: 'var(--color-border)',
-                            border: '1px solid var(--color-text-muted)',
-                            borderRadius: '4px',
-                            padding: '8px 12px'
-                          }}>
-                            <span style={{ flex: 1, color: 'var(--color-text)' }}>
-                              {item.itemName || getAllPurchaseItems().all.find(m => m.id === parseInt(item.menuItemId))?.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleClearPurchaseItemLink(index)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--color-text-muted)',
-                                cursor: 'pointer',
-                                padding: '2px 6px'
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          // Search input with dropdown
-                          <>
-                            <input
-                              type="text"
-                              className="input"
-                              value={purchaseItemSearchQueries[index] || ''}
-                              onChange={(e) => {
-                                setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: e.target.value }));
-                                setPurchaseItemDropdownOpen(index);
-                              }}
-                              onFocus={() => setPurchaseItemDropdownOpen(index)}
-                              placeholder="Search or type item name..."
-                            />
-                            {purchaseItemDropdownOpen === index && (
-                              <div style={{
-                                position: 'absolute',
-                                top: '100%',
-                                left: 0,
-                                right: 0,
-                                background: 'var(--color-bg-input)',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: '4px',
-                                maxHeight: '200px',
-                                overflowY: 'auto',
-                                zIndex: 100,
-                                marginTop: '4px'
-                              }}>
-                                {(() => {
-                                  const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
-                                  const hasResults = sellableItems.length > 0 || supplyItems.length > 0;
-                                  const searchQuery = purchaseItemSearchQueries[index] || '';
-
-                                  return (
-                                    <>
-                                      {sellableItems.length > 0 && (
-                                        <>
-                                          <div style={{ padding: '6px 12px', color: 'var(--color-text-muted)', fontSize: '11px', borderBottom: '1px solid var(--color-border)' }}>
-                                            MENU ITEMS
-                                          </div>
-                                          {sellableItems.map(mi => (
-                                            <div
-                                              key={mi.id}
-                                              onClick={() => handleSelectPurchaseItem(index, mi)}
-                                              style={{
-                                                padding: '8px 12px',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid var(--color-border)'
-                                              }}
-                                              onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
-                                              onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                            >
-                                              {mi.name}
-                                            </div>
-                                          ))}
-                                        </>
-                                      )}
-                                      {supplyItems.length > 0 && (
-                                        <>
-                                          <div style={{ padding: '6px 12px', color: 'var(--color-text-muted)', fontSize: '11px', borderBottom: '1px solid var(--color-border)' }}>
-                                            SUPPLIES
-                                          </div>
-                                          {supplyItems.map(mi => (
-                                            <div
-                                              key={mi.id}
-                                              onClick={() => handleSelectPurchaseItem(index, mi)}
-                                              style={{
-                                                padding: '8px 12px',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid var(--color-border)',
-                                                color: 'var(--color-text-muted)'
-                                              }}
-                                              onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
-                                              onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                            >
-                                              {mi.name} <span style={{ fontSize: '10px' }}>(supply)</span>
-                                            </div>
-                                          ))}
-                                        </>
-                                      )}
-                                      {/* Create new option */}
-                                      <div
-                                        onClick={() => openQuickCreateModal(index, searchQuery)}
-                                        style={{
-                                          padding: '8px 12px',
-                                          cursor: 'pointer',
-                                          color: 'var(--color-text-muted)',
-                                          borderTop: hasResults ? '1px solid var(--color-border)' : 'none'
-                                        }}
-                                        onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
-                                        onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                      >
-                                        + Create "{searchQuery || 'new item'}"
-                                      </div>
-                                      {/* Use without linking */}
-                                      {searchQuery && (
-                                        <div
-                                          onClick={() => {
-                                            handlePurchaseItemChange(index, 'itemName', searchQuery);
-                                            setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
-                                            setPurchaseItemDropdownOpen(null);
-                                          }}
-                                          style={{
-                                            padding: '8px 12px',
-                                            cursor: 'pointer',
-                                            color: 'var(--color-text-muted)',
-                                            fontSize: '12px'
-                                          }}
-                                          onMouseEnter={(e) => e.target.style.background = 'var(--color-border)'}
-                                          onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                                        >
-                                          Use "{searchQuery}" without linking
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {/* Show unlinked item name if set */}
-                        {!item.menuItemId && item.itemName && (
-                          <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--color-warning)' }}>
-                            ⚠ Not linked: {item.itemName}
-                          </div>
-                        )}
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
-                        <label>Qty</label>
-                        <input
-                          type="number"
-                          className="input"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handlePurchaseItemChange(index, 'quantity', e.target.value)}
-                          placeholder="12"
-                          required
-                        />
-                        {purchaseItemHints[index]?.lastQty && (
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', marginTop: '2px' }}>
-                            Last: {purchaseItemHints[index].lastQty}
-                          </div>
-                        )}
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '80px', marginBottom: 0 }}>
-                        <label>Line Total</label>
-                        <input
-                          type="number"
-                          className="input"
-                          step="0.01"
-                          min="0"
-                          value={item.lineTotal}
-                          onChange={(e) => handlePurchaseItemChange(index, 'lineTotal', e.target.value)}
-                          placeholder="5.99"
-                          required
-                        />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
-                        <label>CRV/ea</label>
-                        <input
-                          type="number"
-                          className="input"
-                          step="0.01"
-                          min="0"
-                          value={item.crvPerUnit}
-                          onChange={(e) => handlePurchaseItemChange(index, 'crvPerUnit', e.target.value)}
-                          placeholder="0.05"
-                        />
-                        {item.crvPerUnit && item.quantity && (
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', marginTop: '2px' }}>
-                            Total: {formatCurrency((parseFloat(item.crvPerUnit) || 0) * (parseInt(item.quantity) || 0))}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}>
-                        <button
-                          type="button"
-                          className="btn btn-small"
-                          onClick={() => duplicatePurchaseItem(index)}
-                          title="Duplicate row"
-                          style={{ padding: '6px 10px' }}
-                        >
-                          ⊕
-                        </button>
-                        {purchaseFormData.items.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn btn-danger btn-small"
-                            onClick={() => removePurchaseItem(index)}
-                            style={{ padding: '6px 10px' }}
-                          >
-                            X
-                          </button>
-                        )}
-                      </div>
-                      {confirmedRows.has(index) && (
-                        <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginLeft: 'auto' }}>
-                          ✓ Confirmed
-                        </span>
-                      )}
-                    </div>
+                {/* Line Items Header with Quick Add */}
+                <div className="purchase-toolbar">
+                  <h4 style={{ color: 'var(--color-text-muted)', margin: 0 }}>Line Items</h4>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {purchaseTemplates.length > 0 && (
+                      <select
+                        className="quick-add-select"
+                        value=""
+                        onChange={(e) => handleQuickAddTemplate(e.target.value)}
+                      >
+                        <option value="">Quick Add Template...</option>
+                        {purchaseTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.item_count} items)</option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => setShowCreateTemplateModal(true)}
+                      title="Save current items as template"
+                    >
+                      Save Template
+                    </button>
                   </div>
-                ))}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginBottom: '8px' }}>
+                  <strong>Keyboard:</strong> ↑↓ navigate rows • Enter confirms row • Esc unlocks row • Tab between fields
+                </div>
+
+                {/* Spreadsheet Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="purchase-spreadsheet">
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th style={{ textAlign: 'center' }}>Qty</th>
+                        <th style={{ textAlign: 'right' }}>Line $</th>
+                        <th style={{ textAlign: 'right' }}>CRV/ea</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
+                        <th style={{ textAlign: 'center' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {purchaseFormData.items.map((item, index) => {
+                        const rowTotal = (parseFloat(item.lineTotal) || 0) + ((parseFloat(item.crvPerUnit) || 0) * (parseInt(item.quantity) || 0));
+                        return (
+                          <tr
+                            key={index}
+                            ref={el => purchaseRowRefs.current[index] = el}
+                            tabIndex={0}
+                            onKeyDown={(e) => handlePurchaseKeyDown(e, index)}
+                            onFocus={() => setFocusedRowIndex(index)}
+                            className={`${focusedRowIndex === index ? 'focused-row' : ''} ${confirmedRows.has(index) ? 'confirmed-row' : ''}`}
+                          >
+                            {/* Item Cell */}
+                            <td className="item-cell">
+                              {item.menuItemId ? (
+                                <div className="purchase-item-selected">
+                                  <span>{item.itemName || getAllPurchaseItems().all.find(m => m.id === parseInt(item.menuItemId))?.name}</span>
+                                  <button type="button" onClick={() => handleClearPurchaseItemLink(index)}>✕</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <input
+                                    type="text"
+                                    className="spreadsheet-input"
+                                    value={purchaseItemSearchQueries[index] || ''}
+                                    onChange={(e) => {
+                                      setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: e.target.value }));
+                                      setPurchaseItemDropdownOpen(index);
+                                    }}
+                                    onFocus={() => setPurchaseItemDropdownOpen(index)}
+                                    placeholder="Search item..."
+                                  />
+                                  {purchaseItemDropdownOpen === index && (
+                                    <div className="purchase-item-dropdown">
+                                      {(() => {
+                                        const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
+                                        const hasResults = sellableItems.length > 0 || supplyItems.length > 0;
+                                        const searchQuery = purchaseItemSearchQueries[index] || '';
+                                        return (
+                                          <>
+                                            {sellableItems.length > 0 && (
+                                              <>
+                                                <div className="purchase-item-dropdown-header">MENU ITEMS</div>
+                                                {sellableItems.map(mi => (
+                                                  <div key={mi.id} className="purchase-item-dropdown-option" onClick={() => handleSelectPurchaseItem(index, mi)}>
+                                                    {mi.name}
+                                                  </div>
+                                                ))}
+                                              </>
+                                            )}
+                                            {supplyItems.length > 0 && (
+                                              <>
+                                                <div className="purchase-item-dropdown-header">SUPPLIES</div>
+                                                {supplyItems.map(mi => (
+                                                  <div key={mi.id} className="purchase-item-dropdown-option" onClick={() => handleSelectPurchaseItem(index, mi)} style={{ color: 'var(--color-text-muted)' }}>
+                                                    {mi.name} <span style={{ fontSize: '10px' }}>(supply)</span>
+                                                  </div>
+                                                ))}
+                                              </>
+                                            )}
+                                            <div className="purchase-item-dropdown-option" onClick={() => openQuickCreateModal(index, searchQuery)}>
+                                              + Create "{searchQuery || 'new item'}"
+                                            </div>
+                                            {searchQuery && (
+                                              <div className="purchase-item-dropdown-option" onClick={() => {
+                                                handlePurchaseItemChange(index, 'itemName', searchQuery);
+                                                setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
+                                                setPurchaseItemDropdownOpen(null);
+                                              }} style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                                                Use "{searchQuery}" without linking
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {!item.menuItemId && item.itemName && (
+                                <div className="purchase-unlinked-warning">⚠ {item.itemName}</div>
+                              )}
+                            </td>
+
+                            {/* Qty Cell */}
+                            <td className="qty-cell">
+                              <input
+                                type="number"
+                                className="spreadsheet-input"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handlePurchaseItemChange(index, 'quantity', e.target.value)}
+                                placeholder="0"
+                                style={{ textAlign: 'center' }}
+                              />
+                              {purchaseItemHints[index]?.lastQty && (
+                                <span className="purchase-hint">L:{purchaseItemHints[index].lastQty}</span>
+                              )}
+                            </td>
+
+                            {/* Line Total Cell */}
+                            <td className="currency-cell">
+                              <input
+                                type="number"
+                                className="spreadsheet-input"
+                                step="0.01"
+                                min="0"
+                                value={item.lineTotal}
+                                onChange={(e) => handlePurchaseItemChange(index, 'lineTotal', e.target.value)}
+                                placeholder="0.00"
+                              />
+                            </td>
+
+                            {/* CRV Cell */}
+                            <td className="currency-cell">
+                              <input
+                                type="number"
+                                className="spreadsheet-input"
+                                step="0.01"
+                                min="0"
+                                value={item.crvPerUnit}
+                                onChange={(e) => handlePurchaseItemChange(index, 'crvPerUnit', e.target.value)}
+                                placeholder="0.00"
+                              />
+                            </td>
+
+                            {/* Total Cell (readonly) */}
+                            <td className="total-cell">
+                              {formatCurrency(rowTotal)}
+                            </td>
+
+                            {/* Actions Cell */}
+                            <td className="actions-cell">
+                              <button type="button" className="btn btn-small" onClick={() => duplicatePurchaseItem(index)} title="Duplicate">⊕</button>
+                              {purchaseFormData.items.length > 1 && (
+                                <button type="button" className="btn btn-danger btn-small" onClick={() => removePurchaseItem(index)}>X</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
                 <button
                   type="button"
@@ -3542,8 +3636,34 @@ function CashBoxAdmin() {
                   onClick={addPurchaseItem}
                   style={{ marginBottom: '16px' }}
                 >
-                  + Add Item
+                  + Add Row
                 </button>
+
+                {/* Create Template Modal */}
+                {showCreateTemplateModal && (
+                  <div className="modal-overlay" onClick={() => setShowCreateTemplateModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                      <h3 style={{ marginBottom: '16px' }}>Save as Template</h3>
+                      <div className="form-group">
+                        <label>Template Name</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={newTemplateName}
+                          onChange={(e) => setNewTemplateName(e.target.value)}
+                          placeholder="e.g., Condiments Restock"
+                        />
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+                        This will save {purchaseFormData.items.filter(i => i.menuItemId || i.itemName).length} items as a reusable template.
+                      </p>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button type="button" className="btn" onClick={() => setShowCreateTemplateModal(false)}>Cancel</button>
+                        <button type="button" className="btn btn-primary" onClick={handleSaveAsTemplate}>Save Template</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Overhead Costs</h4>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
@@ -3858,6 +3978,26 @@ function CashBoxAdmin() {
                   </div>
                 </div>
 
+                {/* Price field - required for sellable items */}
+                {!quickCreateData.isSupply && (
+                  <div className="form-group">
+                    <label>Selling Price *</label>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={quickCreateData.price}
+                      onChange={(e) => setQuickCreateData(prev => ({ ...prev, price: e.target.value }))}
+                      placeholder="2.00"
+                      required
+                    />
+                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                      The price customers pay for this item
+                    </small>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label>Unit Cost (optional)</label>
                   <input
@@ -3871,6 +4011,24 @@ function CashBoxAdmin() {
                   />
                   <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
                     Default cost per unit (can be overridden by purchase)
+                  </small>
+                </div>
+
+                {/* Component linking - add as component of existing item */}
+                <div className="form-group">
+                  <label>Add as Component of (optional)</label>
+                  <select
+                    className="input"
+                    value={quickCreateData.componentOf}
+                    onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentOf: e.target.value }))}
+                  >
+                    <option value="">-- None (standalone item) --</option>
+                    {menuItems.filter(m => m.price !== null && !m.is_supply).map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                    Link this item as an ingredient/component of another menu item
                   </small>
                 </div>
 
@@ -3979,6 +4137,8 @@ function CashBoxAdmin() {
               onOpenAdjustment={handleOpenAdjustment}
               onRefresh={refreshInventoryData}
               isRefreshing={refreshingInventory}
+              onMarkUsage={handleMarkUsage}
+              onToggleLiquid={handleToggleLiquid}
             />
           )}
 

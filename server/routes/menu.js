@@ -719,7 +719,7 @@ router.get('/:id/components', (req, res) => {
 // PUT /api/menu/:id/components - Set components for a composite menu item
 router.put('/:id/components', (req, res) => {
   const { id } = req.params;
-  const { components } = req.body; // Array of { componentItemId, quantity }
+  const { components, append } = req.body; // Array of { componentItemId, quantity }, append=true to add to existing
 
   if (!Array.isArray(components)) {
     return res.status(400).json({ error: 'Components must be an array' });
@@ -736,19 +736,17 @@ router.put('/:id/components', (req, res) => {
       return res.status(404).json({ error: 'Menu item not found' });
     }
 
-    // Delete existing components
-    db.run('DELETE FROM menu_item_components WHERE menu_item_id = ?', [id], (err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Failed to clear existing components' });
+    const insertComponents = () => {
+      if (components.length === 0 && !append) {
+        return res.json({ success: true, message: 'Components cleared' });
+      }
+
+      if (components.length === 0) {
+        return res.json({ success: true, message: 'No components to add' });
       }
 
       // Update is_composite flag
-      const isComposite = components.length > 0 ? 1 : 0;
-      db.run('UPDATE menu_items SET is_composite = ? WHERE id = ?', [isComposite, id]);
-
-      if (components.length === 0) {
-        return res.json({ success: true, message: 'Components cleared' });
-      }
+      db.run('UPDATE menu_items SET is_composite = 1 WHERE id = ?', [id]);
 
       // Insert new components
       const stmt = db.prepare(
@@ -771,13 +769,32 @@ router.put('/:id/components', (req, res) => {
               if (errors.length > 0) {
                 res.status(400).json({ error: errors.join(', '), inserted });
               } else {
-                res.json({ success: true, inserted });
+                res.json({ success: true, inserted, appended: !!append });
               }
             });
           }
         });
       });
-    });
+    };
+
+    // If append mode, don't delete existing components
+    if (append) {
+      insertComponents();
+    } else {
+      // Delete existing components first
+      db.run('DELETE FROM menu_item_components WHERE menu_item_id = ?', [id], (err) => {
+        if (err) {
+          return res.status(500).json({ error: 'Failed to clear existing components' });
+        }
+
+        // Update is_composite flag (clear if no components)
+        if (components.length === 0) {
+          db.run('UPDATE menu_items SET is_composite = 0 WHERE id = ?', [id]);
+        }
+
+        insertComponents();
+      });
+    }
   });
 });
 
