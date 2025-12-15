@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
-import { HOUR_TYPES } from '../utils/hourTypes';
+import { HOUR_TYPES, getHourTypeLabel } from '../utils/hourTypes';
 import { useAuth } from '../contexts';
 
 // Helper to get date string in local timezone (YYYY-MM-DD format)
@@ -8,32 +8,46 @@ const getLocalDateString = (date = new Date()) => {
   return date.toLocaleDateString('en-CA'); // en-CA uses YYYY-MM-DD format
 };
 
+// Format date for display
+const formatDateDisplay = (dateStr) => {
+  const date = new Date(dateStr + 'T00:00:00');
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// Format time for display
+const formatTime = (timeStr) => {
+  return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
+
+// Calculate duration between two times
+const calculateDuration = (timeIn, timeOut) => {
+  if (!timeIn || !timeOut || timeOut <= timeIn) return null;
+  const [inH, inM] = timeIn.split(':').map(Number);
+  const [outH, outM] = timeOut.split(':').map(Number);
+  const mins = (outH * 60 + outM) - (inH * 60 + inM);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${m}m`;
+};
+
 function LogHours() {
   const { user } = useAuth();
-  const [mode, setMode] = useState('today'); // 'today' or 'past'
-  const [selectedDate, setSelectedDate] = useState('');
-  const [timeIn, setTimeIn] = useState('');
-  const [timeOut, setTimeOut] = useState('');
-  const [item, setItem] = useState('');
-  const [hourType, setHourType] = useState('other');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [hours, setHours] = useState([]);
+  const [expandedDate, setExpandedDate] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [spreadsheetRows, setSpreadsheetRows] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [hours, setHours] = useState([]);
+  const [deleteLoading, setDeleteLoading] = useState(null);
 
   useEffect(() => {
     fetchHours();
   }, []);
-
-  // Set today's date when mode changes to 'today'
-  useEffect(() => {
-    if (mode === 'today') {
-      setSelectedDate(getLocalDateString());
-    } else {
-      setSelectedDate('');
-    }
-  }, [mode]);
 
   const fetchHours = async () => {
     try {
@@ -56,13 +70,12 @@ function LogHours() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
-  const getHoursForDate = (date) => {
-    const dateStr = getLocalDateString(date);
+  const getHoursForDate = (dateStr) => {
     return hours.filter(entry => entry.date === dateStr);
   };
 
-  const hasHoursOnDate = (date) => {
-    return getHoursForDate(date).length > 0;
+  const hasHoursOnDate = (dateStr) => {
+    return getHoursForDate(dateStr).length > 0;
   };
 
   const navigateMonth = (direction) => {
@@ -75,72 +88,145 @@ function LogHours() {
 
   const handleDateClick = (day) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    setSelectedDate(getLocalDateString(date));
+    const dateStr = getLocalDateString(date);
+
+    // Toggle expanded view for dates with hours
+    if (hasHoursOnDate(dateStr)) {
+      if (expandedDate === dateStr) {
+        setExpandedDate(null);
+        setEditMode(false);
+      } else {
+        setExpandedDate(dateStr);
+        setEditMode(false);
+      }
+    } else {
+      setExpandedDate(null);
+      setEditMode(false);
+    }
+
+    // Add row to spreadsheet (check if date already exists)
+    const existingRow = spreadsheetRows.find(row => row.date === dateStr);
+    if (!existingRow) {
+      const newRow = {
+        id: Date.now(),
+        date: dateStr,
+        type: 'other',
+        item: '',
+        timeIn: '',
+        timeOut: ''
+      };
+
+      // Add and sort by date
+      setSpreadsheetRows(prev => {
+        const updated = [...prev, newRow];
+        return updated.sort((a, b) => a.date.localeCompare(b.date));
+      });
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleRowChange = (rowId, field, value) => {
+    setSpreadsheetRows(prev =>
+      prev.map(row => row.id === rowId ? { ...row, [field]: value } : row)
+    );
+  };
+
+  const handleRemoveRow = (rowId) => {
+    setSpreadsheetRows(prev => prev.filter(row => row.id !== rowId));
+  };
+
+  const handleClearAll = () => {
+    setSpreadsheetRows([]);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleDeleteHour = async (hourId) => {
+    if (!window.confirm('Are you sure you want to delete this entry?')) return;
+
+    setDeleteLoading(hourId);
+    try {
+      const response = await fetch(`/api/hours/${hourId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await fetchHours();
+        // Check if expanded date still has hours
+        if (expandedDate && !getHoursForDate(expandedDate).length) {
+          setExpandedDate(null);
+          setEditMode(false);
+        }
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete entry');
+      }
+    } catch (err) {
+      setError('Failed to delete entry');
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  const validateRow = (row) => {
+    if (!row.timeIn || !row.timeOut) return false;
+    if (row.timeOut <= row.timeIn) return false;
+    return true;
+  };
+
+  const handleSaveAll = async () => {
     setError('');
     setSuccess('');
 
-    if (!selectedDate) {
-      setError('Please select a date');
-      return;
-    }
+    // Filter valid rows
+    const validRows = spreadsheetRows.filter(validateRow);
 
-    if (!timeIn || !timeOut) {
-      setError('Please enter both time in and time out');
-      return;
-    }
-
-    if (timeOut <= timeIn) {
-      setError('Time out must be after time in');
+    if (validRows.length === 0) {
+      setError('No valid entries to save. Each row needs Time In and Time Out.');
       return;
     }
 
     setLoading(true);
+    let successCount = 0;
+    let errors = [];
 
-    try {
-      const response = await fetch('/api/hours', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId: user.studentId,
-          date: selectedDate,
-          timeIn,
-          timeOut,
-          item,
-          hourType,
-        }),
-      });
+    for (const row of validRows) {
+      try {
+        const response = await fetch('/api/hours', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: user.studentId,
+            date: row.date,
+            timeIn: row.timeIn,
+            timeOut: row.timeOut,
+            item: row.item,
+            hourType: row.type
+          })
+        });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to log hours');
+        if (response.ok) {
+          successCount++;
+        } else {
+          const data = await response.json();
+          errors.push(`${formatDateDisplay(row.date)}: ${data.error}`);
+        }
+      } catch (err) {
+        errors.push(`${formatDateDisplay(row.date)}: Network error`);
       }
-
-      setSuccess('Hours logged successfully!');
-      setTimeIn('');
-      setTimeOut('');
-      setItem('');
-      setHourType('other');
-      fetchHours();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
 
-  const calculateDuration = () => {
-    if (!timeIn || !timeOut || timeOut <= timeIn) return null;
-    const [inH, inM] = timeIn.split(':').map(Number);
-    const [outH, outM] = timeOut.split(':').map(Number);
-    const mins = (outH * 60 + outM) - (inH * 60 + inM);
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h}h ${m}m`;
+    setLoading(false);
+
+    if (successCount > 0) {
+      setSuccess(`Successfully saved ${successCount} ${successCount === 1 ? 'entry' : 'entries'}!`);
+      // Remove successfully saved rows
+      setSpreadsheetRows(prev => prev.filter(row => !validateRow(row)));
+      fetchHours();
+    }
+
+    if (errors.length > 0) {
+      setError(errors.join('\n'));
+    }
   };
 
   const renderCalendar = () => {
@@ -149,6 +235,7 @@ function LogHours() {
     const days = [];
     const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
     const today = new Date();
+    const todayStr = getLocalDateString(today);
 
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
@@ -157,16 +244,17 @@ function LogHours() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const dateStr = getLocalDateString(date);
-      const isToday = date.toDateString() === today.toDateString();
-      const isSelected = dateStr === selectedDate;
-      const hasHours = hasHoursOnDate(date);
+      const isToday = dateStr === todayStr;
+      const isExpanded = dateStr === expandedDate;
+      const hasHours = hasHoursOnDate(dateStr);
       const isFuture = date > today;
+      const isInSpreadsheet = spreadsheetRows.some(row => row.date === dateStr);
 
       days.push(
         <button
           key={day}
           type="button"
-          className={`calendar-day clickable ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${hasHours ? 'has-hours' : ''} ${isFuture ? 'future' : ''}`}
+          className={`calendar-day clickable ${isToday ? 'today' : ''} ${isExpanded ? 'selected' : ''} ${hasHours ? 'has-hours' : ''} ${isFuture ? 'future' : ''} ${isInSpreadsheet ? 'in-spreadsheet' : ''}`}
           onClick={() => !isFuture && handleDateClick(day)}
           disabled={isFuture}
         >
@@ -178,11 +266,11 @@ function LogHours() {
     return (
       <div className="calendar-container">
         <div className="calendar-header">
-          <button type="button" className="btn" onClick={() => navigateMonth(-1)}>&lt;</button>
-          <h3 style={{ margin: 0, color: 'var(--color-primary)', fontSize: '16px' }}>
+          <button type="button" className="btn btn-sm" onClick={() => navigateMonth(-1)}>&lt;</button>
+          <h3 className="calendar-month-title">
             {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </h3>
-          <button type="button" className="btn" onClick={() => navigateMonth(1)}>&gt;</button>
+          <button type="button" className="btn btn-sm" onClick={() => navigateMonth(1)}>&gt;</button>
         </div>
         <div className="calendar-grid compact">
           {dayNames.map(name => (
@@ -194,254 +282,202 @@ function LogHours() {
     );
   };
 
-  const duration = calculateDuration();
-  const todayStr = getLocalDateString();
-  const todayHours = hours.filter(h => h.date === todayStr);
+  const renderExpandedHours = () => {
+    if (!expandedDate) return null;
+
+    const dateHours = getHoursForDate(expandedDate);
+    if (dateHours.length === 0) return null;
+
+    const displayDate = new Date(expandedDate + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    return (
+      <div className="expanded-hours">
+        <div className="expanded-hours-header">
+          <h4>{displayDate}</h4>
+          <button
+            type="button"
+            className={`btn btn-sm ${editMode ? 'btn-primary' : ''}`}
+            onClick={() => setEditMode(!editMode)}
+          >
+            {editMode ? 'Done' : 'Edit'}
+          </button>
+        </div>
+        <div className="expanded-hours-list">
+          {dateHours.map(entry => (
+            <div key={entry.id} className="expanded-hour-entry">
+              <div className="entry-info">
+                <span className="entry-time">
+                  {formatTime(entry.time_in)} - {formatTime(entry.time_out)}
+                </span>
+                <span className="entry-type">{getHourTypeLabel(entry.hour_type)}</span>
+                {entry.item && <span className="entry-item">{entry.item}</span>}
+                <span className="entry-duration">{calculateDuration(entry.time_in, entry.time_out)}</span>
+              </div>
+              {editMode && (
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={() => handleDeleteHour(entry.id)}
+                  disabled={deleteLoading === entry.id}
+                >
+                  {deleteLoading === entry.id ? '...' : 'X'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSpreadsheet = () => {
+    return (
+      <div className="spreadsheet-section">
+        <div className="spreadsheet-header">
+          <h2>Add Hours</h2>
+          <p className="spreadsheet-hint">Click dates on the calendar to add rows</p>
+        </div>
+
+        {spreadsheetRows.length === 0 ? (
+          <div className="spreadsheet-empty">
+            <p>No dates selected. Click on calendar dates to add entries.</p>
+          </div>
+        ) : (
+          <div className="spreadsheet-wrapper">
+            <table className="hours-spreadsheet">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Activity</th>
+                  <th>Time In</th>
+                  <th>Time Out</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {spreadsheetRows.map(row => {
+                  const isValid = validateRow(row);
+                  const duration = calculateDuration(row.timeIn, row.timeOut);
+
+                  return (
+                    <tr key={row.id} className={!isValid && (row.timeIn || row.timeOut) ? 'invalid-row' : ''}>
+                      <td className="date-cell">
+                        {formatDateDisplay(row.date)}
+                      </td>
+                      <td>
+                        <select
+                          value={row.type}
+                          onChange={(e) => handleRowChange(row.id, 'type', e.target.value)}
+                          className="spreadsheet-select"
+                        >
+                          {HOUR_TYPES.map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={row.item}
+                          onChange={(e) => handleRowChange(row.id, 'item', e.target.value)}
+                          placeholder="Activity..."
+                          className="spreadsheet-input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="time"
+                          value={row.timeIn}
+                          onChange={(e) => handleRowChange(row.id, 'timeIn', e.target.value)}
+                          className="spreadsheet-input time-input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="time"
+                          value={row.timeOut}
+                          onChange={(e) => handleRowChange(row.id, 'timeOut', e.target.value)}
+                          className="spreadsheet-input time-input"
+                        />
+                        {duration && <span className="row-duration">{duration}</span>}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-remove-row"
+                          onClick={() => handleRemoveRow(row.id)}
+                          title="Remove row"
+                        >
+                          X
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {spreadsheetRows.length > 0 && (
+          <div className="spreadsheet-actions">
+            <button
+              type="button"
+              className="btn"
+              onClick={handleClearAll}
+              disabled={loading}
+            >
+              Clear All
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSaveAll}
+              disabled={loading || spreadsheetRows.every(row => !validateRow(row))}
+            >
+              {loading ? 'Saving...' : `Save All Hours (${spreadsheetRows.filter(validateRow).length})`}
+            </button>
+          </div>
+        )}
+
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>}
+      </div>
+    );
+  };
 
   return (
     <div>
       <Navbar />
-      <div className="container-narrow">
+      <div className="container">
         <h1 className="page-title">Log Hours</h1>
 
-        {/* Mode Toggle */}
-        <div className="view-toggle" style={{ marginBottom: '24px' }}>
-          <button
-            className={`toggle-btn ${mode === 'today' ? 'active' : ''}`}
-            onClick={() => setMode('today')}
-          >
-            Today
-          </button>
-          <button
-            className={`toggle-btn ${mode === 'past' ? 'active' : ''}`}
-            onClick={() => setMode('past')}
-          >
-            Past Hours
-          </button>
-        </div>
-
-        {mode === 'today' ? (
-          /* Today Mode - Simplified */
-          <div className="card" style={{ maxWidth: '500px' }}>
-            <div className="today-header">
-              <h2>
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </h2>
-              <span className="today-badge">Today</span>
-            </div>
-
-            {todayHours.length > 0 && (
-              <div className="logged-entries" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none', marginBottom: '16px' }}>
-                <h3 style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '8px' }}>
-                  Already logged today:
-                </h3>
-                {todayHours.map(entry => (
-                  <div key={entry.id} className="logged-entry">
-                    <span>{entry.item || 'No activity'}</span>
-                    <span>
-                      {new Date(`2000-01-01T${entry.time_in}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      {' - '}
-                      {new Date(`2000-01-01T${entry.time_out}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label htmlFor="hourType">Type</label>
-                <select
-                  id="hourType"
-                  className="input"
-                  value={hourType}
-                  onChange={(e) => setHourType(e.target.value)}
-                  required
-                >
-                  {HOUR_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="item">Activity / Item (optional)</label>
-                <input
-                  type="text"
-                  id="item"
-                  className="input"
-                  value={item}
-                  onChange={(e) => setItem(e.target.value)}
-                  placeholder="e.g., Concession Stand, Event Setup"
-                />
-              </div>
-
-              <div className="time-inputs">
-                <div className="form-group">
-                  <label htmlFor="timeIn">Time In</label>
-                  <input
-                    type="time"
-                    id="timeIn"
-                    className="input"
-                    value={timeIn}
-                    onChange={(e) => setTimeIn(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="timeOut">Time Out</label>
-                  <input
-                    type="time"
-                    id="timeOut"
-                    className="input"
-                    value={timeOut}
-                    onChange={(e) => setTimeOut(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {duration && (
-                <div className="duration-preview">
-                  Duration: <strong>{duration}</strong>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%' }}
-                disabled={loading}
-              >
-                {loading ? 'Submitting...' : 'Log Hours'}
-              </button>
-
-              {error && <div className="error-message">{error}</div>}
-              {success && <div className="success-message">{success}</div>}
-            </form>
-          </div>
-        ) : (
-          /* Past Mode - Calendar based */
-          <div className="log-hours-layout">
+        <div className="log-hours-layout-v2">
+          {/* Left: Calendar */}
+          <div className="calendar-panel">
             <div className="card">
               {renderCalendar()}
               <div className="calendar-legend">
                 <span><span className="legend-dot today"></span> Today</span>
                 <span><span className="legend-dot has-hours"></span> Has Hours</span>
-                <span><span className="legend-dot selected"></span> Selected</span>
+                <span><span className="legend-dot in-spreadsheet"></span> Selected</span>
               </div>
-            </div>
-
-            <div className="card">
-              <h2 style={{ color: 'var(--color-primary)', marginBottom: '16px', fontSize: '18px' }}>
-                {selectedDate
-                  ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })
-                  : 'Select a date from the calendar'}
-              </h2>
-
-              {selectedDate && (
-                <form onSubmit={handleSubmit}>
-                  <div className="form-group">
-                    <label htmlFor="hourType-past">Type</label>
-                    <select
-                      id="hourType-past"
-                      className="input"
-                      value={hourType}
-                      onChange={(e) => setHourType(e.target.value)}
-                      required
-                    >
-                      {HOUR_TYPES.map(type => (
-                        <option key={type.value} value={type.value}>{type.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="item-past">Activity / Item (optional)</label>
-                    <input
-                      type="text"
-                      id="item-past"
-                      className="input"
-                      value={item}
-                      onChange={(e) => setItem(e.target.value)}
-                      placeholder="e.g., Concession Stand, Event Setup"
-                    />
-                  </div>
-
-                  <div className="time-inputs">
-                    <div className="form-group">
-                      <label htmlFor="timeIn-past">Time In</label>
-                      <input
-                        type="time"
-                        id="timeIn-past"
-                        className="input"
-                        value={timeIn}
-                        onChange={(e) => setTimeIn(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label htmlFor="timeOut-past">Time Out</label>
-                      <input
-                        type="time"
-                        id="timeOut-past"
-                        className="input"
-                        value={timeOut}
-                        onChange={(e) => setTimeOut(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {duration && (
-                    <div className="duration-preview">
-                      Duration: <strong>{duration}</strong>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    style={{ width: '100%' }}
-                    disabled={loading}
-                  >
-                    {loading ? 'Submitting...' : 'Log Hours'}
-                  </button>
-
-                  {error && <div className="error-message">{error}</div>}
-                  {success && <div className="success-message">{success}</div>}
-                </form>
-              )}
-
-              {selectedDate && getHoursForDate(new Date(selectedDate + 'T00:00:00')).length > 0 && (
-                <div className="logged-entries">
-                  <h3 style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginBottom: '8px' }}>
-                    Already logged for this day:
-                  </h3>
-                  {getHoursForDate(new Date(selectedDate + 'T00:00:00')).map(entry => (
-                    <div key={entry.id} className="logged-entry">
-                      <span>{entry.item || 'No activity'}</span>
-                      <span>
-                        {new Date(`2000-01-01T${entry.time_in}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        {' - '}
-                        {new Date(`2000-01-01T${entry.time_out}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {renderExpandedHours()}
             </div>
           </div>
-        )}
+
+          {/* Right: Spreadsheet */}
+          <div className="spreadsheet-panel">
+            <div className="card">
+              {renderSpreadsheet()}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

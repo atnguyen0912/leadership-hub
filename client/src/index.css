@@ -1703,6 +1703,286 @@ td {
   background: var(--color-bg-input);
 }
 
+/* ==================== LOG HOURS V2 LAYOUT ==================== */
+.log-hours-layout-v2 {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: var(--spacing-lg);
+  align-items: start;
+}
+
+.calendar-panel {
+  position: sticky;
+  top: 80px;
+}
+
+.spreadsheet-panel {
+  min-width: 0;
+}
+
+/* Calendar month title */
+.calendar-month-title {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 16px;
+  text-align: center;
+}
+
+/* Soft glow effect for dates with hours */
+.calendar-day.has-hours {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.4),
+              0 0 30px rgba(34, 197, 94, 0.2),
+              inset 0 0 10px rgba(34, 197, 94, 0.1);
+  animation: softPulse 3s ease-in-out infinite;
+}
+
+@keyframes softPulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(34, 197, 94, 0.4),
+                0 0 30px rgba(34, 197, 94, 0.2),
+                inset 0 0 10px rgba(34, 197, 94, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.5),
+                0 0 40px rgba(34, 197, 94, 0.3),
+                inset 0 0 15px rgba(34, 197, 94, 0.15);
+  }
+}
+
+/* Date in spreadsheet indicator */
+.calendar-day.in-spreadsheet {
+  border: 2px solid var(--color-primary);
+}
+
+.legend-dot.in-spreadsheet {
+  border: 2px solid var(--color-primary);
+  background: transparent;
+}
+
+/* Expanded hours section */
+.expanded-hours {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: var(--border-subtle);
+}
+
+.expanded-hours-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.expanded-hours-header h4 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: var(--font-size-md);
+}
+
+.expanded-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.expanded-hour-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-input);
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+}
+
+.expanded-hour-entry:hover {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.entry-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.entry-time {
+  color: var(--color-primary-light);
+  font-weight: 500;
+}
+
+.entry-type {
+  color: var(--color-primary-muted);
+  font-size: var(--font-size-xs);
+  background: rgba(34, 197, 94, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.entry-item {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.entry-duration {
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+/* Spreadsheet styles */
+.spreadsheet-section {
+  min-height: 300px;
+}
+
+.spreadsheet-header {
+  margin-bottom: var(--spacing-md);
+}
+
+.spreadsheet-header h2 {
+  color: var(--color-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: var(--font-size-lg);
+}
+
+.spreadsheet-hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.spreadsheet-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: var(--color-bg-input);
+  border-radius: var(--border-radius);
+  border: 2px dashed var(--color-border);
+}
+
+.spreadsheet-empty p {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.spreadsheet-wrapper {
+  overflow-x: auto;
+  margin-bottom: var(--spacing-md);
+}
+
+.hours-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-bg-card);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.hours-spreadsheet th {
+  background: var(--color-bg-card-solid);
+  color: var(--color-primary-muted);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: var(--border-subtle);
+}
+
+.hours-spreadsheet td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid rgba(34, 197, 94, 0.1);
+  vertical-align: middle;
+}
+
+.hours-spreadsheet tr:last-child td {
+  border-bottom: none;
+}
+
+.hours-spreadsheet tr.invalid-row td {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.date-cell {
+  font-weight: 500;
+  color: var(--color-primary-light);
+  white-space: nowrap;
+}
+
+.spreadsheet-select,
+.spreadsheet-input {
+  width: 100%;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  transition: all 0.2s ease;
+}
+
+.spreadsheet-select:focus,
+.spreadsheet-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.time-input {
+  width: 110px;
+}
+
+.row-duration {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  margin-top: 2px;
+}
+
+.btn-remove-row {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--border-radius-sm);
+  transition: all 0.2s ease;
+  font-size: var(--font-size-sm);
+}
+
+.btn-remove-row:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.spreadsheet-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: var(--border-subtle);
+}
+
+/* Small button variant */
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* Danger button */
+.btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
 /* ==================== CASHBOX STYLES ==================== */
 .cashbox-totals {
   display: grid;
@@ -2805,6 +3085,41 @@ textarea.input {
   /* Log hours layout */
   .log-hours-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* Log hours v2 layout mobile */
+  .log-hours-layout-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-panel {
+    position: static;
+  }
+
+  .spreadsheet-wrapper {
+    overflow-x: auto;
+  }
+
+  .hours-spreadsheet {
+    min-width: 550px;
+  }
+
+  .time-input {
+    width: 100px;
+  }
+
+  .spreadsheet-actions {
+    flex-direction: column;
+  }
+
+  .spreadsheet-actions .btn {
+    width: 100%;
+  }
+
+  .entry-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
   }
 
   /* POS Mobile */
