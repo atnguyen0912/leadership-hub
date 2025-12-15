@@ -728,8 +728,8 @@ const initialize = () => {
                 },
                 {
                   name: 'Member',
-                  description: 'Standard student member - can log hours, view events, and use concessions POS',
-                  permissions: ['hours.log_own', 'hours.view_own', 'events.view', 'sessions.view', 'sessions.run']
+                  description: 'Standard student member - can log hours and use concessions POS',
+                  permissions: ['hours.log_own', 'hours.view_own', 'sessions.view', 'sessions.run']
                 }
               ];
 

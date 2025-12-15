@@ -71,10 +71,12 @@ function StudentDashboard() {
             <span className="action-icon">📊</span>
             <span className="action-label">My Hours</span>
           </Link>
+          {/* Events hidden - not currently in use
           <Link to="/events" className="action-card">
             <span className="action-icon">📅</span>
             <span className="action-label">Events</span>
           </Link>
+          */}
           <Link to="/cashbox" className="action-card">
             <span className="action-icon">🍿</span>
             <span className="action-label">Concessions</span>

@@ -98,10 +98,12 @@ function AdminDashboard() {
                   <span className="quick-action-icon">📋</span>
                   <span className="quick-action-label">Hours</span>
                 </Link>
+                {/* Events hidden - not currently in use
                 <Link to="/events-admin" className="quick-action-card">
                   <span className="quick-action-icon">📅</span>
                   <span className="quick-action-label">Events</span>
                 </Link>
+                */}
                 <Link to="/cashbox-admin" className="quick-action-card">
                   <span className="quick-action-icon">💰</span>
                   <span className="quick-action-label">CashBox</span>

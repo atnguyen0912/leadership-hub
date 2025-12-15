@@ -8,12 +8,10 @@ const PROTECTED_GROUPS = ['Admin', 'Member'];
 // Default Member permissions - these are automatically assigned to all students
 // and cannot be changed. Based on expected workflow:
 // - Every member can log and view their own hours
-// - Every member can view events
 // - Every member can use the concessions POS
 const DEFAULT_MEMBER_PERMISSIONS = [
   'hours.log_own',
   'hours.view_own',
-  'events.view',
   'sessions.view',
   'sessions.run'
 ];
