@@ -362,7 +362,6 @@ function LogHours() {
               <tbody>
                 {spreadsheetRows.map(row => {
                   const isValid = validateRow(row);
-                  const duration = calculateDuration(row.timeIn, row.timeOut);
 
                   return (
                     <tr key={row.id} className={!isValid && (row.timeIn || row.timeOut) ? 'invalid-row' : ''}>
@@ -404,7 +403,6 @@ function LogHours() {
                           onChange={(e) => handleRowChange(row.id, 'timeOut', e.target.value)}
                           className="spreadsheet-input time-input"
                         />
-                        {duration && <span className="row-duration">{duration}</span>}
                       </td>
                       <td>
                         <button

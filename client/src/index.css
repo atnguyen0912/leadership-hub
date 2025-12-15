@@ -1118,15 +1118,17 @@ td {
   -webkit-backdrop-filter: var(--blur-md);
   border-bottom: var(--border-subtle);
   padding: var(--spacing-md) var(--spacing-lg);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-md);
   position: sticky;
   top: 0;
   z-index: 50;
   box-shadow: var(--shadow-md);
+}
+
+.nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .nav-brand {
@@ -1137,11 +1139,62 @@ td {
   text-shadow: 0 0 20px var(--color-primary-glow);
 }
 
+/* Hamburger menu toggle - hidden on desktop */
+.nav-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  padding: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.hamburger {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--color-primary);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 2px;
+  background: var(--color-primary);
+  transition: all 0.3s ease;
+}
+
+.hamburger::before {
+  top: -7px;
+}
+
+.hamburger::after {
+  top: 7px;
+}
+
+.hamburger.open {
+  background: transparent;
+}
+
+.hamburger.open::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.hamburger.open::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
 .nav-links {
   display: flex;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
   align-items: center;
+  margin-top: var(--spacing-md);
 }
 
 .nav-link {
@@ -1929,8 +1982,22 @@ td {
   font-weight: 500;
   color: var(--color-primary-light);
   white-space: nowrap;
-  padding: var(--spacing-sm) var(--spacing-md) !important;
+  padding: var(--spacing-sm) var(--spacing-sm) !important;
   background: var(--color-bg-card-solid) !important;
+  width: 60px;
+  max-width: 60px;
+  text-align: center;
+}
+
+/* Type column - compact with overflow clip */
+.hours-spreadsheet td:nth-child(2) {
+  width: 90px;
+  max-width: 90px;
+}
+
+.hours-spreadsheet td:nth-child(2) .spreadsheet-select {
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 .spreadsheet-select,
@@ -1959,22 +2026,24 @@ td {
   color-scheme: dark;
 }
 
-/* Fix clock icon visibility in dark mode */
+/* Fix clock icon visibility in dark mode - bright green */
 .spreadsheet-input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7) sepia(1) saturate(3) hue-rotate(90deg);
+  filter: invert(0.5) sepia(1) saturate(5) hue-rotate(85deg) brightness(1.5);
   cursor: pointer;
-  opacity: 0.8;
+  opacity: 1;
+  width: 20px;
+  height: 20px;
 }
 
 .spreadsheet-input[type="time"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+  filter: invert(0.5) sepia(1) saturate(5) hue-rotate(85deg) brightness(2);
+  transform: scale(1.1);
 }
 
-.row-duration {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--color-primary);
-  padding: 0 var(--spacing-md) var(--spacing-xs);
+/* Remove row button cell */
+.hours-spreadsheet td:last-child {
+  width: 44px;
+  max-width: 44px;
 }
 
 .btn-remove-row {
@@ -2972,27 +3041,55 @@ textarea.input {
     width: 40px;
   }
 
-  /* Navigation mobile */
+  /* Navigation mobile - collapsible */
   .nav {
     padding: var(--spacing-sm) var(--spacing-md);
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--spacing-sm);
+  }
+
+  .nav-header {
+    width: 100%;
+  }
+
+  .nav-toggle {
+    display: block;
   }
 
   .nav-brand {
     font-size: var(--font-size-base);
-    text-align: center;
+  }
+
+  .welcome-text {
+    display: none;
   }
 
   .nav-links {
-    justify-content: center;
+    display: none;
+    flex-direction: column;
+    width: 100%;
     gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: var(--border-subtle);
+  }
+
+  .nav-links.open {
+    display: flex;
   }
 
   .nav-link {
-    padding: var(--spacing-sm) var(--spacing-sm);
-    font-size: var(--font-size-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    width: 100%;
+    text-align: center;
+  }
+
+  .nav-link::after {
+    display: none;
+  }
+
+  .theme-toggle-btn {
+    width: 100%;
+    text-align: center;
   }
 
   .logout-btn {
@@ -3125,13 +3222,57 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 
-  /* Log hours v2 layout mobile */
+  /* Log hours v2 layout mobile - fixed calendar, scrollable spreadsheet */
   .log-hours-layout-v2 {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+    gap: 0;
+  }
+
+  .log-hours-layout-v2 .page-title {
+    display: none;
   }
 
   .calendar-panel {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .calendar-panel .card {
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .spreadsheet-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: var(--spacing-lg);
+  }
+
+  .spreadsheet-panel .card {
+    border-radius: 0;
+    margin: 0;
+    min-height: 100%;
+  }
+
+  /* Calendar header - arrows fixed to sides */
+  .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0;
+  }
+
+  .calendar-header .btn {
+    width: auto;
+    min-width: 44px;
+  }
+
+  .calendar-month-title {
+    font-size: var(--font-size-sm);
   }
 
   .spreadsheet-wrapper {
@@ -3139,7 +3280,7 @@ textarea.input {
   }
 
   .hours-spreadsheet {
-    min-width: 550px;
+    min-width: 480px;
   }
 
   .time-input {
@@ -3158,6 +3299,13 @@ textarea.input {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-xs);
+  }
+
+  /* Compact calendar legend on mobile */
+  .calendar-legend {
+    font-size: 10px;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
   }
 
   /* POS Mobile */

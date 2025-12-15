@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth, useTheme } from '../contexts';
 
@@ -6,14 +6,38 @@ function Navbar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Close menu when route changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isOpen && !e.target.closest('.nav')) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isOpen]);
 
   return (
     <nav className="nav">
-      <div>
+      <div className="nav-header">
         <div className="nav-brand">Hawkins Leadership Hub</div>
         {user.name && <div className="welcome-text">Welcome, {user.name}</div>}
+        <button
+          className="nav-toggle"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label="Toggle navigation"
+        >
+          <span className={`hamburger ${isOpen ? 'open' : ''}`}></span>
+        </button>
       </div>
-      <div className="nav-links">
+      <div className={`nav-links ${isOpen ? 'open' : ''}`}>
         <Link to="/" className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}>
           Dashboard
         </Link>
