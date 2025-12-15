@@ -92,30 +92,45 @@ router.post('/', (req, res) => {
   }
 
   const db = getDb();
+  const trimmedName = name.trim();
 
-  // If parentId provided, verify parent exists and has no price (is a category)
-  if (parentId) {
-    db.get('SELECT * FROM menu_items WHERE id = ?', [parentId], (err, parent) => {
+  // Check for duplicate name (case-insensitive)
+  db.get(
+    'SELECT id FROM menu_items WHERE LOWER(name) = LOWER(?)',
+    [trimmedName],
+    (err, existing) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
       }
-      if (!parent) {
-        return res.status(400).json({ error: 'Parent item not found' });
-      }
-      if (parent.price !== null) {
-        return res.status(400).json({ error: 'Cannot add sub-item to an item with a price' });
+      if (existing) {
+        return res.status(400).json({ error: `An item named "${trimmedName}" already exists` });
       }
 
-      insertMenuItem();
-    });
-  } else {
-    insertMenuItem();
-  }
+      // If parentId provided, verify parent exists and has no price (is a category)
+      if (parentId) {
+        db.get('SELECT * FROM menu_items WHERE id = ?', [parentId], (err, parent) => {
+          if (err) {
+            return res.status(500).json({ error: 'Database error' });
+          }
+          if (!parent) {
+            return res.status(400).json({ error: 'Parent item not found' });
+          }
+          if (parent.price !== null) {
+            return res.status(400).json({ error: 'Cannot add sub-item to an item with a price' });
+          }
+
+          insertMenuItem();
+        });
+      } else {
+        insertMenuItem();
+      }
+    }
+  );
 
   function insertMenuItem() {
     db.run(
       'INSERT INTO menu_items (name, price, parent_id, display_order, is_supply, track_inventory) VALUES (?, ?, ?, ?, ?, ?)',
-      [name.trim(), price || null, parentId || null, displayOrder || 0, isSupply ? 1 : 0, 1],
+      [trimmedName, price || null, parentId || null, displayOrder || 0, isSupply ? 1 : 0, 1],
       function (err) {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
