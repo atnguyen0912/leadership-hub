@@ -136,7 +136,7 @@ function CashBoxAdmin() {
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false);
   const [quickCreateData, setQuickCreateData] = useState({
     name: '',
-    isSupply: false,
+    itemType: 'menu', // 'menu' | 'supply' | 'component' | 'producer'
     unitCost: '',
     quantity: '',
     price: '',
@@ -1328,9 +1328,11 @@ function CashBoxAdmin() {
     setQuickCreateForIndex(index);
     setQuickCreateData({
       name: prefillName || '',
-      isSupply: false,
+      itemType: 'menu',
       unitCost: '',
-      quantity: ''
+      quantity: '',
+      price: '',
+      componentOf: ''
     });
     setShowQuickCreateModal(true);
     setPurchaseItemDropdownOpen(null);
@@ -1724,21 +1726,51 @@ function CashBoxAdmin() {
     e.preventDefault();
     setError('');
 
-    // Validate price for sellable items
-    if (!quickCreateData.isSupply && !quickCreateData.price) {
-      setError('Price is required for sellable items');
+    const { itemType, name, price, unitCost, componentOf } = quickCreateData;
+
+    // Validation based on item type
+    if (itemType === 'menu' && !price) {
+      setError('Price is required for menu items');
+      return;
+    }
+    if (itemType === 'component' && !componentOf) {
+      setError('Please select which item this is a component of');
       return;
     }
 
     try {
-      // Create the menu item with is_supply flag
+      // Determine price and flags based on item type
+      let itemPrice = null;
+      let isSupply = false;
+      let isLiquid = false;
+
+      switch (itemType) {
+        case 'menu':
+          itemPrice = parseFloat(price) || 0;
+          break;
+        case 'supply':
+          isSupply = true;
+          break;
+        case 'component':
+          // Component can optionally have a price if sold separately
+          itemPrice = price ? parseFloat(price) : null;
+          break;
+        case 'producer':
+          // Producer items use fill percentage tracking (is_liquid flag)
+          isLiquid = true;
+          break;
+        default:
+          break;
+      }
+
+      // Create the menu item
       const response = await fetch('/api/menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: quickCreateData.name,
-          price: quickCreateData.isSupply ? null : parseFloat(quickCreateData.price) || 0,
-          isSupply: quickCreateData.isSupply
+          name: name.trim(),
+          price: itemPrice,
+          isSupply: isSupply
         })
       });
 
@@ -1749,30 +1781,38 @@ function CashBoxAdmin() {
 
       const newItemId = data.id;
 
-      // Update inventory settings if unit cost provided
-      if (quickCreateData.unitCost) {
+      // Update inventory settings
+      const inventoryUpdate = {
+        trackInventory: true
+      };
+      if (unitCost) {
+        inventoryUpdate.unitCost = parseFloat(unitCost) || 0;
+      }
+      if (isLiquid) {
+        inventoryUpdate.isLiquid = true;
+        inventoryUpdate.fillPercentage = 100;
+      }
+
+      if (unitCost || isLiquid) {
         await fetch(`/api/menu/${newItemId}/inventory`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            unitCost: parseFloat(quickCreateData.unitCost) || 0,
-            trackInventory: true
-          })
+          body: JSON.stringify(inventoryUpdate)
         });
       }
 
-      // If componentOf is set, add this item as a component of the parent menu item
-      if (quickCreateData.componentOf) {
-        await fetch(`/api/menu/${quickCreateData.componentOf}/components`, {
+      // If component type, link to parent menu item
+      if (itemType === 'component' && componentOf) {
+        await fetch(`/api/menu/${componentOf}/components`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             components: [{ componentItemId: newItemId, quantity: 1 }],
-            append: true // Append to existing components
+            append: true
           })
         });
         // Mark the parent as composite
-        await fetch(`/api/menu/${quickCreateData.componentOf}`, {
+        await fetch(`/api/menu/${componentOf}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isComposite: true })
@@ -1784,14 +1824,22 @@ function CashBoxAdmin() {
 
       // Select the new item in the purchase form
       if (quickCreateForIndex !== null) {
-        handleSelectPurchaseItem(quickCreateForIndex, { id: newItemId, name: quickCreateData.name });
+        handleSelectPurchaseItem(quickCreateForIndex, { id: newItemId, name: name.trim() });
       }
 
-      // Close modal
+      // Close modal and reset
       setShowQuickCreateModal(false);
-      setQuickCreateData({ name: '', isSupply: false, unitCost: '', quantity: '', price: '', componentOf: '' });
+      setQuickCreateData({ name: '', itemType: 'menu', unitCost: '', quantity: '', price: '', componentOf: '' });
       setQuickCreateForIndex(null);
-      setSuccess(`Item "${quickCreateData.name}" created${quickCreateData.componentOf ? ' and linked as component' : ''}`);
+
+      // Success message based on type
+      let successMsg = `Item "${name.trim()}" created`;
+      if (itemType === 'component') {
+        successMsg += ' and linked as component';
+      } else if (itemType === 'producer') {
+        successMsg += ' (producer - link to items in Menu management)';
+      }
+      setSuccess(successMsg);
 
     } catch (err) {
       setError(err.message);
@@ -3956,30 +4004,85 @@ function CashBoxAdmin() {
 
                 <div className="form-group">
                   <label>Item Type</label>
-                  <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
                       <input
                         type="radio"
                         name="itemType"
-                        checked={!quickCreateData.isSupply}
-                        onChange={() => setQuickCreateData(prev => ({ ...prev, isSupply: false }))}
+                        checked={quickCreateData.itemType === 'menu'}
+                        onChange={() => setQuickCreateData(prev => ({ ...prev, itemType: 'menu', componentOf: '' }))}
+                        style={{ marginTop: '3px' }}
                       />
-                      <span>Sellable Item</span>
+                      <div>
+                        <strong>Menu Item</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Sellable item on the menu</div>
+                      </div>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
                       <input
                         type="radio"
                         name="itemType"
-                        checked={quickCreateData.isSupply}
-                        onChange={() => setQuickCreateData(prev => ({ ...prev, isSupply: true }))}
+                        checked={quickCreateData.itemType === 'supply'}
+                        onChange={() => setQuickCreateData(prev => ({ ...prev, itemType: 'supply', componentOf: '', price: '' }))}
+                        style={{ marginTop: '3px' }}
                       />
-                      <span>Supply (plates, utensils, etc.)</span>
+                      <div>
+                        <strong>Supply</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Plates, utensils, etc. (not sold)</div>
+                      </div>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="itemType"
+                        checked={quickCreateData.itemType === 'component'}
+                        onChange={() => setQuickCreateData(prev => ({ ...prev, itemType: 'component' }))}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong>Component</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Ingredient of another menu item</div>
+                      </div>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="itemType"
+                        checked={quickCreateData.itemType === 'producer'}
+                        onChange={() => setQuickCreateData(prev => ({ ...prev, itemType: 'producer', componentOf: '', price: '' }))}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <div>
+                        <strong>Producer</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Bulk item (e.g., condiments) - tracked by fill %</div>
+                      </div>
                     </label>
                   </div>
                 </div>
 
-                {/* Price field - required for sellable items */}
-                {!quickCreateData.isSupply && (
+                {/* Parent selection - required for Component type */}
+                {quickCreateData.itemType === 'component' && (
+                  <div className="form-group">
+                    <label>Component of *</label>
+                    <select
+                      className="input"
+                      value={quickCreateData.componentOf}
+                      onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentOf: e.target.value }))}
+                      required
+                    >
+                      <option value="">-- Select parent item --</option>
+                      {menuItems.filter(m => m.price !== null && !m.is_supply).map(item => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                      This item will be linked as an ingredient of the selected menu item
+                    </small>
+                  </div>
+                )}
+
+                {/* Price field - required for Menu Item, optional for Component */}
+                {quickCreateData.itemType === 'menu' && (
                   <div className="form-group">
                     <label>Selling Price *</label>
                     <input
@@ -3998,6 +4101,24 @@ function CashBoxAdmin() {
                   </div>
                 )}
 
+                {quickCreateData.itemType === 'component' && (
+                  <div className="form-group">
+                    <label>Selling Price (optional)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={quickCreateData.price}
+                      onChange={(e) => setQuickCreateData(prev => ({ ...prev, price: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                      Only enter if this component is also sold separately on the menu
+                    </small>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label>Unit Cost (optional)</label>
                   <input
@@ -4011,24 +4132,6 @@ function CashBoxAdmin() {
                   />
                   <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
                     Default cost per unit (can be overridden by purchase)
-                  </small>
-                </div>
-
-                {/* Component linking - add as component of existing item */}
-                <div className="form-group">
-                  <label>Add as Component of (optional)</label>
-                  <select
-                    className="input"
-                    value={quickCreateData.componentOf}
-                    onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentOf: e.target.value }))}
-                  >
-                    <option value="">-- None (standalone item) --</option>
-                    {menuItems.filter(m => m.price !== null && !m.is_supply).map(item => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
-                    Link this item as an ingredient/component of another menu item
                   </small>
                 </div>
 

@@ -801,7 +801,7 @@ router.put('/:id/components', (req, res) => {
 // PUT /api/menu/:id/inventory - Update inventory settings for a menu item
 router.put('/:id/inventory', (req, res) => {
   const { id } = req.params;
-  const { unitCost, quantityOnHand, trackInventory, isComposite } = req.body;
+  const { unitCost, quantityOnHand, trackInventory, isComposite, isLiquid, fillPercentage } = req.body;
 
   const db = getDb();
 
@@ -823,6 +823,14 @@ router.put('/:id/inventory', (req, res) => {
   if (isComposite !== undefined) {
     updates.push('is_composite = ?');
     params.push(isComposite ? 1 : 0);
+  }
+  if (isLiquid !== undefined) {
+    updates.push('is_liquid = ?');
+    params.push(isLiquid ? 1 : 0);
+  }
+  if (fillPercentage !== undefined) {
+    updates.push('fill_percentage = ?');
+    params.push(parseInt(fillPercentage) || 100);
   }
 
   if (updates.length === 0) {
