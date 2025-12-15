@@ -2168,10 +2168,10 @@ td {
   background: rgba(34, 197, 94, 0.15);
 }
 
-/* Item search cell - wider */
+/* Item search cell - expands to fill available space */
 .purchase-spreadsheet td.item-cell {
-  min-width: 200px;
-  max-width: 300px;
+  min-width: 250px;
+  width: auto;
 }
 
 /* Quantity cell - narrow */
