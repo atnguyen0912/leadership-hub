@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
@@ -106,7 +106,7 @@ function CashBoxAdmin() {
   const [purchaseFormData, setPurchaseFormData] = useState({
     vendor: '',
     purchaseDate: new Date().toISOString().split('T')[0],
-    items: [{ menuItemId: '', itemName: '', quantity: '', lineTotal: '' }],
+    items: [{ menuItemId: '', itemName: '', quantity: '', lineTotal: '', crvPerUnit: '' }],
     tax: '',
     deliveryFee: '',
     otherFees: '',
@@ -115,6 +115,22 @@ function CashBoxAdmin() {
   const [submittingPurchase, setSubmittingPurchase] = useState(false);
   const [purchaseItemSearchQueries, setPurchaseItemSearchQueries] = useState({});
   const [purchaseItemDropdownOpen, setPurchaseItemDropdownOpen] = useState(null);
+
+  // Keyboard navigation state
+  const [focusedRowIndex, setFocusedRowIndex] = useState(null);
+  const [confirmedRows, setConfirmedRows] = useState(new Set());
+  const purchaseRowRefs = useRef([]);
+
+  // Auto-populate quantity hints
+  const [purchaseItemHints, setPurchaseItemHints] = useState({});
+
+  // Edit existing purchase
+  const [editingPurchaseId, setEditingPurchaseId] = useState(null);
+  const [editingPurchaseData, setEditingPurchaseData] = useState(null);
+  const [loadingPurchaseDetails, setLoadingPurchaseDetails] = useState(false);
+
+  // Inventory refresh state
+  const [refreshingInventory, setRefreshingInventory] = useState(false);
 
   // Quick create item modal
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false);
@@ -208,6 +224,13 @@ function CashBoxAdmin() {
     fetchCashAppBalance();
     fetchLosses();
   }, []);
+
+  // Refresh inventory when accessing the inventory stock section
+  useEffect(() => {
+    if (activeSection === 'inventory' && activeSubSection === 'stock') {
+      refreshInventoryData();
+    }
+  }, [activeSection, activeSubSection]);
 
   const fetchPurchases = async () => {
     try {
@@ -1223,20 +1246,36 @@ function CashBoxAdmin() {
     });
   };
 
-  // Select a menu item from the dropdown and auto-fill name
-  const handleSelectPurchaseItem = (index, menuItem) => {
+  // Select a menu item from the dropdown and auto-fill name + quantity
+  const handleSelectPurchaseItem = async (index, menuItem) => {
     setPurchaseFormData(prev => {
       const newItems = [...prev.items];
       newItems[index] = {
         ...newItems[index],
         menuItemId: menuItem.id.toString(),
-        itemName: menuItem.name
+        itemName: menuItem.name,
+        // Auto-fill from default_purchase_quantity if available
+        quantity: menuItem.default_purchase_quantity || newItems[index].quantity || ''
       };
       return { ...prev, items: newItems };
     });
     // Clear search and close dropdown
     setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
     setPurchaseItemDropdownOpen(null);
+
+    // Fetch last purchased quantity hint
+    try {
+      const response = await fetch(`/api/purchases/last-quantity/${menuItem.id}`);
+      const data = await response.json();
+      if (data.quantity) {
+        setPurchaseItemHints(prev => ({
+          ...prev,
+          [index]: { lastQty: data.quantity, lastDate: data.purchase_date }
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch last quantity:', err);
+    }
   };
 
   // Clear the menu item link
@@ -1280,7 +1319,7 @@ function CashBoxAdmin() {
   const addPurchaseItem = () => {
     setPurchaseFormData(prev => ({
       ...prev,
-      items: [...prev.items, { menuItemId: '', itemName: '', quantity: '', lineTotal: '' }]
+      items: [...prev.items, { menuItemId: '', itemName: '', quantity: '', lineTotal: '', crvPerUnit: '' }]
     }));
   };
 
@@ -1290,12 +1329,218 @@ function CashBoxAdmin() {
         ...prev,
         items: prev.items.filter((_, i) => i !== index)
       }));
-      // Clean up search queries
+      // Clean up search queries and hints
       setPurchaseItemSearchQueries(prev => {
         const newQueries = { ...prev };
         delete newQueries[index];
         return newQueries;
       });
+      setPurchaseItemHints(prev => {
+        const newHints = { ...prev };
+        delete newHints[index];
+        return newHints;
+      });
+      // Clean up confirmed rows
+      setConfirmedRows(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(index);
+        return newSet;
+      });
+    }
+  };
+
+  // Keyboard navigation handler for purchase rows
+  const handlePurchaseKeyDown = (e, rowIndex) => {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (rowIndex < purchaseFormData.items.length - 1) {
+          setFocusedRowIndex(rowIndex + 1);
+          setTimeout(() => {
+            purchaseRowRefs.current[rowIndex + 1]?.querySelector('input')?.focus();
+          }, 0);
+        } else {
+          // At last row, add new row and focus it
+          addPurchaseItem();
+          setTimeout(() => {
+            const newIndex = rowIndex + 1;
+            setFocusedRowIndex(newIndex);
+            purchaseRowRefs.current[newIndex]?.querySelector('input')?.focus();
+          }, 50);
+        }
+        break;
+
+      case 'ArrowUp':
+        e.preventDefault();
+        if (rowIndex > 0) {
+          setFocusedRowIndex(rowIndex - 1);
+          setTimeout(() => {
+            purchaseRowRefs.current[rowIndex - 1]?.querySelector('input')?.focus();
+          }, 0);
+        }
+        break;
+
+      case 'Enter':
+        // Don't trigger if inside a dropdown or if already handled by input
+        if (purchaseItemDropdownOpen === rowIndex) return;
+        e.preventDefault();
+        // Confirm/lock current row
+        if (!confirmedRows.has(rowIndex)) {
+          setConfirmedRows(prev => new Set([...prev, rowIndex]));
+        }
+        // Move to next row
+        if (rowIndex < purchaseFormData.items.length - 1) {
+          setFocusedRowIndex(rowIndex + 1);
+          setTimeout(() => {
+            purchaseRowRefs.current[rowIndex + 1]?.querySelector('input')?.focus();
+          }, 0);
+        }
+        break;
+
+      case 'Escape':
+        // Unlock row for editing
+        setConfirmedRows(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(rowIndex);
+          return newSet;
+        });
+        break;
+
+      default:
+        break;
+    }
+  };
+
+  // Duplicate a purchase row
+  const duplicatePurchaseItem = (index) => {
+    const itemToDuplicate = purchaseFormData.items[index];
+    setPurchaseFormData(prev => ({
+      ...prev,
+      items: [
+        ...prev.items.slice(0, index + 1),
+        { ...itemToDuplicate },
+        ...prev.items.slice(index + 1)
+      ]
+    }));
+  };
+
+  // Load purchase for editing
+  const loadPurchaseForEdit = async (purchaseId) => {
+    setLoadingPurchaseDetails(true);
+    try {
+      const response = await fetch(`/api/purchases/${purchaseId}`);
+      const data = await response.json();
+      if (response.ok) {
+        setEditingPurchaseId(purchaseId);
+        setEditingPurchaseData({
+          vendor: data.vendor || '',
+          purchaseDate: data.purchase_date,
+          items: data.items.map(item => ({
+            id: item.id,
+            menuItemId: item.menu_item_id ? item.menu_item_id.toString() : '',
+            itemName: item.item_name || item.menu_item_name || '',
+            quantity: item.quantity.toString(),
+            lineTotal: item.line_total.toString(),
+            crvPerUnit: (item.crv_per_unit || 0).toString()
+          })),
+          tax: data.tax.toString(),
+          deliveryFee: data.delivery_fee.toString(),
+          otherFees: data.other_fees.toString(),
+          notes: data.notes || ''
+        });
+      } else {
+        setError(data.error || 'Failed to load purchase details');
+      }
+    } catch (err) {
+      setError('Failed to load purchase details');
+    } finally {
+      setLoadingPurchaseDetails(false);
+    }
+  };
+
+  // Update existing purchase
+  const handleUpdatePurchase = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setSubmittingPurchase(true);
+
+    try {
+      const response = await fetch(`/api/purchases/${editingPurchaseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendor: editingPurchaseData.vendor,
+          purchaseDate: editingPurchaseData.purchaseDate,
+          items: editingPurchaseData.items.map(item => ({
+            menuItemId: item.menuItemId ? parseInt(item.menuItemId) : null,
+            itemName: item.itemName,
+            quantity: parseInt(item.quantity) || 1,
+            lineTotal: parseFloat(item.lineTotal) || 0,
+            crvPerUnit: parseFloat(item.crvPerUnit) || 0
+          })),
+          tax: editingPurchaseData.tax,
+          deliveryFee: editingPurchaseData.deliveryFee,
+          otherFees: editingPurchaseData.otherFees,
+          notes: editingPurchaseData.notes
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setSuccess('Purchase updated successfully');
+      setEditingPurchaseId(null);
+      setEditingPurchaseData(null);
+      fetchPurchases();
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmittingPurchase(false);
+    }
+  };
+
+  // Edit purchase item change handler
+  const handleEditPurchaseItemChange = (index, field, value) => {
+    setEditingPurchaseData(prev => {
+      const newItems = [...prev.items];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return { ...prev, items: newItems };
+    });
+  };
+
+  // Add item to editing purchase
+  const addEditPurchaseItem = () => {
+    setEditingPurchaseData(prev => ({
+      ...prev,
+      items: [...prev.items, { menuItemId: '', itemName: '', quantity: '', lineTotal: '', crvPerUnit: '' }]
+    }));
+  };
+
+  // Remove item from editing purchase
+  const removeEditPurchaseItem = (index) => {
+    if (editingPurchaseData.items.length > 1) {
+      setEditingPurchaseData(prev => ({
+        ...prev,
+        items: prev.items.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  // Refresh inventory data
+  const refreshInventoryData = async () => {
+    setRefreshingInventory(true);
+    try {
+      const response = await fetch('/api/inventory');
+      const data = await response.json();
+      if (response.ok) {
+        setInventoryItems(data);
+      }
+    } catch (err) {
+      console.error('Failed to refresh inventory:', err);
+    } finally {
+      setRefreshingInventory(false);
     }
   };
 
@@ -1303,13 +1548,16 @@ function CashBoxAdmin() {
     setPurchaseFormData({
       vendor: '',
       purchaseDate: new Date().toISOString().split('T')[0],
-      items: [{ menuItemId: '', itemName: '', quantity: '', lineTotal: '' }],
+      items: [{ menuItemId: '', itemName: '', quantity: '', lineTotal: '', crvPerUnit: '' }],
       tax: '',
       deliveryFee: '',
       otherFees: '',
       notes: ''
     });
     setShowPurchaseForm(false);
+    setFocusedRowIndex(null);
+    setConfirmedRows(new Set());
+    setPurchaseItemHints({});
   };
 
   const handleSubmitPurchase = async (e) => {
@@ -1330,12 +1578,13 @@ function CashBoxAdmin() {
     setSubmittingPurchase(true);
 
     try {
-      // Prepare items with proper naming
+      // Prepare items with proper naming (including CRV)
       const items = purchaseFormData.items.map(item => ({
         menuItemId: item.menuItemId ? parseInt(item.menuItemId) : null,
         itemName: item.itemName || (item.menuItemId ? menuItems.find(m => m.id === parseInt(item.menuItemId))?.name : 'Unknown Item'),
         quantity: parseInt(item.quantity) || 1,
-        lineTotal: parseFloat(item.lineTotal) || 0
+        lineTotal: parseFloat(item.lineTotal) || 0,
+        crvPerUnit: parseFloat(item.crvPerUnit) || 0
       }));
 
       const response = await fetch('/api/purchases', {
@@ -2972,13 +3221,23 @@ function CashBoxAdmin() {
                           {formatCurrency(purchase.total)}
                         </td>
                         <td>
-                          <button
-                            className="btn btn-danger btn-small"
-                            onClick={() => handleDeletePurchase(purchase.id)}
-                            style={{ padding: '4px 8px', fontSize: '12px' }}
-                          >
-                            Delete
-                          </button>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              className="btn btn-small"
+                              onClick={() => loadPurchaseForEdit(purchase.id)}
+                              disabled={loadingPurchaseDetails}
+                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                            >
+                              {loadingPurchaseDetails ? '...' : 'View/Edit'}
+                            </button>
+                            <button
+                              className="btn btn-danger btn-small"
+                              onClick={() => handleDeletePurchase(purchase.id)}
+                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -3020,13 +3279,26 @@ function CashBoxAdmin() {
                 </div>
 
                 <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Line Items</h4>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginBottom: '8px' }}>
+                  <strong>Keyboard:</strong> ↑↓ navigate rows • Enter confirms row • Esc unlocks row
+                </div>
                 {purchaseFormData.items.map((item, index) => (
-                  <div key={index} style={{
-                    background: 'var(--color-bg-input)',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    marginBottom: '8px'
-                  }}>
+                  <div
+                    key={index}
+                    ref={el => purchaseRowRefs.current[index] = el}
+                    tabIndex={0}
+                    onKeyDown={(e) => handlePurchaseKeyDown(e, index)}
+                    onFocus={() => setFocusedRowIndex(index)}
+                    className={`purchase-row ${focusedRowIndex === index ? 'purchase-row-focused' : ''} ${confirmedRows.has(index) ? 'purchase-row-confirmed' : ''}`}
+                    style={{
+                      background: confirmedRows.has(index) ? 'rgba(34, 197, 94, 0.1)' : 'var(--color-bg-input)',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      marginBottom: '8px',
+                      border: focusedRowIndex === index ? '2px solid var(--color-primary)' : '2px solid transparent',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       {/* Searchable Item Dropdown */}
                       <div className="form-group" style={{ flex: 3, minWidth: '200px', marginBottom: 0, position: 'relative' }}>
@@ -3198,6 +3470,11 @@ function CashBoxAdmin() {
                           placeholder="12"
                           required
                         />
+                        {purchaseItemHints[index]?.lastQty && (
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', marginTop: '2px' }}>
+                            Last: {purchaseItemHints[index].lastQty}
+                          </div>
+                        )}
                       </div>
                       <div className="form-group" style={{ flex: 1, minWidth: '80px', marginBottom: 0 }}>
                         <label>Line Total</label>
@@ -3212,15 +3489,48 @@ function CashBoxAdmin() {
                           required
                         />
                       </div>
-                      {purchaseFormData.items.length > 1 && (
+                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
+                        <label>CRV/ea</label>
+                        <input
+                          type="number"
+                          className="input"
+                          step="0.01"
+                          min="0"
+                          value={item.crvPerUnit}
+                          onChange={(e) => handlePurchaseItemChange(index, 'crvPerUnit', e.target.value)}
+                          placeholder="0.05"
+                        />
+                        {item.crvPerUnit && item.quantity && (
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-subtle)', marginTop: '2px' }}>
+                            Total: {formatCurrency((parseFloat(item.crvPerUnit) || 0) * (parseInt(item.quantity) || 0))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end' }}>
                         <button
                           type="button"
-                          className="btn btn-danger btn-small"
-                          onClick={() => removePurchaseItem(index)}
+                          className="btn btn-small"
+                          onClick={() => duplicatePurchaseItem(index)}
+                          title="Duplicate row"
                           style={{ padding: '6px 10px' }}
                         >
-                          X
+                          ⊕
                         </button>
+                        {purchaseFormData.items.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-small"
+                            onClick={() => removePurchaseItem(index)}
+                            style={{ padding: '6px 10px' }}
+                          >
+                            X
+                          </button>
+                        )}
+                      </div>
+                      {confirmedRows.has(index) && (
+                        <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginLeft: 'auto' }}>
+                          ✓ Confirmed
+                        </span>
                       )}
                     </div>
                   </div>
@@ -3320,6 +3630,180 @@ function CashBoxAdmin() {
                     style={{ flex: 1 }}
                   >
                     {submittingPurchase ? 'Saving...' : 'Save Purchase'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Purchase Modal */}
+        {editingPurchaseId && editingPurchaseData && (
+          <div className="pos-modal-overlay" onClick={() => { setEditingPurchaseId(null); setEditingPurchaseData(null); }}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', maxHeight: '90vh', overflow: 'auto' }}>
+              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Edit Purchase #{editingPurchaseId}</h3>
+
+              <form onSubmit={handleUpdatePurchase}>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label>Vendor</label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={editingPurchaseData.vendor}
+                      onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, vendor: e.target.value }))}
+                      placeholder="e.g., Costco"
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label>Purchase Date</label>
+                    <input
+                      type="date"
+                      className="input"
+                      value={editingPurchaseData.purchaseDate}
+                      onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, purchaseDate: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Line Items</h4>
+                {editingPurchaseData.items.map((item, index) => (
+                  <div key={index} style={{
+                    background: 'var(--color-bg-input)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div className="form-group" style={{ flex: 2, minWidth: '150px', marginBottom: 0 }}>
+                        <label>Item Name</label>
+                        <input
+                          type="text"
+                          className="input"
+                          value={item.itemName}
+                          onChange={(e) => handleEditPurchaseItemChange(index, 'itemName', e.target.value)}
+                          placeholder="Item name"
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
+                        <label>Qty</label>
+                        <input
+                          type="number"
+                          className="input"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => handleEditPurchaseItemChange(index, 'quantity', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1, minWidth: '80px', marginBottom: 0 }}>
+                        <label>Line Total</label>
+                        <input
+                          type="number"
+                          className="input"
+                          step="0.01"
+                          min="0"
+                          value={item.lineTotal}
+                          onChange={(e) => handleEditPurchaseItemChange(index, 'lineTotal', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
+                        <label>CRV/ea</label>
+                        <input
+                          type="number"
+                          className="input"
+                          step="0.01"
+                          min="0"
+                          value={item.crvPerUnit}
+                          onChange={(e) => handleEditPurchaseItemChange(index, 'crvPerUnit', e.target.value)}
+                          placeholder="0.05"
+                        />
+                      </div>
+                      {editingPurchaseData.items.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-small"
+                          onClick={() => removeEditPurchaseItem(index)}
+                          style={{ padding: '6px 10px' }}
+                        >
+                          X
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={addEditPurchaseItem}
+                  style={{ marginBottom: '16px' }}
+                >
+                  + Add Item
+                </button>
+
+                <h4 style={{ color: 'var(--color-text-muted)', marginBottom: '8px' }}>Overhead Costs</h4>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
+                    <label>Tax</label>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={editingPurchaseData.tax}
+                      onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, tax: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
+                    <label>Delivery Fee</label>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={editingPurchaseData.deliveryFee}
+                      onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, deliveryFee: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: '100px', marginBottom: 0 }}>
+                    <label>Other Fees</label>
+                    <input
+                      type="number"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={editingPurchaseData.otherFees}
+                      onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, otherFees: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Notes</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={editingPurchaseData.notes}
+                    onChange={(e) => setEditingPurchaseData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Optional notes..."
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn" onClick={() => { setEditingPurchaseId(null); setEditingPurchaseData(null); }} style={{ flex: 1 }}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={submittingPurchase}
+                    style={{ flex: 1 }}
+                  >
+                    {submittingPurchase ? 'Saving...' : 'Update Purchase'}
                   </button>
                 </div>
               </form>
@@ -3493,6 +3977,8 @@ function CashBoxAdmin() {
               inventoryItems={inventoryItems}
               onViewLots={handleViewLots}
               onOpenAdjustment={handleOpenAdjustment}
+              onRefresh={refreshInventoryData}
+              isRefreshing={refreshingInventory}
             />
           )}
 

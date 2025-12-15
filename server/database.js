@@ -451,6 +451,7 @@ const initialize = () => {
         db.run(`ALTER TABLE menu_items ADD COLUMN track_inventory INTEGER DEFAULT 1`, [], () => {});
         db.run(`ALTER TABLE menu_items ADD COLUMN is_composite INTEGER DEFAULT 0`, [], () => {});
         db.run(`ALTER TABLE menu_items ADD COLUMN is_supply INTEGER DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE menu_items ADD COLUMN default_purchase_quantity INTEGER DEFAULT NULL`, [], () => {});
 
         // Purchases table (receipt entry)
         db.run(`
@@ -483,6 +484,10 @@ const initialize = () => {
             FOREIGN KEY (purchase_id) REFERENCES purchases(id)
           )
         `);
+
+        // Add CRV columns to purchase_items (migrations)
+        db.run(`ALTER TABLE purchase_items ADD COLUMN crv_per_unit REAL DEFAULT 0`, [], () => {});
+        db.run(`ALTER TABLE purchase_items ADD COLUMN crv_total REAL DEFAULT 0`, [], () => {});
 
         // Inventory lots table (FIFO tracking)
         db.run(`

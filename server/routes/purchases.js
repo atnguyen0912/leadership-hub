@@ -21,6 +21,28 @@ router.get('/', (req, res) => {
   );
 });
 
+// Get last purchase quantity for a menu item (for auto-populate hints)
+router.get('/last-quantity/:menuItemId', (req, res) => {
+  const db = getDb();
+  const { menuItemId } = req.params;
+
+  db.get(
+    `SELECT pi.quantity, p.purchase_date
+     FROM purchase_items pi
+     JOIN purchases p ON pi.purchase_id = p.id
+     WHERE pi.menu_item_id = ?
+     ORDER BY p.purchase_date DESC, p.created_at DESC
+     LIMIT 1`,
+    [menuItemId],
+    (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(row || { quantity: null, purchase_date: null });
+    }
+  );
+});
+
 // Get single purchase with items
 router.get('/:id', (req, res) => {
   const db = getDb();
@@ -75,17 +97,23 @@ router.post('/', (req, res) => {
   const total = subtotal + totalOverhead;
   const overheadPercent = subtotal > 0 ? totalOverhead / subtotal : 0;
 
-  // Calculate distributed cost and unit cost for each item
+  // Calculate distributed cost and unit cost for each item (including CRV)
   const processedItems = items.map(item => {
     const lineTotal = parseFloat(item.lineTotal) || 0;
     const quantity = parseInt(item.quantity) || 1;
-    const distributedCost = lineTotal * (1 + overheadPercent);
+    const crvPerUnit = parseFloat(item.crvPerUnit) || 0;
+    const crvTotal = crvPerUnit * quantity;
+    // Include CRV in the base cost before overhead distribution
+    const baseCost = lineTotal + crvTotal;
+    const distributedCost = baseCost * (1 + overheadPercent);
     const unitCost = quantity > 0 ? distributedCost / quantity : 0;
 
     return {
       ...item,
       lineTotal,
       quantity,
+      crvPerUnit,
+      crvTotal: Math.round(crvTotal * 100) / 100,
       distributedCost: Math.round(distributedCost * 100) / 100,
       unitCost: Math.round(unitCost * 100) / 100
     };
@@ -118,8 +146,8 @@ router.post('/', (req, res) => {
 
       processedItems.forEach((item, index) => {
         db.run(
-          `INSERT INTO purchase_items (purchase_id, menu_item_id, item_name, quantity, line_total, distributed_cost, unit_cost)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO purchase_items (purchase_id, menu_item_id, item_name, quantity, line_total, distributed_cost, unit_cost, crv_per_unit, crv_total)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             purchaseId,
             item.menuItemId || null,
@@ -127,7 +155,9 @@ router.post('/', (req, res) => {
             item.quantity,
             item.lineTotal,
             item.distributedCost,
-            item.unitCost
+            item.unitCost,
+            item.crvPerUnit || 0,
+            item.crvTotal || 0
           ],
           function(itemErr) {
             if (itemErr) {
@@ -198,6 +228,182 @@ router.post('/', (req, res) => {
       });
     }
   );
+});
+
+// Update existing purchase with items (full edit)
+router.put('/:id', (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const {
+    vendor,
+    purchaseDate,
+    items,
+    tax,
+    deliveryFee,
+    otherFees,
+    notes
+  } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'At least one item is required' });
+  }
+
+  // 1. Get existing purchase
+  db.get('SELECT * FROM purchases WHERE id = ?', [id], (err, existingPurchase) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!existingPurchase) return res.status(404).json({ error: 'Purchase not found' });
+
+    // 2. Get existing items to reverse inventory
+    db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [id], (err, existingItems) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      // 3. Reverse inventory for ALL existing items
+      let reversalsCompleted = 0;
+      const totalReversals = existingItems.filter(i => i.menu_item_id).length;
+
+      const proceedWithUpdate = () => {
+        // 4. Delete old purchase items
+        db.run('DELETE FROM purchase_items WHERE purchase_id = ?', [id], (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+
+          // 5. Calculate new totals
+          const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.lineTotal) || 0), 0);
+          const totalOverhead = (parseFloat(tax) || 0) + (parseFloat(deliveryFee) || 0) + (parseFloat(otherFees) || 0);
+          const total = subtotal + totalOverhead;
+          const overheadPercent = subtotal > 0 ? totalOverhead / subtotal : 0;
+
+          // 6. Process new items with CRV
+          const processedItems = items.map(item => {
+            const lineTotal = parseFloat(item.lineTotal) || 0;
+            const quantity = parseInt(item.quantity) || 1;
+            const crvPerUnit = parseFloat(item.crvPerUnit) || 0;
+            const crvTotal = crvPerUnit * quantity;
+            const baseCost = lineTotal + crvTotal;
+            const distributedCost = baseCost * (1 + overheadPercent);
+            const unitCost = quantity > 0 ? distributedCost / quantity : 0;
+
+            return {
+              ...item,
+              lineTotal,
+              quantity,
+              crvPerUnit,
+              crvTotal: Math.round(crvTotal * 100) / 100,
+              distributedCost: Math.round(distributedCost * 100) / 100,
+              unitCost: Math.round(unitCost * 100) / 100
+            };
+          });
+
+          // 7. Update purchase header
+          db.run(
+            `UPDATE purchases SET vendor = ?, purchase_date = ?, subtotal = ?,
+             tax = ?, delivery_fee = ?, other_fees = ?, total = ?, notes = ?
+             WHERE id = ?`,
+            [
+              vendor || '',
+              purchaseDate,
+              subtotal,
+              parseFloat(tax) || 0,
+              parseFloat(deliveryFee) || 0,
+              parseFloat(otherFees) || 0,
+              total,
+              notes || '',
+              id
+            ],
+            function(err) {
+              if (err) return res.status(500).json({ error: err.message });
+
+              // 8. Insert new items and create new inventory lots
+              let itemsProcessed = 0;
+
+              processedItems.forEach((item) => {
+                db.run(
+                  `INSERT INTO purchase_items (purchase_id, menu_item_id, item_name, quantity, line_total, distributed_cost, unit_cost, crv_per_unit, crv_total)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  [
+                    id,
+                    item.menuItemId || null,
+                    item.itemName || 'Unknown Item',
+                    item.quantity,
+                    item.lineTotal,
+                    item.distributedCost,
+                    item.unitCost,
+                    item.crvPerUnit || 0,
+                    item.crvTotal || 0
+                  ],
+                  function(itemErr) {
+                    if (!itemErr && item.menuItemId) {
+                      const purchaseItemId = this.lastID;
+
+                      // Create new inventory lot
+                      db.run(
+                        `INSERT INTO inventory_lots (menu_item_id, purchase_item_id, quantity_original, quantity_remaining, unit_cost, is_reimbursable, purchase_date)
+                         VALUES (?, ?, ?, ?, ?, 1, ?)`,
+                        [item.menuItemId, purchaseItemId, item.quantity, item.quantity, item.unitCost, purchaseDate]
+                      );
+
+                      // Update menu item quantity
+                      db.run(
+                        `UPDATE menu_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ? WHERE id = ?`,
+                        [item.quantity, item.unitCost, item.menuItemId]
+                      );
+
+                      // Create inventory transaction
+                      db.run(
+                        `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
+                         VALUES (?, 'purchase', ?, ?, 1, ?, ?, '')`,
+                        [item.menuItemId, item.quantity, item.unitCost, id, `Purchase update from ${vendor || 'Unknown'}`]
+                      );
+                    }
+
+                    itemsProcessed++;
+                    if (itemsProcessed === processedItems.length) {
+                      res.json({
+                        success: true,
+                        id: parseInt(id),
+                        vendor,
+                        purchaseDate,
+                        subtotal,
+                        total,
+                        items: processedItems
+                      });
+                    }
+                  }
+                );
+              });
+            }
+          );
+        });
+      };
+
+      // Execute inventory reversals
+      if (totalReversals === 0) {
+        proceedWithUpdate();
+      } else {
+        existingItems.forEach(item => {
+          if (item.menu_item_id) {
+            // Reduce quantity_on_hand
+            db.run(
+              'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
+              [item.quantity, item.menu_item_id]
+            );
+            // Delete inventory lot
+            db.run('DELETE FROM inventory_lots WHERE purchase_item_id = ?', [item.id]);
+            // Delete inventory transaction
+            db.run(
+              `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
+              [id, item.menu_item_id],
+              () => {
+                reversalsCompleted++;
+                if (reversalsCompleted === totalReversals) {
+                  proceedWithUpdate();
+                }
+              }
+            );
+          }
+        });
+      }
+    });
+  });
 });
 
 // Delete purchase (admin only - also removes inventory lots)

@@ -4,16 +4,30 @@ import { formatCurrency } from '../../utils/formatters';
 function InventoryStockSection({
   inventoryItems,
   onViewLots,
-  onOpenAdjustment
+  onOpenAdjustment,
+  onRefresh,
+  isRefreshing
 }) {
   const activeItems = inventoryItems.filter(item => item.active);
   const totalValue = activeItems.reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0);
 
   return (
     <div className="card">
-      <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>
-        Inventory Levels
-      </h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 style={{ fontSize: '18px', color: 'var(--color-primary)', margin: 0 }}>
+          Inventory Levels
+        </h2>
+        {onRefresh && (
+          <button
+            className="btn btn-small"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            style={{ padding: '6px 12px' }}
+          >
+            {isRefreshing ? 'Refreshing...' : '↻ Refresh'}
+          </button>
+        )}
+      </div>
       <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
         View current inventory levels, FIFO lots, and make adjustments for lost/wasted/donated items.
       </p>
