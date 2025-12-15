@@ -115,6 +115,7 @@ function CashBoxAdmin() {
   const [submittingPurchase, setSubmittingPurchase] = useState(false);
   const [purchaseItemSearchQueries, setPurchaseItemSearchQueries] = useState({});
   const [purchaseItemDropdownOpen, setPurchaseItemDropdownOpen] = useState(null);
+  const [dropdownHighlightIndex, setDropdownHighlightIndex] = useState(0);
 
   // Keyboard navigation state
   const [focusedRowIndex, setFocusedRowIndex] = useState(null);
@@ -1312,14 +1313,24 @@ function CashBoxAdmin() {
     setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
   };
 
-  // Filter items based on search query
+  // Filter items based on search query (flexible word matching)
   const getFilteredPurchaseItems = (searchQuery) => {
     const { sellableItems, supplyItems } = getAllPurchaseItems();
-    const query = (searchQuery || '').toLowerCase();
+    const query = (searchQuery || '').toLowerCase().trim();
     if (!query) return { sellableItems, supplyItems };
+
+    // Split query into words for flexible matching
+    const queryWords = query.split(/\s+/).filter(w => w.length > 0);
+
+    // Match if ALL query words appear anywhere in the item name
+    const matchesAllWords = (itemName) => {
+      const nameLower = itemName.toLowerCase();
+      return queryWords.every(word => nameLower.includes(word));
+    };
+
     return {
-      sellableItems: sellableItems.filter(i => i.name.toLowerCase().includes(query)),
-      supplyItems: supplyItems.filter(i => i.name.toLowerCase().includes(query))
+      sellableItems: sellableItems.filter(i => matchesAllWords(i.name)),
+      supplyItems: supplyItems.filter(i => matchesAllWords(i.name))
     };
   };
 
@@ -3517,11 +3528,11 @@ function CashBoxAdmin() {
                   </div>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginBottom: '8px' }}>
-                  <strong>Keyboard:</strong> ↑↓ navigate rows • Enter confirms row • Esc unlocks row • Tab between fields
+                  <strong>Keyboard:</strong> ↑↓ navigate suggestions • Tab/Enter select • Esc close dropdown
                 </div>
 
                 {/* Spreadsheet Table */}
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ overflow: 'visible' }}>
                   <table className="purchase-spreadsheet">
                     <thead>
                       <tr>
@@ -3561,50 +3572,123 @@ function CashBoxAdmin() {
                                     onChange={(e) => {
                                       setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: e.target.value }));
                                       setPurchaseItemDropdownOpen(index);
+                                      setDropdownHighlightIndex(0);
                                     }}
-                                    onFocus={() => setPurchaseItemDropdownOpen(index)}
+                                    onFocus={() => {
+                                      setPurchaseItemDropdownOpen(index);
+                                      setDropdownHighlightIndex(0);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (purchaseItemDropdownOpen !== index) return;
+                                      const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
+                                      const searchQuery = purchaseItemSearchQueries[index] || '';
+                                      // Build flat list of all options
+                                      const allOptions = [
+                                        ...sellableItems.map(mi => ({ type: 'item', item: mi })),
+                                        ...supplyItems.map(mi => ({ type: 'supply', item: mi })),
+                                        { type: 'create', query: searchQuery },
+                                        ...(searchQuery ? [{ type: 'unlinked', query: searchQuery }] : [])
+                                      ];
+                                      if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        setDropdownHighlightIndex(prev => Math.min(prev + 1, allOptions.length - 1));
+                                      } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        setDropdownHighlightIndex(prev => Math.max(prev - 1, 0));
+                                      } else if (e.key === 'Tab' || e.key === 'Enter') {
+                                        if (allOptions.length > 0 && dropdownHighlightIndex < allOptions.length) {
+                                          e.preventDefault();
+                                          const selected = allOptions[dropdownHighlightIndex];
+                                          if (selected.type === 'item' || selected.type === 'supply') {
+                                            handleSelectPurchaseItem(index, selected.item);
+                                          } else if (selected.type === 'create') {
+                                            openQuickCreateModal(index, selected.query);
+                                          } else if (selected.type === 'unlinked') {
+                                            handlePurchaseItemChange(index, 'itemName', selected.query);
+                                            setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
+                                            setPurchaseItemDropdownOpen(null);
+                                          }
+                                        }
+                                      } else if (e.key === 'Escape') {
+                                        setPurchaseItemDropdownOpen(null);
+                                      }
+                                    }}
                                     placeholder="Search item..."
                                   />
                                   {purchaseItemDropdownOpen === index && (
                                     <div className="purchase-item-dropdown">
                                       {(() => {
                                         const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
-                                        const hasResults = sellableItems.length > 0 || supplyItems.length > 0;
                                         const searchQuery = purchaseItemSearchQueries[index] || '';
+                                        let optionIndex = 0;
                                         return (
                                           <>
                                             {sellableItems.length > 0 && (
                                               <>
                                                 <div className="purchase-item-dropdown-header">MENU ITEMS</div>
-                                                {sellableItems.map(mi => (
-                                                  <div key={mi.id} className="purchase-item-dropdown-option" onClick={() => handleSelectPurchaseItem(index, mi)}>
-                                                    {mi.name}
-                                                  </div>
-                                                ))}
+                                                {sellableItems.map(mi => {
+                                                  const thisIndex = optionIndex++;
+                                                  return (
+                                                    <div
+                                                      key={mi.id}
+                                                      className={`purchase-item-dropdown-option ${dropdownHighlightIndex === thisIndex ? 'highlighted' : ''}`}
+                                                      onClick={() => handleSelectPurchaseItem(index, mi)}
+                                                      onMouseEnter={() => setDropdownHighlightIndex(thisIndex)}
+                                                    >
+                                                      {mi.name}
+                                                    </div>
+                                                  );
+                                                })}
                                               </>
                                             )}
                                             {supplyItems.length > 0 && (
                                               <>
                                                 <div className="purchase-item-dropdown-header">SUPPLIES</div>
-                                                {supplyItems.map(mi => (
-                                                  <div key={mi.id} className="purchase-item-dropdown-option" onClick={() => handleSelectPurchaseItem(index, mi)} style={{ color: 'var(--color-text-muted)' }}>
-                                                    {mi.name} <span style={{ fontSize: '10px' }}>(supply)</span>
-                                                  </div>
-                                                ))}
+                                                {supplyItems.map(mi => {
+                                                  const thisIndex = optionIndex++;
+                                                  return (
+                                                    <div
+                                                      key={mi.id}
+                                                      className={`purchase-item-dropdown-option ${dropdownHighlightIndex === thisIndex ? 'highlighted' : ''}`}
+                                                      onClick={() => handleSelectPurchaseItem(index, mi)}
+                                                      onMouseEnter={() => setDropdownHighlightIndex(thisIndex)}
+                                                      style={{ color: 'var(--color-text-muted)' }}
+                                                    >
+                                                      {mi.name} <span style={{ fontSize: '10px' }}>(supply)</span>
+                                                    </div>
+                                                  );
+                                                })}
                                               </>
                                             )}
-                                            <div className="purchase-item-dropdown-option" onClick={() => openQuickCreateModal(index, searchQuery)}>
-                                              + Create "{searchQuery || 'new item'}"
-                                            </div>
-                                            {searchQuery && (
-                                              <div className="purchase-item-dropdown-option" onClick={() => {
-                                                handlePurchaseItemChange(index, 'itemName', searchQuery);
-                                                setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
-                                                setPurchaseItemDropdownOpen(null);
-                                              }} style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                                                Use "{searchQuery}" without linking
-                                              </div>
-                                            )}
+                                            {(() => {
+                                              const createIndex = optionIndex++;
+                                              return (
+                                                <div
+                                                  className={`purchase-item-dropdown-option ${dropdownHighlightIndex === createIndex ? 'highlighted' : ''}`}
+                                                  onClick={() => openQuickCreateModal(index, searchQuery)}
+                                                  onMouseEnter={() => setDropdownHighlightIndex(createIndex)}
+                                                >
+                                                  + Create "{searchQuery || 'new item'}"
+                                                </div>
+                                              );
+                                            })()}
+                                            {searchQuery && (() => {
+                                              const unlinkedIndex = optionIndex++;
+                                              return (
+                                                <div
+                                                  className={`purchase-item-dropdown-option ${dropdownHighlightIndex === unlinkedIndex ? 'highlighted' : ''}`}
+                                                  onClick={() => {
+                                                    handlePurchaseItemChange(index, 'itemName', searchQuery);
+                                                    setPurchaseItemSearchQueries(prev => ({ ...prev, [index]: '' }));
+                                                    setPurchaseItemDropdownOpen(null);
+                                                  }}
+                                                  onMouseEnter={() => setDropdownHighlightIndex(unlinkedIndex)}
+                                                  style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}
+                                                >
+                                                  Use "{searchQuery}" without linking
+                                                </div>
+                                              );
+                                            })()}
                                           </>
                                         );
                                       })()}
