@@ -177,42 +177,73 @@ router.post('/', (req, res) => {
 
               // If linked to menu item, create inventory lot and update menu item
               if (item.menuItemId) {
-                // Create inventory lot
-                db.run(
-                  `INSERT INTO inventory_lots (menu_item_id, purchase_item_id, quantity_original, quantity_remaining, unit_cost, is_reimbursable, purchase_date)
-                   VALUES (?, ?, ?, ?, ?, 1, ?)`,
-                  [
-                    item.menuItemId,
-                    purchaseItemId,
-                    item.quantity,
-                    item.quantity,
-                    item.unitCost,
-                    purchaseDate || new Date().toISOString().split('T')[0]
-                  ]
-                );
+                // Check if item is a producer (is_liquid) - these are tracked by fill % not quantity
+                db.get('SELECT is_liquid FROM menu_items WHERE id = ?', [item.menuItemId], (err, menuItem) => {
+                  if (err) {
+                    console.error('Error checking is_liquid:', err);
+                  }
 
-                // Update menu item quantity_on_hand and unit_cost
-                db.run(
-                  `UPDATE menu_items
-                   SET quantity_on_hand = quantity_on_hand + ?,
-                       unit_cost = ?
-                   WHERE id = ?`,
-                  [item.quantity, item.unitCost, item.menuItemId]
-                );
+                  if (menuItem && menuItem.is_liquid) {
+                    // Producer item: set fill_percentage to 100% (restocked) instead of tracking quantity
+                    db.run(
+                      `UPDATE menu_items
+                       SET fill_percentage = 100,
+                           unit_cost = ?
+                       WHERE id = ?`,
+                      [item.unitCost, item.menuItemId]
+                    );
 
-                // Create inventory transaction
-                db.run(
-                  `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
-                   VALUES (?, 'purchase', ?, ?, 1, ?, ?, ?)`,
-                  [
-                    item.menuItemId,
-                    item.quantity,
-                    item.unitCost,
-                    purchaseId,
-                    `Purchase from ${vendor || 'Unknown'}`,
-                    createdBy || ''
-                  ]
-                );
+                    // Create inventory transaction for producer restock
+                    db.run(
+                      `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
+                       VALUES (?, 'purchase', 1, ?, 1, ?, ?, ?)`,
+                      [
+                        item.menuItemId,
+                        item.unitCost,
+                        purchaseId,
+                        `Producer item restocked from ${vendor || 'Unknown'}`,
+                        createdBy || ''
+                      ]
+                    );
+                  } else {
+                    // Regular item: create inventory lot and track quantity
+                    db.run(
+                      `INSERT INTO inventory_lots (menu_item_id, purchase_item_id, quantity_original, quantity_remaining, unit_cost, is_reimbursable, purchase_date)
+                       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+                      [
+                        item.menuItemId,
+                        purchaseItemId,
+                        item.quantity,
+                        item.quantity,
+                        item.unitCost,
+                        purchaseDate || new Date().toISOString().split('T')[0]
+                      ]
+                    );
+
+                    // Update menu item quantity_on_hand and unit_cost
+                    db.run(
+                      `UPDATE menu_items
+                       SET quantity_on_hand = quantity_on_hand + ?,
+                           unit_cost = ?
+                       WHERE id = ?`,
+                      [item.quantity, item.unitCost, item.menuItemId]
+                    );
+
+                    // Create inventory transaction
+                    db.run(
+                      `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
+                       VALUES (?, 'purchase', ?, ?, 1, ?, ?, ?)`,
+                      [
+                        item.menuItemId,
+                        item.quantity,
+                        item.unitCost,
+                        purchaseId,
+                        `Purchase from ${vendor || 'Unknown'}`,
+                        createdBy || ''
+                      ]
+                    );
+                  }
+                });
               }
             }
 
@@ -350,25 +381,41 @@ router.put('/:id', (req, res) => {
                     if (!itemErr && item.menuItemId) {
                       const purchaseItemId = this.lastID;
 
-                      // Create new inventory lot
-                      db.run(
-                        `INSERT INTO inventory_lots (menu_item_id, purchase_item_id, quantity_original, quantity_remaining, unit_cost, is_reimbursable, purchase_date)
-                         VALUES (?, ?, ?, ?, ?, 1, ?)`,
-                        [item.menuItemId, purchaseItemId, item.quantity, item.quantity, item.unitCost, purchaseDate]
-                      );
+                      // Check if item is a producer (is_liquid)
+                      db.get('SELECT is_liquid FROM menu_items WHERE id = ?', [item.menuItemId], (err, menuItem) => {
+                        if (menuItem && menuItem.is_liquid) {
+                          // Producer item: set fill_percentage to 100%
+                          db.run(
+                            `UPDATE menu_items SET fill_percentage = 100, unit_cost = ? WHERE id = ?`,
+                            [item.unitCost, item.menuItemId]
+                          );
+                          db.run(
+                            `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
+                             VALUES (?, 'purchase', 1, ?, 1, ?, ?, '')`,
+                            [item.menuItemId, item.unitCost, id, `Producer item restocked from ${vendor || 'Unknown'}`]
+                          );
+                        } else {
+                          // Regular item: create new inventory lot
+                          db.run(
+                            `INSERT INTO inventory_lots (menu_item_id, purchase_item_id, quantity_original, quantity_remaining, unit_cost, is_reimbursable, purchase_date)
+                             VALUES (?, ?, ?, ?, ?, 1, ?)`,
+                            [item.menuItemId, purchaseItemId, item.quantity, item.quantity, item.unitCost, purchaseDate]
+                          );
 
-                      // Update menu item quantity
-                      db.run(
-                        `UPDATE menu_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ? WHERE id = ?`,
-                        [item.quantity, item.unitCost, item.menuItemId]
-                      );
+                          // Update menu item quantity
+                          db.run(
+                            `UPDATE menu_items SET quantity_on_hand = quantity_on_hand + ?, unit_cost = ? WHERE id = ?`,
+                            [item.quantity, item.unitCost, item.menuItemId]
+                          );
 
-                      // Create inventory transaction
-                      db.run(
-                        `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
-                         VALUES (?, 'purchase', ?, ?, 1, ?, ?, '')`,
-                        [item.menuItemId, item.quantity, item.unitCost, id, `Purchase update from ${vendor || 'Unknown'}`]
-                      );
+                          // Create inventory transaction
+                          db.run(
+                            `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, reference_id, notes, created_by)
+                             VALUES (?, 'purchase', ?, ?, 1, ?, ?, '')`,
+                            [item.menuItemId, item.quantity, item.unitCost, id, `Purchase update from ${vendor || 'Unknown'}`]
+                          );
+                        }
+                      });
                     }
 
                     itemsProcessed++;
@@ -397,24 +444,39 @@ router.put('/:id', (req, res) => {
       } else {
         existingItems.forEach(item => {
           if (item.menu_item_id) {
-            // Reduce quantity_on_hand
-            db.run(
-              'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
-              [item.quantity, item.menu_item_id]
-            );
-            // Delete inventory lot
-            db.run('DELETE FROM inventory_lots WHERE purchase_item_id = ?', [item.id]);
-            // Delete inventory transaction
-            db.run(
-              `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
-              [id, item.menu_item_id],
-              () => {
-                reversalsCompleted++;
-                if (reversalsCompleted === totalReversals) {
-                  proceedWithUpdate();
-                }
+            // Check if producer item (is_liquid)
+            db.get('SELECT is_liquid FROM menu_items WHERE id = ?', [item.menu_item_id], (err, menuItem) => {
+              if (menuItem && menuItem.is_liquid) {
+                // Producer item: only delete inventory transaction (fill % unchanged)
+                db.run(
+                  `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
+                  [id, item.menu_item_id],
+                  () => {
+                    reversalsCompleted++;
+                    if (reversalsCompleted === totalReversals) {
+                      proceedWithUpdate();
+                    }
+                  }
+                );
+              } else {
+                // Regular item: reverse quantity and delete lot
+                db.run(
+                  'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
+                  [item.quantity, item.menu_item_id]
+                );
+                db.run('DELETE FROM inventory_lots WHERE purchase_item_id = ?', [item.id]);
+                db.run(
+                  `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
+                  [id, item.menu_item_id],
+                  () => {
+                    reversalsCompleted++;
+                    if (reversalsCompleted === totalReversals) {
+                      proceedWithUpdate();
+                    }
+                  }
+                );
               }
-            );
+            });
           }
         });
       }
@@ -439,23 +501,34 @@ router.delete('/:id', (req, res) => {
       // Reverse inventory for each item
       items.forEach(item => {
         if (item.menu_item_id) {
-          // Remove from quantity_on_hand
-          db.run(
-            'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
-            [item.quantity, item.menu_item_id]
-          );
+          // Check if producer item (is_liquid) - don't reverse quantity for these
+          db.get('SELECT is_liquid FROM menu_items WHERE id = ?', [item.menu_item_id], (err, menuItem) => {
+            if (menuItem && menuItem.is_liquid) {
+              // Producer item: only delete the inventory transaction (fill % stays unchanged)
+              db.run(
+                `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
+                [id, item.menu_item_id]
+              );
+            } else {
+              // Regular item: reverse quantity and delete lot
+              db.run(
+                'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
+                [item.quantity, item.menu_item_id]
+              );
 
-          // Delete inventory lot
-          db.run(
-            'DELETE FROM inventory_lots WHERE purchase_item_id = ?',
-            [item.id]
-          );
+              // Delete inventory lot
+              db.run(
+                'DELETE FROM inventory_lots WHERE purchase_item_id = ?',
+                [item.id]
+              );
 
-          // Delete inventory transaction
-          db.run(
-            `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
-            [id, item.menu_item_id]
-          );
+              // Delete inventory transaction
+              db.run(
+                `DELETE FROM inventory_transactions WHERE reference_id = ? AND transaction_type = 'purchase' AND menu_item_id = ?`,
+                [id, item.menu_item_id]
+              );
+            }
+          });
         }
       });
 

@@ -1316,9 +1316,9 @@ function CashBoxAdmin() {
 
   // Filter items based on search query (flexible word matching)
   const getFilteredPurchaseItems = (searchQuery) => {
-    const { sellableItems, supplyItems } = getAllPurchaseItems();
+    const { sellableItems, supplyItems, ingredientItems } = getAllPurchaseItems();
     const query = (searchQuery || '').toLowerCase().trim();
-    if (!query) return { sellableItems, supplyItems };
+    if (!query) return { sellableItems, supplyItems, ingredientItems };
 
     // Split query into words for flexible matching
     const queryWords = query.split(/\s+/).filter(w => w.length > 0);
@@ -1331,7 +1331,8 @@ function CashBoxAdmin() {
 
     return {
       sellableItems: sellableItems.filter(i => matchesAllWords(i.name)),
-      supplyItems: supplyItems.filter(i => matchesAllWords(i.name))
+      supplyItems: supplyItems.filter(i => matchesAllWords(i.name)),
+      ingredientItems: ingredientItems.filter(i => matchesAllWords(i.name))
     };
   };
 
@@ -1344,7 +1345,8 @@ function CashBoxAdmin() {
       unitCost: '',
       quantity: '',
       price: '',
-      componentOf: ''
+      componentOf: '',
+      componentQuantity: '1'
     });
     setShowQuickCreateModal(true);
     setPurchaseItemDropdownOpen(null);
@@ -1738,7 +1740,7 @@ function CashBoxAdmin() {
     e.preventDefault();
     setError('');
 
-    const { itemType, name, price, unitCost, componentOf } = quickCreateData;
+    const { itemType, name, price, unitCost, componentOf, componentQuantity } = quickCreateData;
 
     // Validation based on item type
     if (itemType === 'menu' && !price) {
@@ -1816,11 +1818,12 @@ function CashBoxAdmin() {
 
       // If component type, link to parent menu item
       if (itemType === 'component' && componentOf) {
+        const qty = parseFloat(componentQuantity) || 1;
         await fetch(`/api/menu/${componentOf}/components`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            components: [{ componentItemId: newItemId, quantity: 1 }],
+            components: [{ componentItemId: newItemId, quantity: qty }],
             append: true
           })
         });
@@ -1842,7 +1845,7 @@ function CashBoxAdmin() {
 
       // Close modal and reset
       setShowQuickCreateModal(false);
-      setQuickCreateData({ name: '', itemType: 'menu', unitCost: '', quantity: '', price: '', componentOf: '' });
+      setQuickCreateData({ name: '', itemType: 'menu', unitCost: '', quantity: '', price: '', componentOf: '', componentQuantity: '1' });
       setQuickCreateForIndex(null);
 
       // Success message based on type
@@ -2193,11 +2196,15 @@ function CashBoxAdmin() {
   const getAllPurchaseItems = () => {
     const sellableItems = [];
     const supplyItems = [];
+    const ingredientItems = [];
     menuItems.forEach(item => {
       if (item.is_supply) {
         supplyItems.push({ ...item, category: 'supply' });
       } else if (item.price !== null && item.active && !item.is_composite) {
         sellableItems.push({ ...item, category: 'sellable' });
+      } else if (item.price === null && !item.is_supply && item.active) {
+        // Component/ingredient items without a price (not sold separately)
+        ingredientItems.push({ ...item, category: 'ingredient' });
       }
       if (item.subItems) {
         item.subItems.forEach(sub => {
@@ -2205,11 +2212,13 @@ function CashBoxAdmin() {
             supplyItems.push({ ...sub, category: 'supply' });
           } else if (sub.price !== null && sub.active && !sub.is_composite) {
             sellableItems.push({ ...sub, category: 'sellable' });
+          } else if (sub.price === null && !sub.is_supply && sub.active) {
+            ingredientItems.push({ ...sub, category: 'ingredient' });
           }
         });
       }
     });
-    return { sellableItems, supplyItems, all: [...sellableItems, ...supplyItems] };
+    return { sellableItems, supplyItems, ingredientItems, all: [...sellableItems, ...supplyItems, ...ingredientItems] };
   };
 
   // Inventory handlers
@@ -3584,11 +3593,12 @@ function CashBoxAdmin() {
                                     }}
                                     onKeyDown={(e) => {
                                       if (purchaseItemDropdownOpen !== index) return;
-                                      const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
+                                      const { sellableItems, supplyItems, ingredientItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
                                       const searchQuery = purchaseItemSearchQueries[index] || '';
                                       // Build flat list of all options
                                       const allOptions = [
                                         ...sellableItems.map(mi => ({ type: 'item', item: mi })),
+                                        ...ingredientItems.map(mi => ({ type: 'ingredient', item: mi })),
                                         ...supplyItems.map(mi => ({ type: 'supply', item: mi })),
                                         { type: 'create', query: searchQuery },
                                         ...(searchQuery ? [{ type: 'unlinked', query: searchQuery }] : [])
@@ -3603,7 +3613,7 @@ function CashBoxAdmin() {
                                         if (allOptions.length > 0 && dropdownHighlightIndex < allOptions.length) {
                                           e.preventDefault();
                                           const selected = allOptions[dropdownHighlightIndex];
-                                          if (selected.type === 'item' || selected.type === 'supply') {
+                                          if (selected.type === 'item' || selected.type === 'supply' || selected.type === 'ingredient') {
                                             handleSelectPurchaseItem(index, selected.item);
                                           } else if (selected.type === 'create') {
                                             openQuickCreateModal(index, selected.query);
@@ -3622,7 +3632,7 @@ function CashBoxAdmin() {
                                   {purchaseItemDropdownOpen === index && (
                                     <div className="purchase-item-dropdown">
                                       {(() => {
-                                        const { sellableItems, supplyItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
+                                        const { sellableItems, supplyItems, ingredientItems } = getFilteredPurchaseItems(purchaseItemSearchQueries[index]);
                                         const searchQuery = purchaseItemSearchQueries[index] || '';
                                         let optionIndex = 0;
                                         return (
@@ -3640,6 +3650,25 @@ function CashBoxAdmin() {
                                                       onMouseEnter={() => setDropdownHighlightIndex(thisIndex)}
                                                     >
                                                       {mi.name}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </>
+                                            )}
+                                            {ingredientItems.length > 0 && (
+                                              <>
+                                                <div className="purchase-item-dropdown-header">INGREDIENTS</div>
+                                                {ingredientItems.map(mi => {
+                                                  const thisIndex = optionIndex++;
+                                                  return (
+                                                    <div
+                                                      key={mi.id}
+                                                      className={`purchase-item-dropdown-option ${dropdownHighlightIndex === thisIndex ? 'highlighted' : ''}`}
+                                                      onClick={() => handleSelectPurchaseItem(index, mi)}
+                                                      onMouseEnter={() => setDropdownHighlightIndex(thisIndex)}
+                                                      style={{ color: 'var(--color-accent)' }}
+                                                    >
+                                                      {mi.name} <span style={{ fontSize: '10px' }}>(ingredient)</span>
                                                     </div>
                                                   );
                                                 })}
@@ -4150,23 +4179,41 @@ function CashBoxAdmin() {
 
                 {/* Parent selection - required for Component type */}
                 {quickCreateData.itemType === 'component' && (
-                  <div className="form-group">
-                    <label>Component of *</label>
-                    <select
-                      className="input"
-                      value={quickCreateData.componentOf}
-                      onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentOf: e.target.value }))}
-                      required
-                    >
-                      <option value="">-- Select parent item --</option>
-                      {menuItems.filter(m => m.price !== null && !m.is_supply).map(item => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
-                      ))}
-                    </select>
-                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
-                      This item will be linked as an ingredient of the selected menu item
-                    </small>
-                  </div>
+                  <>
+                    <div className="form-group">
+                      <label>Component of *</label>
+                      <select
+                        className="input"
+                        value={quickCreateData.componentOf}
+                        onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentOf: e.target.value }))}
+                        required
+                      >
+                        <option value="">-- Select parent item --</option>
+                        {menuItems.filter(m => m.price !== null && !m.is_supply).map(item => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                      <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                        This item will be linked as an ingredient of the selected menu item
+                      </small>
+                    </div>
+                    <div className="form-group">
+                      <label>Quantity per serving *</label>
+                      <input
+                        type="number"
+                        className="input"
+                        step="0.01"
+                        min="0.01"
+                        value={quickCreateData.componentQuantity}
+                        onChange={(e) => setQuickCreateData(prev => ({ ...prev, componentQuantity: e.target.value }))}
+                        placeholder="1"
+                        required
+                      />
+                      <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
+                        How many of this item are used per serving of the parent item
+                      </small>
+                    </div>
+                  </>
                 )}
 
                 {/* Price field - required for Menu Item, optional for Component */}
