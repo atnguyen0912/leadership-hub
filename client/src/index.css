@@ -3370,6 +3370,8 @@ textarea.input {
 
   /* Content area fills remaining space and scrolls independently */
   .container,
+  .container-narrow,
+  .container-medium,
   .dashboard-layout,
   .nav ~ div {
     flex: 1;
