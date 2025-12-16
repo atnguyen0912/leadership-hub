@@ -2269,11 +2269,21 @@ td {
 }
 
 .purchase-item-selected button {
-  background: none;
-  border: none;
+  background: var(--color-bg-card-solid);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
   color: var(--color-text-muted);
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.purchase-item-selected button:hover {
+  background: var(--color-danger);
+  color: white;
+  border-color: var(--color-danger);
 }
 
 /* Hint text below inputs */

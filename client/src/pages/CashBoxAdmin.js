@@ -3565,7 +3565,7 @@ function CashBoxAdmin() {
                               {item.menuItemId ? (
                                 <div className="purchase-item-selected">
                                   <span>{item.itemName || getAllPurchaseItems().all.find(m => m.id === parseInt(item.menuItemId))?.name}</span>
-                                  <button type="button" onClick={() => handleClearPurchaseItemLink(index)}>✕</button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); handleClearPurchaseItemLink(index); }} title="Clear selection">×</button>
                                 </div>
                               ) : (
                                 <>
@@ -3754,9 +3754,9 @@ function CashBoxAdmin() {
 
                             {/* Actions Cell */}
                             <td className="actions-cell">
-                              <button type="button" className="btn btn-small" onClick={() => duplicatePurchaseItem(index)} title="Duplicate">⊕</button>
+                              <button type="button" className="btn btn-small" onClick={(e) => { e.stopPropagation(); duplicatePurchaseItem(index); }} title="Duplicate row">+</button>
                               {purchaseFormData.items.length > 1 && (
-                                <button type="button" className="btn btn-danger btn-small" onClick={() => removePurchaseItem(index)}>X</button>
+                                <button type="button" className="btn btn-danger btn-small" onClick={(e) => { e.stopPropagation(); removePurchaseItem(index); }} title="Remove row">×</button>
                               )}
                             </td>
                           </tr>
