@@ -135,6 +135,7 @@ function CashBoxAdmin() {
 
   // Quick create item modal
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false);
+  const [quickCreateLoading, setQuickCreateLoading] = useState(false);
   const [quickCreateData, setQuickCreateData] = useState({
     name: '',
     itemType: 'menu', // 'menu' | 'supply' | 'component' | 'producer'
@@ -1749,6 +1750,7 @@ function CashBoxAdmin() {
       return;
     }
 
+    setQuickCreateLoading(true);
     try {
       // Determine price and flags based on item type
       let itemPrice = null;
@@ -1854,6 +1856,8 @@ function CashBoxAdmin() {
 
     } catch (err) {
       setError(err.message);
+    } finally {
+      setQuickCreateLoading(false);
     }
   };
 
@@ -4232,8 +4236,9 @@ function CashBoxAdmin() {
                     type="submit"
                     className="btn btn-primary"
                     style={{ flex: 1 }}
+                    disabled={quickCreateLoading}
                   >
-                    Create & Link
+                    {quickCreateLoading ? 'Creating...' : 'Create & Link'}
                   </button>
                 </div>
               </form>
