@@ -2096,7 +2096,7 @@ td {
   border-collapse: collapse;
   background: var(--color-bg-card);
   border-radius: var(--border-radius);
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--color-border);
   margin-bottom: var(--spacing-md);
 }
@@ -2226,9 +2226,10 @@ td {
   background: var(--color-bg-input);
   border: 1px solid var(--color-border);
   border-radius: 0 0 4px 4px;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
-  z-index: 100;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .purchase-item-dropdown-option {

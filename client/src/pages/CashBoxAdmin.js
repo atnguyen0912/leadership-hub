@@ -3473,8 +3473,8 @@ function CashBoxAdmin() {
 
         {/* Purchase Form Modal */}
         {showPurchaseForm && (
-          <div className="pos-modal-overlay" onClick={resetPurchaseForm}>
-            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ width: '95vw', maxWidth: '1100px', maxHeight: '90vh', overflow: 'auto' }}>
+          <div className="pos-modal-overlay" onClick={resetPurchaseForm} style={{ overflowY: 'auto' }}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ width: '95vw', maxWidth: '1100px', overflow: 'visible', marginTop: '20px', marginBottom: '20px' }}>
               <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>New Purchase Entry</h3>
 
               <form onSubmit={handleSubmitPurchase}>
