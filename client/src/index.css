@@ -436,6 +436,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ==================== MOBILE APP LAYOUT ==================== */
+/* Page wrapper for proper mobile layout with fixed nav */
+.page-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content {
+  flex: 1;
+  width: 100%;
+}
+
 /* Container with responsive padding */
 .container {
   max-width: 1400px;
@@ -3312,10 +3325,16 @@ textarea.input {
 
   .container {
     padding: var(--spacing-md);
+    padding-top: 70px; /* Offset for fixed nav */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .card {
     padding: var(--spacing-md);
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .page-title {
@@ -3327,9 +3346,30 @@ textarea.input {
     width: 40px;
   }
 
-  /* Navigation mobile - collapsible */
+  /* Mobile viewport lock */
+  html, body {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Navigation mobile - fixed at top */
   .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     padding: var(--spacing-sm) var(--spacing-md);
+    z-index: 100;
+  }
+
+  /* Offset content below fixed nav - dashboard uses its own layout */
+  .dashboard-layout {
+    padding-top: 70px;
   }
 
   .nav-header {
@@ -3356,6 +3396,7 @@ textarea.input {
     margin-top: var(--spacing-sm);
     padding-top: var(--spacing-sm);
     border-top: var(--border-subtle);
+    background: var(--gradient-dark);
   }
 
   .nav-links.open {
