@@ -3561,30 +3561,39 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 
-  /* Log hours v2 layout mobile - sticky title, fixed calendar, scrollable spreadsheet */
+  /* Log Hours mobile - fixed header (title + calendar), scrollable spreadsheet */
 
-  /* Sticky page title for Log Hours page */
-  .container:has(.log-hours-layout-v2) .page-title {
-    position: sticky;
-    top: 56px; /* Below the 56px fixed nav */
-    background: var(--color-bg);
-    z-index: 50;
-    padding: var(--spacing-sm) 0;
-    margin: 0 0 var(--spacing-sm) 0;
+  /* Container fills remaining viewport below fixed nav */
+  .container:has(.log-hours-layout-v2) {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 56px); /* viewport minus nav */
+    padding: 0;
+    overflow: hidden;
   }
 
+  /* Title - fixed, no shrink */
+  .container:has(.log-hours-layout-v2) .page-title {
+    flex-shrink: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin: 0;
+    background: var(--color-bg);
+  }
+
+  /* Layout wrapper - fills remaining space */
   .log-hours-layout-v2 {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 56px - 60px); /* nav height - title height */
+    flex: 1;
+    min-height: 0; /* Important: allows children to shrink */
+    overflow: hidden;
     gap: 0;
   }
 
+  /* Calendar panel - fixed, no shrink */
   .calendar-panel {
-    position: sticky;
-    top: 0;
-    z-index: 10;
     flex-shrink: 0;
+    overflow: hidden;
   }
 
   .calendar-panel .card {
@@ -3592,16 +3601,18 @@ textarea.input {
     margin: 0;
   }
 
+  /* Spreadsheet panel - takes remaining space, scrolls */
   .spreadsheet-panel {
     flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
     padding-bottom: var(--spacing-lg);
   }
 
   .spreadsheet-panel .card {
     border-radius: 0;
     margin: 0;
-    min-height: 100%;
   }
 
   /* Calendar header - arrows fixed to sides */
