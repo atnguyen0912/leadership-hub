@@ -3574,10 +3574,10 @@ textarea.input {
     overflow: hidden;
   }
 
-  /* Title - fixed, no shrink */
+  /* Title - fixed, no shrink, minimal spacing */
   .container:has(.log-hours-layout-v2) .page-title {
     flex-shrink: 0;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--spacing-xs) var(--spacing-md);
     margin: 0;
     background: var(--color-bg);
   }
@@ -3601,6 +3601,7 @@ textarea.input {
   .calendar-panel .card {
     border-radius: 0;
     margin: 0;
+    padding: var(--spacing-xs) var(--spacing-sm); /* Reduced padding for full-width calendar */
   }
 
   /* Spreadsheet panel - takes remaining space, scrolls */
