@@ -3355,7 +3355,7 @@ textarea.input {
     margin: 0;
     padding-top: 56px; /* Space for fixed nav */
     box-sizing: border-box;
-    overflow-x: hidden;
+    overflow: hidden; /* Prevent body scroll - scroll happens in child containers */
   }
 
   /* Fixed navigation at top */
@@ -3376,12 +3376,14 @@ textarea.input {
     height: auto;
   }
 
-  /* Content containers - no special styling needed, body padding handles offset */
+  /* Content containers - fill viewport and scroll independently */
   .container,
   .container-narrow,
   .container-medium,
   .dashboard-layout {
-    min-height: calc(100vh - 56px);
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nav-header {
