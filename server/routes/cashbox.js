@@ -245,6 +245,127 @@ router.get('/sessions/:id', requirePermission('sessions.run'), (req, res) => {
   );
 });
 
+// GET /api/cashbox/sessions/:id/close-preview - Get detailed breakdown for closing a session
+router.get('/sessions/:id/close-preview', requirePermission('sessions.run'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Fetch the session by ID and verify it's active
+    const session = await get(
+      `SELECT cs.*, p.name as program_name
+       FROM concession_sessions cs
+       LEFT JOIN cashbox_programs p ON cs.program_id = p.id
+       WHERE cs.id = ?`,
+      [id]
+    );
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'active') {
+      return res.status(400).json({ error: 'Session is not active' });
+    }
+
+    // 2. Calculate revenue breakdown by payment method
+    const revenueBreakdown = await get(
+      `SELECT
+         COUNT(*) as order_count,
+         COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as cash,
+         COALESCE(SUM(CASE WHEN payment_method = 'cashapp' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as cashapp,
+         COALESCE(SUM(CASE WHEN payment_method = 'zelle' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as zelle,
+         COALESCE(SUM(COALESCE(final_total, subtotal)), 0) as total
+       FROM orders
+       WHERE session_id = ?`,
+      [id]
+    );
+
+    // 3. Calculate COGS (Cost of Goods Sold)
+    const cogsResult = await get(
+      `SELECT COALESCE(SUM(COALESCE(cogs_total, 0)), 0) as total_cogs
+       FROM orders
+       WHERE session_id = ?`,
+      [id]
+    );
+
+    const totalCogs = cogsResult.total_cogs || 0;
+
+    // 4. Calculate profit
+    const profit = revenueBreakdown.total - totalCogs;
+
+    // 5. Calculate reimbursement details
+    const totalOwed = totalCogs;
+
+    // Get CashApp transactions for this session (auto-reimburse)
+    const cashappReimbursement = await get(
+      `SELECT COALESCE(SUM(amount), 0) as total
+       FROM cashapp_transactions
+       WHERE session_id = ? AND transaction_type = 'sale'`,
+      [id]
+    );
+
+    // Get Zelle payments for this session (auto-reimburse)
+    const zelleReimbursement = await get(
+      `SELECT COALESCE(SUM(amount), 0) as total
+       FROM zelle_payments
+       WHERE session_id = ?`,
+      [id]
+    );
+
+    const cashappAutoReimbursed = cashappReimbursement.total || 0;
+    const zelleAutoReimbursed = zelleReimbursement.total || 0;
+    const totalAutoReimbursed = cashappAutoReimbursed + zelleAutoReimbursed;
+    const stillOwed = Math.max(0, totalOwed - totalAutoReimbursed);
+
+    // 6. Get starting cash from session record
+    const startingCash = {
+      quarters: session.start_quarters || 0,
+      bills_1: session.start_bills_1 || 0,
+      bills_5: session.start_bills_5 || 0,
+      bills_10: session.start_bills_10 || 0,
+      bills_20: session.start_bills_20 || 0,
+      bills_50: session.start_bills_50 || 0,
+      bills_100: session.start_bills_100 || 0,
+      total: session.start_total || 0
+    };
+
+    // Calculate expected cash in drawer
+    const expectedCashInDrawer = startingCash.total + (revenueBreakdown.cash || 0);
+
+    // Return the formatted response
+    res.json({
+      sessionId: session.id,
+      sessionName: session.name,
+      programName: session.program_name,
+      revenue: {
+        total: revenueBreakdown.total || 0,
+        cash: revenueBreakdown.cash || 0,
+        cashapp: revenueBreakdown.cashapp || 0,
+        zelle: revenueBreakdown.zelle || 0,
+        orderCount: revenueBreakdown.order_count || 0
+      },
+      costs: {
+        totalCogs: totalCogs
+      },
+      profit: profit,
+      reimbursement: {
+        totalOwed: totalOwed,
+        autoReimbursed: {
+          cashapp: cashappAutoReimbursed,
+          zelle: zelleAutoReimbursed,
+          total: totalAutoReimbursed
+        },
+        stillOwed: stillOwed
+      },
+      startingCash: startingCash,
+      expectedCashInDrawer: expectedCashInDrawer
+    });
+  } catch (err) {
+    console.error('Session close preview error:', err);
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
 // POST /api/cashbox/sessions - Create new session (requires sessions.create)
 router.post('/sessions', requirePermission('sessions.create'), (req, res) => {
   const { name, programId, createdBy, isTest = false } = req.body;
