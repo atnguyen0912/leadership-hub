@@ -1431,6 +1431,9 @@ function ConcessionSession() {
           onComplete={handleCompleteOrder}
           submitting={submittingOrder}
           error={error}
+          session={session}
+          discountChargedTo={discountChargedTo}
+          setDiscountChargedTo={setDiscountChargedTo}
         />
 
         {/* Checkout Modal */}

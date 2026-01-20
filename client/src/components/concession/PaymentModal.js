@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 
 function PaymentModal({
@@ -14,8 +14,32 @@ function PaymentModal({
   setAmountTendered,
   onComplete,
   submitting,
-  error
+  error,
+  session,
+  discountChargedTo,
+  setDiscountChargedTo
 }) {
+  const [programs, setPrograms] = useState([]);
+
+  useEffect(() => {
+    if (show && appliedDiscount > 0) {
+      fetchPrograms();
+    }
+  }, [show, appliedDiscount]);
+
+  const fetchPrograms = async () => {
+    try {
+      const response = await fetch('/api/cashbox/programs');
+      const data = await response.json();
+      if (response.ok) {
+        // Filter to only active programs
+        setPrograms(data.filter(p => p.active));
+      }
+    } catch (err) {
+      console.error('Failed to fetch programs:', err);
+    }
+  };
+
   if (!show) return null;
 
   const calculateChange = () => {
@@ -65,6 +89,54 @@ function PaymentModal({
             </div>
           )}
         </div>
+
+        {appliedDiscount > 0 && (
+          <div className="form-group" style={{ marginBottom: '16px' }}>
+            <label>{isComp ? 'Charge Comp To' : 'Charge Discount To'}</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                type="button"
+                className={`btn ${discountChargedTo === null || discountChargedTo === 'asb' ? 'btn-primary' : ''}`}
+                onClick={() => setDiscountChargedTo('asb')}
+                style={{ padding: '10px', textAlign: 'left' }}
+              >
+                <div style={{ fontWeight: 'bold' }}>ASB</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
+                  ASB absorbs the cost
+                </div>
+              </button>
+
+              {session && (
+                <button
+                  type="button"
+                  className={`btn ${discountChargedTo === 'program' ? 'btn-primary' : ''}`}
+                  onClick={() => setDiscountChargedTo('program')}
+                  style={{ padding: '10px', textAlign: 'left' }}
+                >
+                  <div style={{ fontWeight: 'bold' }}>This Program ({session.program_name})</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
+                    Charge to current session's program
+                  </div>
+                </button>
+              )}
+
+              {programs.filter(p => p.id !== session?.program_id).map(program => (
+                <button
+                  key={program.id}
+                  type="button"
+                  className={`btn ${discountChargedTo === program.id ? 'btn-primary' : ''}`}
+                  onClick={() => setDiscountChargedTo(program.id)}
+                  style={{ padding: '10px', textAlign: 'left' }}
+                >
+                  <div style={{ fontWeight: 'bold' }}>{program.name}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
+                    Charge to {program.name}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="form-group" style={{ marginBottom: '16px' }}>
           <label>Payment Method</label>
