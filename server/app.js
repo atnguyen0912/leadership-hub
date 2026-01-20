@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const studentsRoutes = require('./routes/students');
 const hoursRoutes = require('./routes/hours');
 const cashboxRoutes = require('./routes/cashbox');
+const sessionsRoutes = require('./routes/sessions');
 const menuRoutes = require('./routes/menu');
 const ordersRoutes = require('./routes/orders');
 const eventsRoutes = require('./routes/events');
@@ -57,6 +58,7 @@ app.use('/api/events', authenticateToken, eventsRoutes);
 
 // Permission-based routes (students with specific permissions can access)
 app.use('/api/cashbox', authenticateToken, attachPermissions, cashboxRoutes);
+app.use('/api/sessions', authenticateToken, attachPermissions, sessionsRoutes);
 app.use('/api/inventory', authenticateToken, attachPermissions, inventoryRoutes);
 app.use('/api/purchases', authenticateToken, attachPermissions, purchasesRoutes);
 app.use('/api/purchase-templates', authenticateToken, attachPermissions, purchaseTemplatesRoutes);

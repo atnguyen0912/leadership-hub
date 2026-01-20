@@ -199,13 +199,22 @@ const migrations = [
         'ALTER TABLE purchase_items ADD COLUMN crv_per_unit REAL DEFAULT 0',
         'ALTER TABLE purchase_items ADD COLUMN crv_total REAL DEFAULT 0'
       ];
-      
+
       for (const sql of columns) {
         await new Promise((resolve) => {
           db.run(sql, () => resolve());
         });
       }
     }
+  },
+  {
+    name: '009_add_balance_to_cashbox_programs',
+    run: (db) => new Promise((resolve, reject) => {
+      db.run('ALTER TABLE cashbox_programs ADD COLUMN balance REAL DEFAULT 0', (err) => {
+        if (err && !err.message.includes('duplicate column')) reject(err);
+        else resolve();
+      });
+    })
   }
 ];
 
