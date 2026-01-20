@@ -464,7 +464,7 @@ const initialize = () => {
         // Run migrations after tables are created
         // This is an async operation but we don't wait for it to avoid blocking
         // The migrations system will handle any errors gracefully
-        const { runAllMigrations } = require('./migrations');
+        const { runAllMigrations } = require('./database/migrations');
         runAllMigrations().catch(err => {
           console.error('Migration error:', err);
         });
