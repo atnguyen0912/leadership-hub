@@ -96,8 +96,28 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
         </h3>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-subtle)' }}>
-            Loading session data...
+          <div style={{
+            textAlign: 'center',
+            padding: '48px 32px',
+            color: 'var(--color-text-subtle)',
+            background: 'var(--color-bg-input)',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)'
+          }}>
+            <div style={{
+              fontSize: '16px',
+              color: 'var(--color-primary)',
+              fontWeight: '500'
+            }}>
+              Loading session data...
+            </div>
+            <div style={{
+              marginTop: '16px',
+              color: 'var(--color-text-subtle)',
+              fontSize: '13px'
+            }}>
+              Calculating revenue, costs, and profit
+            </div>
           </div>
         )}
 
@@ -110,54 +130,144 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
             {/* Sales Summary Section */}
             <div style={{
               background: 'var(--color-bg-input)',
-              padding: '12px',
+              padding: '14px',
               borderRadius: '8px',
-              marginBottom: '12px'
+              marginBottom: '12px',
+              border: '1px solid var(--color-border)'
             }}>
-              <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '14px' }}>
-                Sales Summary
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
+              }}>
+                SALES SUMMARY
               </h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Total Orders:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {preview.revenue.orderCount}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Total Revenue:</span>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                  {formatCurrency(preview.revenue.total)}
-                </span>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Total Orders
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                    {preview.revenue.orderCount}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Total Revenue
+                  </span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '14px' }}>
+                    {formatCurrency(preview.revenue.total)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Average Order
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                    {preview.revenue.orderCount > 0
+                      ? formatCurrency(preview.revenue.total / preview.revenue.orderCount)
+                      : formatCurrency(0)
+                    }
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Payment Breakdown Section */}
             <div style={{
               background: 'var(--color-bg-input)',
-              padding: '12px',
+              padding: '14px',
               borderRadius: '8px',
-              marginBottom: '12px'
+              marginBottom: '12px',
+              border: '1px solid var(--color-border)'
             }}>
-              <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '14px' }}>
-                Payment Breakdown
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
+              }}>
+                PAYMENT BREAKDOWN
               </h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Cash:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.revenue.cash)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>CashApp:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.revenue.cashapp)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Zelle:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.revenue.zelle)}
-                </span>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: '6px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    ├─ Cash
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      color: 'var(--color-text-subtle)',
+                      fontSize: '11px',
+                      minWidth: '45px',
+                      textAlign: 'right'
+                    }}>
+                      {preview.revenue.total > 0
+                        ? `(${((preview.revenue.cash / preview.revenue.total) * 100).toFixed(1)}%)`
+                        : '(0.0%)'
+                      }
+                    </span>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                      {formatCurrency(preview.revenue.cash)}
+                    </span>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: '6px',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    ├─ CashApp
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      color: 'var(--color-text-subtle)',
+                      fontSize: '11px',
+                      minWidth: '45px',
+                      textAlign: 'right'
+                    }}>
+                      {preview.revenue.total > 0
+                        ? `(${((preview.revenue.cashapp / preview.revenue.total) * 100).toFixed(1)}%)`
+                        : '(0.0%)'
+                      }
+                    </span>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                      {formatCurrency(preview.revenue.cashapp)}
+                    </span>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    └─ Zelle
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      color: 'var(--color-text-subtle)',
+                      fontSize: '11px',
+                      minWidth: '45px',
+                      textAlign: 'right'
+                    }}>
+                      {preview.revenue.total > 0
+                        ? `(${((preview.revenue.zelle / preview.revenue.total) * 100).toFixed(1)}%)`
+                        : '(0.0%)'
+                      }
+                    </span>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                      {formatCurrency(preview.revenue.zelle)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
