@@ -274,87 +274,157 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
             {/* Costs & Profit Section */}
             <div style={{
               background: 'var(--color-bg-input)',
-              padding: '12px',
+              padding: '14px',
               borderRadius: '8px',
-              marginBottom: '12px'
+              marginBottom: '12px',
+              border: '1px solid var(--color-border)'
             }}>
-              <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '14px' }}>
-                Costs & Profit
-              </h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Revenue:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.revenue.total)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>COGS:</span>
-                <span style={{ color: 'var(--color-warning)', fontSize: '13px' }}>
-                  -{formatCurrency(preview.costs.totalCogs)}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                borderTop: '1px solid var(--color-border)',
-                paddingTop: '8px'
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
               }}>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Profit:</span>
-                <span style={{
-                  color: preview.profit >= 0 ? '#22c55e' : '#ef4444',
-                  fontWeight: 'bold',
-                  fontSize: '16px'
+                COSTS & PROFIT
+              </h4>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Total COGS
+                  </span>
+                  <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: '500' }}>
+                    {formatCurrency(preview.costs.totalCogs)}
+                  </span>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  borderTop: '1px solid var(--color-border)',
+                  paddingTop: '8px',
+                  marginTop: '8px'
                 }}>
-                  {formatCurrency(preview.profit)}
-                </span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                    Gross Profit
+                  </span>
+                  <span style={{
+                    color: preview.profit >= 0 ? '#22c55e' : '#ef4444',
+                    fontWeight: 'bold',
+                    fontSize: '16px'
+                  }}>
+                    {formatCurrency(preview.profit)}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Reimbursement Section */}
             <div style={{
               background: 'var(--color-bg-input)',
-              padding: '12px',
+              padding: '14px',
               borderRadius: '8px',
-              marginBottom: '12px'
+              marginBottom: '12px',
+              border: '1px solid var(--color-border)'
             }}>
-              <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '14px' }}>
-                Reimbursement
-              </h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Total Owed:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.reimbursement.totalOwed)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px', paddingLeft: '12px' }}>
-                  CashApp:
-                </span>
-                <span style={{ color: '#00D632', fontSize: '13px' }}>
-                  -{formatCurrency(preview.reimbursement.autoReimbursed.cashapp)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px', paddingLeft: '12px' }}>
-                  Zelle:
-                </span>
-                <span style={{ color: '#6B1CD1', fontSize: '13px' }}>
-                  -{formatCurrency(preview.reimbursement.autoReimbursed.zelle)}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                borderTop: '1px solid var(--color-border)',
-                paddingTop: '8px'
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
               }}>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Still Owed:</span>
-                <span style={{
-                  color: preview.reimbursement.stillOwed > 0 ? 'var(--color-warning)' : '#22c55e',
-                  fontWeight: 'bold'
+                REIMBURSEMENT CALCULATION
+              </h4>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Alex is owed (COGS)
+                  </span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '500' }}>
+                    {formatCurrency(preview.reimbursement.totalOwed)}
+                  </span>
+                </div>
+
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '6px' }}>
+                    Already reimbursed:
+                  </div>
+                  <div style={{ paddingLeft: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                        ├─ CashApp
+                      </span>
+                      <span style={{ color: '#00D632', fontSize: '12px', fontWeight: '500' }}>
+                        {formatCurrency(preview.reimbursement.autoReimbursed.cashapp)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                        ├─ Zelle
+                      </span>
+                      <span style={{ color: '#6B1CD1', fontSize: '12px', fontWeight: '500' }}>
+                        {formatCurrency(preview.reimbursement.autoReimbursed.zelle)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                        └─ Total
+                      </span>
+                      <span style={{ color: '#22c55e', fontSize: '12px', fontWeight: '500' }}>
+                        {formatCurrency(preview.reimbursement.autoReimbursed.total)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  borderTop: '1px solid var(--color-border)',
+                  paddingTop: '8px',
+                  marginTop: '8px'
                 }}>
-                  {formatCurrency(preview.reimbursement.stillOwed)}
-                </span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
+                    Still owed
+                  </span>
+                  <span style={{
+                    color: preview.reimbursement.stillOwed > 0 ? '#f59e0b' : '#22c55e',
+                    fontWeight: 'bold',
+                    fontSize: '15px'
+                  }}>
+                    {formatCurrency(preview.reimbursement.stillOwed)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Profit Allocation Section */}
+            <div style={{
+              background: 'var(--color-bg-input)',
+              padding: '14px',
+              borderRadius: '8px',
+              marginBottom: '12px',
+              border: '1px solid var(--color-border)'
+            }}>
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
+              }}>
+                PROFIT ALLOCATION
+              </h4>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    To {preview.programName}
+                  </span>
+                  <span style={{
+                    color: preview.profit >= 0 ? '#22c55e' : '#ef4444',
+                    fontWeight: 'bold',
+                    fontSize: '16px'
+                  }}>
+                    {formatCurrency(preview.profit)}
+                  </span>
+                </div>
               </div>
             </div>
 
