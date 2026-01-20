@@ -121,10 +121,6 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
           </div>
         )}
 
-        {error && !loading && (
-          <div className="error-message" style={{ marginBottom: '16px' }}>{error}</div>
-        )}
-
         {preview && !loading && (
           <>
             {/* Sales Summary Section */}
@@ -431,94 +427,162 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
             {/* Cash Reconciliation Section */}
             <div style={{
               background: 'var(--color-bg-input)',
-              padding: '12px',
+              padding: '14px',
               borderRadius: '8px',
-              marginBottom: '16px'
+              marginBottom: '16px',
+              border: '1px solid var(--color-border)'
             }}>
-              <h4 style={{ color: 'var(--color-primary)', marginBottom: '8px', fontSize: '14px' }}>
-                Cash Reconciliation
-              </h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Starting Cash:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.startingCash.total)}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>+ Cash Sales:</span>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
-                  {formatCurrency(preview.revenue.cash)}
-                </span>
-              </div>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                borderTop: '1px solid var(--color-border)',
-                paddingTop: '8px',
-                marginBottom: '12px'
+              <h4 style={{
+                color: 'var(--color-primary)',
+                marginBottom: '12px',
+                fontSize: '15px',
+                fontWeight: '600'
               }}>
-                <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>Expected in Drawer:</span>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
-                  {formatCurrency(preview.expectedCashInDrawer)}
-                </span>
-              </div>
+                CASH RECONCILIATION
+              </h4>
+              <div style={{ paddingLeft: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                    Expected in Drawer
+                  </span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '14px' }}>
+                    {formatCurrency(preview.expectedCashInDrawer)}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '11px',
+                  color: 'var(--color-text-subtle)',
+                  marginBottom: '12px',
+                  paddingLeft: '4px'
+                }}>
+                  (Starting: {formatCurrency(preview.startingCash.total)} + Cash Sales: {formatCurrency(preview.revenue.cash)})
+                </div>
 
-              <div className="form-group" style={{ marginBottom: '0' }}>
-                <label style={{ fontSize: '13px', marginBottom: '6px' }}>Actual Cash Count</label>
-                <input
-                  type="number"
-                  className="input"
-                  step="0.01"
-                  min="0"
-                  value={actualCashCount}
-                  onChange={(e) => setActualCashCount(e.target.value)}
-                  placeholder="0.00"
-                  style={{ fontSize: '20px', textAlign: 'center' }}
-                  autoFocus
-                />
-                {actualCashCount && !isNaN(actualCashCount) && (
-                  <div style={{
-                    marginTop: '8px',
-                    textAlign: 'center',
-                    padding: '8px',
-                    background: Math.abs(parseFloat(actualCashCount) - preview.expectedCashInDrawer) > 0.01
-                      ? 'rgba(239, 68, 68, 0.1)'
-                      : 'rgba(34, 197, 94, 0.1)',
-                    borderRadius: '4px'
-                  }}>
-                    <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
-                      Discrepancy:{' '}
-                    </span>
-                    <span style={{
-                      color: Math.abs(parseFloat(actualCashCount) - preview.expectedCashInDrawer) > 0.01
-                        ? '#ef4444'
-                        : '#22c55e',
-                      fontWeight: 'bold',
-                      fontSize: '16px'
-                    }}>
-                      {formatCurrency(parseFloat(actualCashCount) - preview.expectedCashInDrawer)}
-                    </span>
-                  </div>
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '13px', marginBottom: '6px', fontWeight: '500' }}>
+                    Actual Cash Count
+                  </label>
+                  <input
+                    type="number"
+                    className="input"
+                    step="0.01"
+                    min="0"
+                    value={actualCashCount}
+                    onChange={(e) => setActualCashCount(e.target.value)}
+                    placeholder="0.00"
+                    style={{ fontSize: '20px', textAlign: 'center', fontWeight: '600' }}
+                    autoFocus
+                  />
+                </div>
+
+                {actualCashCount && !isNaN(actualCashCount) && parseFloat(actualCashCount) >= 0 && (
+                  <>
+                    {(() => {
+                      const discrepancy = parseFloat(actualCashCount) - preview.expectedCashInDrawer;
+                      const isShortage = discrepancy < -0.01;
+                      const isOverage = discrepancy > 0.01;
+                      const isExact = Math.abs(discrepancy) <= 0.01;
+
+                      return (
+                        <div style={{
+                          borderTop: '1px solid var(--color-border)',
+                          paddingTop: '12px',
+                          marginTop: '8px'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '10px',
+                            background: isExact
+                              ? 'rgba(34, 197, 94, 0.1)'
+                              : isShortage
+                              ? 'rgba(239, 68, 68, 0.1)'
+                              : 'rgba(245, 158, 11, 0.1)',
+                            borderRadius: '6px',
+                            border: `1px solid ${
+                              isExact
+                                ? 'rgba(34, 197, 94, 0.3)'
+                                : isShortage
+                                ? 'rgba(239, 68, 68, 0.3)'
+                                : 'rgba(245, 158, 11, 0.3)'
+                            }`
+                          }}>
+                            <div>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginBottom: '2px' }}>
+                                Discrepancy
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--color-text-subtle)' }}>
+                                {isShortage && '⚠️ Shortage'}
+                                {isOverage && '⚠️ Overage'}
+                                {isExact && '✓ Exact Match'}
+                              </div>
+                            </div>
+                            <div style={{
+                              color: isExact ? '#22c55e' : isShortage ? '#ef4444' : '#f59e0b',
+                              fontWeight: 'bold',
+                              fontSize: '18px'
+                            }}>
+                              {discrepancy >= 0 ? '+' : ''}{formatCurrency(discrepancy)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+            {error && (
+              <div className="error-message" style={{ marginBottom: '12px' }}>{error}</div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn"
                 onClick={onClose}
                 disabled={submitting}
-                style={{ flex: 1 }}
+                style={{ flex: '1 1 auto', minWidth: '100px' }}
               >
                 Cancel
               </button>
+
+              {actualCashCount &&
+               !isNaN(actualCashCount) &&
+               parseFloat(actualCashCount) >= 0 &&
+               Math.abs(parseFloat(actualCashCount) - preview.expectedCashInDrawer) > 0.01 && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    // TODO: Implement Record Loss functionality in Phase 2
+                    alert('Record Loss feature coming in Phase 2');
+                  }}
+                  disabled={submitting}
+                  style={{
+                    flex: '1 1 auto',
+                    minWidth: '120px',
+                    background: '#f59e0b',
+                    color: 'white'
+                  }}
+                >
+                  Record Loss
+                </button>
+              )}
+
               <button
                 className="btn btn-primary"
                 onClick={handleClose}
-                disabled={submitting || !actualCashCount || isNaN(actualCashCount)}
-                style={{ flex: 2, background: '#22c55e' }}
+                disabled={
+                  submitting ||
+                  !actualCashCount ||
+                  isNaN(actualCashCount) ||
+                  parseFloat(actualCashCount) < 0
+                }
+                style={{ flex: '2 1 auto', minWidth: '140px', background: '#22c55e' }}
               >
                 {submitting ? 'Closing...' : 'Close Session'}
               </button>
