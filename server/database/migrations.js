@@ -199,13 +199,57 @@ const migrations = [
         'ALTER TABLE purchase_items ADD COLUMN crv_per_unit REAL DEFAULT 0',
         'ALTER TABLE purchase_items ADD COLUMN crv_total REAL DEFAULT 0'
       ];
-      
+
       for (const sql of columns) {
         await new Promise((resolve) => {
           db.run(sql, () => resolve());
         });
       }
     }
+  },
+  {
+    name: '009_add_discount_columns_to_orders',
+    run: async (db) => {
+      const columns = [
+        'ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0',
+        'ALTER TABLE orders ADD COLUMN discount_charged_to INTEGER DEFAULT NULL',
+        'ALTER TABLE orders ADD COLUMN discount_reason TEXT DEFAULT NULL',
+        'ALTER TABLE orders ADD COLUMN final_total REAL DEFAULT NULL',
+        'ALTER TABLE orders ADD COLUMN is_comp INTEGER DEFAULT 0',
+        'ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT \'cash\'',
+        'ALTER TABLE orders ADD COLUMN cogs_total REAL DEFAULT 0',
+        'ALTER TABLE orders ADD COLUMN cogs_reimbursable REAL DEFAULT 0'
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+    }
+  },
+  {
+    name: '010_create_program_charges_table',
+    run: (db) => new Promise((resolve, reject) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS program_charges (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          from_program_id INTEGER NOT NULL,
+          session_id INTEGER NOT NULL,
+          order_id INTEGER NOT NULL,
+          amount REAL NOT NULL,
+          charge_type TEXT NOT NULL CHECK (charge_type IN ('comp', 'discount')),
+          reason TEXT DEFAULT '',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (from_program_id) REFERENCES programs(id),
+          FOREIGN KEY (session_id) REFERENCES concession_sessions(id),
+          FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+      `, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    })
   }
 ];
 
