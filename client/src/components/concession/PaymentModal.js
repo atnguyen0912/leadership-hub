@@ -138,100 +138,124 @@ function PaymentModal({
           </div>
         )}
 
-        <div className="form-group" style={{ marginBottom: '16px' }}>
-          <label>Payment Method</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : ''}`}
-              onClick={() => setPaymentMethod('cash')}
-              style={{ flex: 1, padding: '12px' }}
-            >
-              Cash
-            </button>
-            <button
-              type="button"
-              className={`btn ${paymentMethod === 'cashapp' ? 'btn-primary' : ''}`}
-              onClick={() => setPaymentMethod('cashapp')}
-              style={{ flex: 1, padding: '12px', background: paymentMethod === 'cashapp' ? '#00D632' : undefined }}
-            >
-              CashApp
-            </button>
-            <button
-              type="button"
-              className={`btn ${paymentMethod === 'zelle' ? 'btn-primary' : ''}`}
-              onClick={() => setPaymentMethod('zelle')}
-              style={{ flex: 1, padding: '12px', background: paymentMethod === 'zelle' ? '#6B1CD1' : undefined }}
-            >
-              Zelle
-            </button>
-          </div>
-        </div>
+        {/* Only show payment methods if there's an actual amount to pay */}
+        {finalTotal > 0 && (
+          <>
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <label>Payment Method</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className={`btn ${paymentMethod === 'cash' ? 'btn-primary' : ''}`}
+                  onClick={() => setPaymentMethod('cash')}
+                  style={{ flex: 1, padding: '12px' }}
+                >
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${paymentMethod === 'cashapp' ? 'btn-primary' : ''}`}
+                  onClick={() => setPaymentMethod('cashapp')}
+                  style={{ flex: 1, padding: '12px', background: paymentMethod === 'cashapp' ? '#00D632' : undefined }}
+                >
+                  CashApp
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${paymentMethod === 'zelle' ? 'btn-primary' : ''}`}
+                  onClick={() => setPaymentMethod('zelle')}
+                  style={{ flex: 1, padding: '12px', background: paymentMethod === 'zelle' ? '#6B1CD1' : undefined }}
+                >
+                  Zelle
+                </button>
+              </div>
+            </div>
 
-        {paymentMethod === 'cash' && (
-          <div className="form-group">
-            <label>Amount Tendered</label>
-            <input
-              type="number"
-              className="input"
-              step="0.01"
-              min={finalTotal}
-              value={amountTendered}
-              onChange={(e) => setAmountTendered(e.target.value)}
-              placeholder="0.00"
-              style={{ fontSize: '24px', textAlign: 'center' }}
-              autoFocus
-            />
-            {parseFloat(amountTendered) >= finalTotal && (
-              <div style={{ marginTop: '8px', textAlign: 'center' }}>
-                <span style={{ color: 'var(--color-text-subtle)' }}>Change: </span>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '18px' }}>
-                  {formatCurrency(calculateChange())}
-                </span>
+            {paymentMethod === 'cash' && (
+              <div className="form-group">
+                <label>Amount Tendered</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.01"
+                  min={finalTotal}
+                  value={amountTendered}
+                  onChange={(e) => setAmountTendered(e.target.value)}
+                  placeholder="0.00"
+                  style={{ fontSize: '24px', textAlign: 'center' }}
+                  autoFocus
+                />
+                {parseFloat(amountTendered) >= finalTotal && (
+                  <div style={{ marginTop: '8px', textAlign: 'center' }}>
+                    <span style={{ color: 'var(--color-text-subtle)' }}>Change: </span>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: 'bold', fontSize: '18px' }}>
+                      {formatCurrency(calculateChange())}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  {[1, 5, 10, 20].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => setAmountTendered(String(Math.ceil(finalTotal / amt) * amt))}
+                      style={{ flex: 1 }}
+                    >
+                      ${amt}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    onClick={() => setAmountTendered(String(finalTotal))}
+                    style={{ flex: 1 }}
+                  >
+                    Exact
+                  </button>
+                </div>
               </div>
             )}
-            <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
-              {[1, 5, 10, 20].map(amt => (
-                <button
-                  key={amt}
-                  type="button"
-                  className="btn btn-small"
-                  onClick={() => setAmountTendered(String(Math.ceil(finalTotal / amt) * amt))}
-                  style={{ flex: 1 }}
-                >
-                  ${amt}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={() => setAmountTendered(String(finalTotal))}
-                style={{ flex: 1 }}
-              >
-                Exact
-              </button>
-            </div>
-          </div>
+
+            {paymentMethod === 'cashapp' && (
+              <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                <p style={{ color: '#00D632', fontSize: '14px', marginBottom: '8px' }}>
+                  Confirm customer sent CashApp payment
+                </p>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                  Payment will be added to CashApp balance for withdrawal
+                </p>
+              </div>
+            )}
+
+            {paymentMethod === 'zelle' && (
+              <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+                <p style={{ color: '#6B1CD1', fontSize: '14px', marginBottom: '8px' }}>
+                  Confirm customer sent Zelle payment
+                </p>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                  Zelle payments are auto-applied to reimbursement
+                </p>
+              </div>
+            )}
+          </>
         )}
 
-        {paymentMethod === 'cashapp' && (
-          <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-            <p style={{ color: '#00D632', fontSize: '14px', marginBottom: '8px' }}>
-              Confirm customer sent CashApp payment
+        {/* Show message for comps/100% discount */}
+        {finalTotal === 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #9333ea22, #7c3aed22)',
+            border: '1px solid #9333ea',
+            padding: '16px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            marginBottom: '16px'
+          }}>
+            <p style={{ color: '#9333ea', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+              No Payment Required
             </p>
-            <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
-              Payment will be added to CashApp balance for withdrawal
-            </p>
-          </div>
-        )}
-
-        {paymentMethod === 'zelle' && (
-          <div style={{ background: 'var(--color-bg-input)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
-            <p style={{ color: '#6B1CD1', fontSize: '14px', marginBottom: '8px' }}>
-              Confirm customer sent Zelle payment
-            </p>
-            <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>
-              Zelle payments are auto-applied to reimbursement
+            <p style={{ color: 'var(--color-text-subtle)', fontSize: '14px' }}>
+              This order is fully comped
             </p>
           </div>
         )}
@@ -250,10 +274,10 @@ function PaymentModal({
           <button
             className="btn btn-primary"
             onClick={onComplete}
-            disabled={submitting || (paymentMethod === 'cash' && (parseFloat(amountTendered) || 0) < finalTotal)}
+            disabled={submitting || (finalTotal > 0 && paymentMethod === 'cash' && (parseFloat(amountTendered) || 0) < finalTotal)}
             style={{ flex: 2 }}
           >
-            {submitting ? 'Processing...' : 'Complete'}
+            {submitting ? 'Processing...' : (finalTotal === 0 ? 'Complete Comp' : 'Complete')}
           </button>
         </div>
       </div>
