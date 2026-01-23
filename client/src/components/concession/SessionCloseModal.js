@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '../../utils/formatters';
+import { RecordLossModal } from '../losses';
 
 function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   const [preview, setPreview] = useState(null);
@@ -7,6 +8,7 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   const [actualCashCount, setActualCashCount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showRecordLossModal, setShowRecordLossModal] = useState(false);
 
   // Fetch preview data when modal opens
   useEffect(() => {
@@ -79,6 +81,16 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRecordLoss = () => {
+    setShowRecordLossModal(true);
+  };
+
+  const handleLossRecorded = () => {
+    // Loss has been recorded, user can now close session
+    setShowRecordLossModal(false);
+    // Optionally show a success message
   };
 
   if (!isOpen) return null;
@@ -557,10 +569,7 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => {
-                    // TODO: Implement Record Loss functionality in Phase 2
-                    alert('Record Loss feature coming in Phase 2');
-                  }}
+                  onClick={handleRecordLoss}
                   disabled={submitting}
                   style={{
                     flex: '1 1 auto',
@@ -590,6 +599,21 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
           </>
         )}
       </div>
+
+      {/* Record Loss Modal */}
+      {preview && actualCashCount && (
+        <RecordLossModal
+          isOpen={showRecordLossModal}
+          onClose={() => setShowRecordLossModal(false)}
+          onLossRecorded={handleLossRecorded}
+          prefillData={{
+            lossType: parseFloat(actualCashCount) < preview.expectedCashInDrawer ? 'cash_shortage' : 'cash_overage',
+            amount: Math.abs(parseFloat(actualCashCount) - preview.expectedCashInDrawer),
+            sessionId: sessionId,
+            description: `Cash discrepancy from session close. Expected: ${formatCurrency(preview.expectedCashInDrawer)}, Counted: ${formatCurrency(parseFloat(actualCashCount))}`
+          }}
+        />
+      )}
     </div>
   );
 }
