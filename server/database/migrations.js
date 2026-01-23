@@ -215,6 +215,29 @@ const migrations = [
         else resolve();
       });
     })
+  },
+  {
+    name: '010_add_settlement_columns_to_losses',
+    run: async (db) => {
+      const columns = [
+        'ALTER TABLE losses ADD COLUMN settled_to TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settled_at DATETIME DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settled_by TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settlement_notes TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN created_by TEXT DEFAULT NULL'
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+
+      // Copy recorded_by to created_by for existing records
+      await new Promise((resolve) => {
+        db.run('UPDATE losses SET created_by = recorded_by WHERE created_by IS NULL', () => resolve());
+      });
+    }
   }
 ];
 
