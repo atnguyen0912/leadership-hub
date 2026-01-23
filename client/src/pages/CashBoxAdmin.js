@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { formatCurrency, formatDateTime } from '../utils/formatters';
@@ -19,6 +19,8 @@ import {
   InventoryMovementsSection,
   InventoryCountSection
 } from '../components/cashbox';
+import { MenuItemCard } from '../components/menu';
+import '../styles/MenuOrganization.css';
 
 function CashBoxAdmin() {
   const { user } = useAuth();
@@ -56,6 +58,7 @@ function CashBoxAdmin() {
   const [newItemParentId, setNewItemParentId] = useState('');
   const [newItemNeedsIngredients, setNewItemNeedsIngredients] = useState(false);
   const [addingMenuItem, setAddingMenuItem] = useState(false);
+  const [activeMenuTab, setActiveMenuTab] = useState('all');
 
   // Edit menu item
   const [editingMenuItemId, setEditingMenuItemId] = useState(null);
@@ -2221,6 +2224,126 @@ function CashBoxAdmin() {
     return { sellableItems, supplyItems, ingredientItems, all: [...sellableItems, ...supplyItems, ...ingredientItems] };
   };
 
+  // Menu organization - filter items by category with counts
+  const getFilteredMenuItems = useMemo(() => {
+    // First, identify which items are used as ingredients
+    const ingredientIds = new Set();
+    const flatMenuItems = [];
+
+    // Flatten menuItems including subitems
+    menuItems.forEach(item => {
+      flatMenuItems.push(item);
+      if (item.subItems) {
+        flatMenuItems.push(...item.subItems);
+      }
+      // Track component usage
+      if (item.components) {
+        item.components.forEach(c => ingredientIds.add(c.component_item_id));
+      }
+    });
+
+    // Helper to determine category
+    const determineCategory = (item) => {
+      if (item.is_supply === 1) return 'supply';
+      if (ingredientIds.has(item.id)) return 'ingredient';
+      if (item.price !== null && item.parent_id === null && item.is_supply !== 1) return 'sellable';
+      if (item.price === null && item.track_inventory === 1 && item.is_supply !== 1) return 'ingredient';
+      return null;
+    };
+
+    const filtered = {
+      sellable: [],
+      ingredients: [],
+      supplies: [],
+      all: []
+    };
+
+    flatMenuItems.forEach(item => {
+      const category = determineCategory(item);
+
+      switch (activeMenuTab) {
+        case 'sellable':
+          if (item.price !== null && item.is_supply !== 1 && item.parent_id === null) {
+            filtered.sellable.push({ ...item, category: 'sellable' });
+          }
+          break;
+
+        case 'ingredients':
+          if (ingredientIds.has(item.id) ||
+              (item.price === null && item.is_supply !== 1 && item.track_inventory === 1)) {
+            filtered.ingredients.push({ ...item, category: 'ingredient' });
+          }
+          break;
+
+        case 'supplies':
+          if (item.is_supply === 1) {
+            filtered.supplies.push({ ...item, category: 'supply' });
+          }
+          break;
+
+        case 'all':
+        default:
+          if (category) {
+            filtered.all.push({ ...item, category });
+          }
+          break;
+      }
+    });
+
+    // Return the appropriate array based on active tab
+    switch (activeMenuTab) {
+      case 'sellable': return filtered.sellable;
+      case 'ingredients': return filtered.ingredients;
+      case 'supplies': return filtered.supplies;
+      case 'all':
+      default: return filtered.all;
+    }
+  }, [menuItems, activeMenuTab]);
+
+  // Get counts for each menu category
+  const getMenuCategoryCounts = useMemo(() => {
+    const ingredientIds = new Set();
+    const flatMenuItems = [];
+
+    menuItems.forEach(item => {
+      flatMenuItems.push(item);
+      if (item.subItems) {
+        flatMenuItems.push(...item.subItems);
+      }
+      if (item.components) {
+        item.components.forEach(c => ingredientIds.add(c.component_item_id));
+      }
+    });
+
+    const counts = {
+      sellable: 0,
+      ingredients: 0,
+      supplies: 0,
+      all: 0
+    };
+
+    flatMenuItems.forEach(item => {
+      // Sellable
+      if (item.price !== null && item.is_supply !== 1 && item.parent_id === null) {
+        counts.sellable++;
+        counts.all++;
+      }
+      // Ingredients
+      else if (ingredientIds.has(item.id) ||
+          (item.price === null && item.is_supply !== 1 && item.track_inventory === 1)) {
+        counts.ingredients++;
+        counts.all++;
+      }
+      // Supplies
+      else if (item.is_supply === 1) {
+        counts.supplies++;
+        counts.all++;
+      }
+    });
+
+    return counts;
+  }, [menuItems]);
+
   // Inventory handlers
   const handleViewLots = (item) => {
     setSelectedInventoryItem(item);
@@ -2820,14 +2943,72 @@ function CashBoxAdmin() {
               </div>
             </form>
 
-            <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px', marginBottom: '12px' }}>
-              Drag items to reorder. Drag an item onto a category (no price) to make it a sub-item.
-            </p>
+            {/* Menu Organization Tabs */}
+            <div className="menu-tabs">
+              <button
+                className={`menu-tab-button ${activeMenuTab === 'all' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('all')}
+              >
+                All Items
+                <span className="menu-tab-badge">{getMenuCategoryCounts.all}</span>
+              </button>
+              <button
+                className={`menu-tab-button ${activeMenuTab === 'sellable' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('sellable')}
+              >
+                Sellable
+                <span className="menu-tab-badge">{getMenuCategoryCounts.sellable}</span>
+              </button>
+              <button
+                className={`menu-tab-button ${activeMenuTab === 'ingredients' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('ingredients')}
+              >
+                Ingredients
+                <span className="menu-tab-badge">{getMenuCategoryCounts.ingredients}</span>
+              </button>
+              <button
+                className={`menu-tab-button ${activeMenuTab === 'supplies' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('supplies')}
+              >
+                Supplies
+                <span className="menu-tab-badge">{getMenuCategoryCounts.supplies}</span>
+              </button>
+            </div>
 
+            {/* Menu Items Display */}
             {menuItems.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No menu items yet.</p>
+              <div className="menu-empty-state">
+                <div className="menu-empty-icon">📦</div>
+                <div className="menu-empty-text">No menu items yet</div>
+                <div className="menu-empty-subtext">Add your first item using the form above</div>
+              </div>
+            ) : getFilteredMenuItems.length === 0 ? (
+              <div className="menu-empty-state">
+                <div className="menu-empty-icon">🔍</div>
+                <div className="menu-empty-text">No items in this category</div>
+                <div className="menu-empty-subtext">Try switching to a different tab</div>
+              </div>
             ) : (
+              <div className="menu-items-grid">
+                {getFilteredMenuItems.map((item) => (
+                  <MenuItemCard
+                    key={item.id}
+                    item={item}
+                    category={item.category}
+                    components={item.components}
+                    onEdit={() => startEditingMenuItem(item)}
+                    onDelete={() => handleDeleteMenuItem(item.id, item.name)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Legacy Drag-and-Drop View - Hidden, keeping for potential future use */}
+            {false && menuItems.length > 0 && (
               <div>
+                <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px', marginBottom: '12px' }}>
+                  Drag items to reorder. Drag an item onto a category (no price) to make it a sub-item.
+                </p>
                 {menuItems.map((item, index) => (
                   <div key={item.id} style={{ position: 'relative', marginBottom: '8px' }}>
                     {/* Drop indicator before item */}
