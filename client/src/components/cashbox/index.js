@@ -12,3 +12,4 @@ export { default as ProgramsEarningsSection } from './ProgramsEarningsSection';
 export { default as InventoryLotsSection } from './InventoryLotsSection';
 export { default as InventoryMovementsSection } from './InventoryMovementsSection';
 export { default as InventoryCountSection } from './InventoryCountSection';
+export { default as InventoryVerificationModal } from './InventoryVerificationModal';

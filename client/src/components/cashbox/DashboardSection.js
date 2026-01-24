@@ -7,10 +7,22 @@ function DashboardSection({
   cashAppBalance,
   inventoryItems,
   onNavigate,
-  onOpenPOS
+  onOpenPOS,
+  onOpenVerification
 }) {
   const activeSessions = sessions.filter(s => s.status === 'active');
   const lowStockItems = inventoryItems.filter(i => i.quantity_on_hand <= 5 && i.quantity_on_hand > 0);
+
+  // Calculate verification summary
+  const verificationSummary = inventoryItems.reduce((acc, item) => {
+    if (!item.active || !item.track_inventory) return acc;
+    const status = item.inventory_confidence || 'never';
+    acc[status] = (acc[status] || 0) + 1;
+    acc.total += 1;
+    return acc;
+  }, { verified: 0, estimated: 0, stale: 0, never: 0, total: 0 });
+
+  const needsVerification = verificationSummary.stale + verificationSummary.never;
 
   return (
     <div>
@@ -42,6 +54,21 @@ function DashboardSection({
             {lowStockItems.length}
           </p>
         </div>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <p style={{ color: 'var(--color-text-subtle)', fontSize: '12px', margin: '0 0 4px 0' }}>Inventory Status</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '4px' }}>
+            <span title="Verified (checked within 7 days)" style={{ fontSize: '14px' }}>🟢 {verificationSummary.verified}</span>
+            <span title="Estimated (checked 7-14 days ago)" style={{ fontSize: '14px' }}>🟡 {verificationSummary.estimated}</span>
+            <span title="Stale or never verified" style={{ fontSize: '14px', color: needsVerification > 0 ? 'var(--color-danger)' : 'inherit' }}>
+              🔴 {needsVerification}
+            </span>
+          </div>
+          {needsVerification > 0 && (
+            <p style={{ color: 'var(--color-danger)', fontSize: '11px', margin: 0 }}>
+              {needsVerification} item{needsVerification !== 1 ? 's' : ''} need{needsVerification === 1 ? 's' : ''} verification
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -57,6 +84,15 @@ function DashboardSection({
           <button className="btn" onClick={() => onNavigate('inventory', 'count')}>
             Inventory Count
           </button>
+          {onOpenVerification && (
+            <button
+              className="btn"
+              onClick={onOpenVerification}
+              style={needsVerification > 0 ? { background: 'var(--color-warning)' } : {}}
+            >
+              {needsVerification > 0 ? `📋 Verify (${needsVerification})` : '📋 Verify Inventory'}
+            </button>
+          )}
           <button className="btn" onClick={() => onNavigate('reports')}>
             View Reports
           </button>

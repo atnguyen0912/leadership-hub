@@ -17,7 +17,8 @@ import {
   ProgramsEarningsSection,
   InventoryLotsSection,
   InventoryMovementsSection,
-  InventoryCountSection
+  InventoryCountSection,
+  InventoryVerificationModal
 } from '../components/cashbox';
 import { MenuItemCard } from '../components/menu';
 import '../styles/MenuOrganization.css';
@@ -179,6 +180,9 @@ function CashBoxAdmin() {
     quantity: '',
     notes: ''
   });
+  // Inventory verification modal state
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [savingVerification, setSavingVerification] = useState(false);
 
   // CashApp and reimbursement state
   const [cashAppBalance, setCashAppBalance] = useState(0);
@@ -1704,6 +1708,33 @@ function CashBoxAdmin() {
     }
   };
 
+  // Handle inventory verification save
+  const handleSaveVerification = async (verificationData) => {
+    setSavingVerification(true);
+    setError('');
+    try {
+      const response = await fetch('/api/inventory/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(verificationData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save verification');
+      }
+
+      setSuccess(`Verified ${data.itemsVerified} item(s). ${data.discrepancyCount > 0 ? `${data.discrepancyCount} discrepancies found.` : 'All counts matched!'}`);
+      setShowVerificationModal(false);
+      refreshInventoryData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingVerification(false);
+    }
+  };
+
   const resetPurchaseForm = () => {
     setPurchaseFormData({
       vendor: '',
@@ -2681,6 +2712,7 @@ function CashBoxAdmin() {
               inventoryItems={inventoryItems}
               onNavigate={navigateTo}
               onOpenPOS={(sessionId) => navigate(`/cashbox/session/${sessionId}`)}
+              onOpenVerification={() => setShowVerificationModal(true)}
             />
           )}
 
@@ -4716,6 +4748,7 @@ function CashBoxAdmin() {
               isRefreshing={refreshingInventory}
               onMarkUsage={handleMarkUsage}
               onToggleLiquid={handleToggleLiquid}
+              onOpenVerification={() => setShowVerificationModal(true)}
             />
           )}
 
@@ -5416,6 +5449,16 @@ function CashBoxAdmin() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Inventory Verification Modal */}
+        {showVerificationModal && (
+          <InventoryVerificationModal
+            items={inventoryItems.filter(item => item.active && item.track_inventory)}
+            onClose={() => setShowVerificationModal(false)}
+            onSave={handleSaveVerification}
+            isLoading={savingVerification}
+          />
         )}
 
         </div>
