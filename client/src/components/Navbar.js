@@ -64,6 +64,9 @@ function Navbar() {
             <Link to="/cashbox-admin" className={`nav-link ${location.pathname === '/cashbox-admin' ? 'active' : ''}`}>
               CashBox
             </Link>
+            <Link to="/losses" className={`nav-link ${location.pathname === '/losses' ? 'active' : ''}`}>
+              Losses
+            </Link>
           </>
         )}
         <button

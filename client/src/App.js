@@ -14,6 +14,7 @@ import EventsAdmin from './pages/EventsAdmin';
 import CashBox from './pages/CashBox';
 import CashBoxAdmin from './pages/CashBoxAdmin';
 import ConcessionSession from './pages/ConcessionSession';
+import LossesManagement from './pages/LossesManagement';
 
 function AppRoutes() {
   const { user, isStudent } = useAuth();
@@ -45,6 +46,7 @@ function AppRoutes() {
           <Route path="/cashbox" element={<CashBox />} />
           <Route path="/cashbox-admin" element={<CashBoxAdmin />} />
           <Route path="/concession-session/:id" element={<ConcessionSession />} />
+          <Route path="/losses" element={<LossesManagement />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}

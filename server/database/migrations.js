@@ -199,12 +199,44 @@ const migrations = [
         'ALTER TABLE purchase_items ADD COLUMN crv_per_unit REAL DEFAULT 0',
         'ALTER TABLE purchase_items ADD COLUMN crv_total REAL DEFAULT 0'
       ];
-      
+
       for (const sql of columns) {
         await new Promise((resolve) => {
           db.run(sql, () => resolve());
         });
       }
+    }
+  },
+  {
+    name: '009_add_balance_to_cashbox_programs',
+    run: (db) => new Promise((resolve, reject) => {
+      db.run('ALTER TABLE cashbox_programs ADD COLUMN balance REAL DEFAULT 0', (err) => {
+        if (err && !err.message.includes('duplicate column')) reject(err);
+        else resolve();
+      });
+    })
+  },
+  {
+    name: '010_add_settlement_columns_to_losses',
+    run: async (db) => {
+      const columns = [
+        'ALTER TABLE losses ADD COLUMN settled_to TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settled_at DATETIME DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settled_by TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN settlement_notes TEXT DEFAULT NULL',
+        'ALTER TABLE losses ADD COLUMN created_by TEXT DEFAULT NULL'
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+
+      // Copy recorded_by to created_by for existing records
+      await new Promise((resolve) => {
+        db.run('UPDATE losses SET created_by = recorded_by WHERE created_by IS NULL', () => resolve());
+      });
     }
   }
 ];

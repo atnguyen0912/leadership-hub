@@ -7,7 +7,8 @@ import {
   SubMenuModal,
   DiscountModal,
   PaymentModal,
-  OrderHistoryModal
+  OrderHistoryModal,
+  SessionCloseModal
 } from '../components/concession';
 
 function ConcessionSession() {
@@ -61,6 +62,10 @@ function ConcessionSession() {
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [orderHistory, setOrderHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Session close modal (new simplified flow)
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closingSessionId, setClosingSessionId] = useState(null);
 
   // Edit mode for reordering menu items
   const [editMode, setEditMode] = useState(false);
@@ -959,8 +964,14 @@ function ConcessionSession() {
             <button
               className={`btn btn-small ${isTestSession ? '' : 'btn-danger'}`}
               onClick={() => {
-                if (isTestSession) fetchOrderHistory();
-                setShowCheckout(true);
+                if (isTestSession) {
+                  fetchOrderHistory();
+                  setShowCheckout(true);
+                } else {
+                  // Open new simplified close modal
+                  setClosingSessionId(parseInt(id));
+                  setShowCloseModal(true);
+                }
               }}
               style={isTestSession ? { background: '#eab308', color: '#000' } : {}}
             >
@@ -1608,6 +1619,21 @@ function ConcessionSession() {
           onClose={() => setShowOrderHistory(false)}
           orders={orderHistory}
           loading={loadingHistory}
+        />
+
+        {/* Session Close Modal (New Simplified Flow) */}
+        <SessionCloseModal
+          isOpen={showCloseModal}
+          onClose={() => setShowCloseModal(false)}
+          sessionId={closingSessionId}
+          onSessionClosed={() => {
+            setShowCloseModal(false);
+            setSuccess('Session closed successfully!');
+            // Refresh session data
+            fetchData();
+            // Navigate to cashbox after a brief delay
+            setTimeout(() => navigate('/cashbox'), 2000);
+          }}
         />
       </div>
     );
