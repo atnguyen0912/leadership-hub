@@ -18,7 +18,8 @@ import {
   InventoryLotsSection,
   InventoryMovementsSection,
   InventoryCountSection,
-  InventoryVerificationModal
+  InventoryVerificationModal,
+  SessionStartInventory
 } from '../components/cashbox';
 import { MenuItemCard } from '../components/menu';
 import '../styles/MenuOrganization.css';
@@ -48,6 +49,9 @@ function CashBoxAdmin() {
   const [sessionProgramId, setSessionProgramId] = useState('');
   const [creatingSession, setCreatingSession] = useState(false);
   const [isTestSession, setIsTestSession] = useState(false);
+  // Session start inventory flow
+  const [showSessionStartInventory, setShowSessionStartInventory] = useState(false);
+  const [newlyCreatedSessionId, setNewlyCreatedSessionId] = useState(null);
 
   // Program management
   const [newProgramName, setNewProgramName] = useState('');
@@ -497,7 +501,9 @@ function CashBoxAdmin() {
         throw new Error(data.error || 'Failed to create session');
       }
 
-      setSuccess(isTestSession ? 'Practice session created!' : 'Session created successfully!');
+      // Store session info and show start inventory screen
+      setNewlyCreatedSessionId(data.sessionId);
+      setShowSessionStartInventory(true);
       setSessionName('');
       setIsTestSession(false);
       fetchData();
@@ -506,6 +512,25 @@ function CashBoxAdmin() {
     } finally {
       setCreatingSession(false);
     }
+  };
+
+  // Handle session start inventory completion
+  const handleSessionStartInventoryComplete = (result) => {
+    setShowSessionStartInventory(false);
+    setNewlyCreatedSessionId(null);
+    if (result.skipped) {
+      setSuccess('Session started (inventory verification skipped)');
+    } else {
+      setSuccess(`Session started with inventory verified (${result.preciseItemsCount || 0} precise, ${result.bulkItemsCount || 0} bulk items)`);
+    }
+    fetchData();
+  };
+
+  // Handle cancellation of session start inventory
+  const handleSessionStartInventorySkip = () => {
+    setShowSessionStartInventory(false);
+    setNewlyCreatedSessionId(null);
+    setSuccess('Session created (ready to configure inventory later)');
   };
 
   const handleCancelSession = async (id) => {
@@ -5459,6 +5484,19 @@ function CashBoxAdmin() {
             onSave={handleSaveVerification}
             isLoading={savingVerification}
           />
+        )}
+
+        {/* Session Start Inventory Modal */}
+        {showSessionStartInventory && newlyCreatedSessionId && (
+          <div className="pos-modal-overlay" onClick={handleSessionStartInventorySkip}>
+            <div className="pos-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <SessionStartInventory
+                sessionId={newlyCreatedSessionId}
+                onComplete={handleSessionStartInventoryComplete}
+                onSkip={handleSessionStartInventorySkip}
+              />
+            </div>
+          </div>
         )}
 
         </div>
