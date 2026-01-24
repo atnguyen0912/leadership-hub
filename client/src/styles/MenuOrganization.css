@@ -104,6 +104,22 @@
   border-left-color: #64748b;
 }
 
+.menu-card-composite {
+  border-left-color: #8b5cf6; /* purple */
+}
+
+.menu-card-composite:hover {
+  border-left-color: #7c3aed;
+}
+
+.menu-card-bulk {
+  border-left-color: #3b82f6; /* blue */
+}
+
+.menu-card-bulk:hover {
+  border-left-color: #2563eb;
+}
+
 /* Card Header */
 .menu-card-header {
   display: flex;

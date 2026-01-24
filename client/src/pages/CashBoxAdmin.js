@@ -59,6 +59,12 @@ function CashBoxAdmin() {
   const [newItemNeedsIngredients, setNewItemNeedsIngredients] = useState(false);
   const [addingMenuItem, setAddingMenuItem] = useState(false);
   const [activeMenuTab, setActiveMenuTab] = useState('all');
+  // New item type fields (Phase 1)
+  const [newItemType, setNewItemType] = useState('sellable');
+  const [newItemContainerName, setNewItemContainerName] = useState('');
+  const [newItemServingsPerContainer, setNewItemServingsPerContainer] = useState('');
+  const [newItemCostPerContainer, setNewItemCostPerContainer] = useState('');
+  const [newItemUnitCost, setNewItemUnitCost] = useState('');
 
   // Edit menu item
   const [editingMenuItemId, setEditingMenuItemId] = useState(null);
@@ -592,17 +598,33 @@ function CashBoxAdmin() {
     // Store values before resetting form
     const itemName = newItemName.trim();
     const itemPrice = newItemPrice;
-    const needsIngredients = newItemNeedsIngredients && newItemPrice;
+    const itemType = newItemType;
+    const needsIngredients = (newItemNeedsIngredients && newItemPrice) || itemType === 'composite';
 
     try {
+      const requestBody = {
+        name: itemName,
+        price: newItemPrice ? parseFloat(newItemPrice) : null,
+        parentId: newItemParentId ? parseInt(newItemParentId) : null,
+        itemType: itemType
+      };
+
+      // Add bulk ingredient fields if applicable
+      if (itemType === 'bulk_ingredient') {
+        requestBody.containerName = newItemContainerName || null;
+        requestBody.servingsPerContainer = newItemServingsPerContainer ? parseInt(newItemServingsPerContainer) : null;
+        requestBody.costPerContainer = newItemCostPerContainer ? parseFloat(newItemCostPerContainer) : null;
+      }
+
+      // Add unit cost for ingredients
+      if (itemType === 'ingredient' || itemType === 'bulk_ingredient') {
+        requestBody.unitCost = newItemUnitCost ? parseFloat(newItemUnitCost) : 0;
+      }
+
       const response = await fetch('/api/menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: itemName,
-          price: newItemPrice ? parseFloat(newItemPrice) : null,
-          parentId: newItemParentId ? parseInt(newItemParentId) : null
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -612,12 +634,18 @@ function CashBoxAdmin() {
       }
 
       setSuccess('Menu item added successfully!');
+      // Reset all form fields
       setNewItemName('');
       setNewItemPrice('');
       setNewItemParentId('');
       setNewItemNeedsIngredients(false);
+      setNewItemType('sellable');
+      setNewItemContainerName('');
+      setNewItemServingsPerContainer('');
+      setNewItemCostPerContainer('');
+      setNewItemUnitCost('');
 
-      // If needs ingredients, refresh data first then open composite editor
+      // If needs ingredients (composite), refresh data first then open composite editor
       if (needsIngredients && data.id) {
         await fetchData();
         openCompositeEditor({ id: data.id, name: itemName });
@@ -806,10 +834,14 @@ function CashBoxAdmin() {
     if (compositeComponents.find(c => c.componentItemId === componentItem.id)) {
       return;
     }
+    // Auto-detect if it's a bulk ingredient
+    const isBulk = componentItem.item_type === 'bulk_ingredient' || componentItem.is_supply === 1;
     setCompositeComponents([...compositeComponents, {
       componentItemId: componentItem.id,
       componentName: componentItem.name,
-      quantity: 1
+      componentType: componentItem.item_type || 'ingredient',
+      quantity: isBulk ? null : 1,
+      is_bulk: isBulk
     }]);
   };
 
@@ -820,7 +852,15 @@ function CashBoxAdmin() {
   const updateComponentQuantity = (componentItemId, quantity) => {
     setCompositeComponents(compositeComponents.map(c =>
       c.componentItemId === componentItemId
-        ? { ...c, quantity: Math.max(0.25, parseFloat(quantity) || 1) }
+        ? { ...c, quantity: c.is_bulk ? null : Math.max(0.25, parseFloat(quantity) || 1) }
+        : c
+    ));
+  };
+
+  const toggleComponentBulk = (componentItemId) => {
+    setCompositeComponents(compositeComponents.map(c =>
+      c.componentItemId === componentItemId
+        ? { ...c, is_bulk: !c.is_bulk, quantity: !c.is_bulk ? null : 1 }
         : c
     ));
   };
@@ -838,7 +878,8 @@ function CashBoxAdmin() {
         body: JSON.stringify({
           components: compositeComponents.map(c => ({
             componentItemId: c.componentItemId,
-            quantity: c.quantity
+            quantity: c.is_bulk ? null : c.quantity,
+            is_bulk: c.is_bulk || false
           }))
         })
       });
@@ -2226,8 +2267,6 @@ function CashBoxAdmin() {
 
   // Menu organization - filter items by category with counts
   const getFilteredMenuItems = useMemo(() => {
-    // First, identify which items are used as ingredients
-    const ingredientIds = new Set();
     const flatMenuItems = [];
 
     // Flatten menuItems including subitems
@@ -2236,65 +2275,56 @@ function CashBoxAdmin() {
       if (item.subItems) {
         flatMenuItems.push(...item.subItems);
       }
-      // Track component usage
-      if (item.components) {
-        item.components.forEach(c => ingredientIds.add(c.component_item_id));
-      }
     });
 
-    // Helper to determine category
+    // Helper to determine category based on item_type
     const determineCategory = (item) => {
-      if (item.is_supply === 1) return 'supply';
-      if (ingredientIds.has(item.id)) return 'ingredient';
-      if (item.price !== null && item.parent_id === null && item.is_supply !== 1) return 'sellable';
-      if (item.price === null && item.track_inventory === 1 && item.is_supply !== 1) return 'ingredient';
-      return null;
+      // Use item_type if available (from Phase 1 migration)
+      if (item.item_type) {
+        return item.item_type;
+      }
+      // Fallback to old logic for backwards compatibility
+      if (item.is_supply === 1) return 'bulk_ingredient';
+      if (item.is_composite === 1) return 'composite';
+      if (item.price !== null) return 'sellable';
+      return 'ingredient';
     };
 
     const filtered = {
       sellable: [],
-      ingredients: [],
-      supplies: [],
+      composite: [],
+      ingredient: [],
+      bulk_ingredient: [],
       all: []
     };
 
     flatMenuItems.forEach(item => {
       const category = determineCategory(item);
+      const itemWithCategory = { ...item, category };
 
-      switch (activeMenuTab) {
-        case 'sellable':
-          if (item.price !== null && item.is_supply !== 1 && item.parent_id === null) {
-            filtered.sellable.push({ ...item, category: 'sellable' });
-          }
-          break;
+      // Add to 'all' regardless of tab
+      if (category) {
+        filtered.all.push(itemWithCategory);
+      }
 
-        case 'ingredients':
-          if (ingredientIds.has(item.id) ||
-              (item.price === null && item.is_supply !== 1 && item.track_inventory === 1)) {
-            filtered.ingredients.push({ ...item, category: 'ingredient' });
-          }
-          break;
-
-        case 'supplies':
-          if (item.is_supply === 1) {
-            filtered.supplies.push({ ...item, category: 'supply' });
-          }
-          break;
-
-        case 'all':
-        default:
-          if (category) {
-            filtered.all.push({ ...item, category });
-          }
-          break;
+      // Add to specific category
+      if (category === 'sellable') {
+        filtered.sellable.push(itemWithCategory);
+      } else if (category === 'composite') {
+        filtered.composite.push(itemWithCategory);
+      } else if (category === 'ingredient') {
+        filtered.ingredient.push(itemWithCategory);
+      } else if (category === 'bulk_ingredient') {
+        filtered.bulk_ingredient.push(itemWithCategory);
       }
     });
 
     // Return the appropriate array based on active tab
     switch (activeMenuTab) {
       case 'sellable': return filtered.sellable;
-      case 'ingredients': return filtered.ingredients;
-      case 'supplies': return filtered.supplies;
+      case 'composite': return filtered.composite;
+      case 'ingredients': return filtered.ingredient;
+      case 'bulk': return filtered.bulk_ingredient;
       case 'all':
       default: return filtered.all;
     }
@@ -2302,7 +2332,6 @@ function CashBoxAdmin() {
 
   // Get counts for each menu category
   const getMenuCategoryCounts = useMemo(() => {
-    const ingredientIds = new Set();
     const flatMenuItems = [];
 
     menuItems.forEach(item => {
@@ -2310,34 +2339,41 @@ function CashBoxAdmin() {
       if (item.subItems) {
         flatMenuItems.push(...item.subItems);
       }
-      if (item.components) {
-        item.components.forEach(c => ingredientIds.add(c.component_item_id));
-      }
     });
 
     const counts = {
       sellable: 0,
+      composite: 0,
       ingredients: 0,
-      supplies: 0,
+      bulk: 0,
       all: 0
     };
 
     flatMenuItems.forEach(item => {
-      // Sellable
-      if (item.price !== null && item.is_supply !== 1 && item.parent_id === null) {
-        counts.sellable++;
-        counts.all++;
-      }
-      // Ingredients
-      else if (ingredientIds.has(item.id) ||
-          (item.price === null && item.is_supply !== 1 && item.track_inventory === 1)) {
-        counts.ingredients++;
-        counts.all++;
-      }
-      // Supplies
-      else if (item.is_supply === 1) {
-        counts.supplies++;
-        counts.all++;
+      // Use item_type if available
+      const itemType = item.item_type || (
+        item.is_supply === 1 ? 'bulk_ingredient' :
+        item.is_composite === 1 ? 'composite' :
+        item.price !== null ? 'sellable' : 'ingredient'
+      );
+
+      counts.all++;
+
+      switch (itemType) {
+        case 'sellable':
+          counts.sellable++;
+          break;
+        case 'composite':
+          counts.composite++;
+          break;
+        case 'ingredient':
+          counts.ingredients++;
+          break;
+        case 'bulk_ingredient':
+          counts.bulk++;
+          break;
+        default:
+          break;
       }
     });
 
@@ -2878,6 +2914,20 @@ function CashBoxAdmin() {
 
             <form onSubmit={handleAddMenuItem} style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div className="form-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+                  <label htmlFor="itemType">Item Type</label>
+                  <select
+                    id="itemType"
+                    className="input"
+                    value={newItemType}
+                    onChange={(e) => setNewItemType(e.target.value)}
+                  >
+                    <option value="sellable">Sellable (1:1 inventory)</option>
+                    <option value="composite">Composite (has ingredients)</option>
+                    <option value="ingredient">Ingredient (used in composites)</option>
+                    <option value="bulk_ingredient">Bulk Ingredient (containers)</option>
+                  </select>
+                </div>
                 <div className="form-group" style={{ flex: '2', minWidth: '150px', marginBottom: 0 }}>
                   <label htmlFor="itemName">Item Name</label>
                   <input
@@ -2886,60 +2936,115 @@ function CashBoxAdmin() {
                     className="input"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
-                    placeholder="e.g., Hot Dog"
+                    placeholder={newItemType === 'bulk_ingredient' ? 'e.g., Nacho Chips' : 'e.g., Hot Dog'}
                     required
                   />
                 </div>
-                <div className="form-group" style={{ flex: '1', minWidth: '100px', marginBottom: 0 }}>
-                  <label htmlFor="itemPrice">Price (leave empty for category)</label>
-                  <input
-                    type="number"
-                    id="itemPrice"
-                    className="input"
-                    step="0.01"
-                    min="0"
-                    value={newItemPrice}
-                    onChange={(e) => setNewItemPrice(e.target.value)}
-                    placeholder="e.g., 3.00"
-                  />
-                </div>
-                <div className="form-group" style={{ flex: '1', minWidth: '150px', marginBottom: 0 }}>
-                  <label htmlFor="itemParent">Parent Category</label>
-                  <select
-                    id="itemParent"
-                    className="input"
-                    value={newItemParentId}
-                    onChange={(e) => setNewItemParentId(e.target.value)}
-                  >
-                    <option value="">None (Top Level)</option>
-                    {parentItems.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: newItemPrice ? 'pointer' : 'not-allowed', opacity: newItemPrice ? 1 : 0.5 }}>
+                {/* Price field - only for sellable and composite */}
+                {(newItemType === 'sellable' || newItemType === 'composite') && (
+                  <div className="form-group" style={{ flex: '1', minWidth: '100px', marginBottom: 0 }}>
+                    <label htmlFor="itemPrice">Price</label>
                     <input
-                      type="checkbox"
-                      checked={newItemNeedsIngredients}
-                      onChange={(e) => setNewItemNeedsIngredients(e.target.checked)}
-                      disabled={!newItemPrice}
+                      type="number"
+                      id="itemPrice"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={newItemPrice}
+                      onChange={(e) => setNewItemPrice(e.target.value)}
+                      placeholder="e.g., 3.00"
                     />
-                    <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>Needs ingredients</span>
-                  </label>
-                  {newItemNeedsIngredients && newItemPrice && (
-                    <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
-                      (configure after adding)
-                    </small>
-                  )}
-                </div>
+                  </div>
+                )}
+                {/* Unit cost for ingredients */}
+                {(newItemType === 'ingredient') && (
+                  <div className="form-group" style={{ flex: '1', minWidth: '100px', marginBottom: 0 }}>
+                    <label htmlFor="itemUnitCost">Unit Cost</label>
+                    <input
+                      type="number"
+                      id="itemUnitCost"
+                      className="input"
+                      step="0.01"
+                      min="0"
+                      value={newItemUnitCost}
+                      onChange={(e) => setNewItemUnitCost(e.target.value)}
+                      placeholder="e.g., 0.25"
+                    />
+                  </div>
+                )}
+                {/* Bulk ingredient fields */}
+                {newItemType === 'bulk_ingredient' && (
+                  <>
+                    <div className="form-group" style={{ flex: '1', minWidth: '100px', marginBottom: 0 }}>
+                      <label htmlFor="containerName">Container</label>
+                      <input
+                        type="text"
+                        id="containerName"
+                        className="input"
+                        value={newItemContainerName}
+                        onChange={(e) => setNewItemContainerName(e.target.value)}
+                        placeholder="bag, can, jar"
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: '1', minWidth: '80px', marginBottom: 0 }}>
+                      <label htmlFor="servingsPerContainer">Servings</label>
+                      <input
+                        type="number"
+                        id="servingsPerContainer"
+                        className="input"
+                        min="1"
+                        value={newItemServingsPerContainer}
+                        onChange={(e) => setNewItemServingsPerContainer(e.target.value)}
+                        placeholder="15"
+                      />
+                    </div>
+                    <div className="form-group" style={{ flex: '1', minWidth: '100px', marginBottom: 0 }}>
+                      <label htmlFor="costPerContainer">Cost/Container</label>
+                      <input
+                        type="number"
+                        id="costPerContainer"
+                        className="input"
+                        step="0.01"
+                        min="0"
+                        value={newItemCostPerContainer}
+                        onChange={(e) => setNewItemCostPerContainer(e.target.value)}
+                        placeholder="4.50"
+                      />
+                    </div>
+                  </>
+                )}
+                {/* Parent category - only for sellable */}
+                {newItemType === 'sellable' && (
+                  <div className="form-group" style={{ flex: '1', minWidth: '120px', marginBottom: 0 }}>
+                    <label htmlFor="itemParent">Parent</label>
+                    <select
+                      id="itemParent"
+                      className="input"
+                      value={newItemParentId}
+                      onChange={(e) => setNewItemParentId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {parentItems.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={addingMenuItem}
+                  style={{ whiteSpace: 'nowrap' }}
                 >
                   {addingMenuItem ? 'Adding...' : 'Add Item'}
                 </button>
+              </div>
+              {/* Type helper text */}
+              <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                {newItemType === 'sellable' && 'Items sold directly with 1:1 inventory tracking (e.g., Gatorade, Candy)'}
+                {newItemType === 'composite' && 'Items made from ingredients - inventory deducted from components (e.g., Hot Dog, Nachos)'}
+                {newItemType === 'ingredient' && 'Precise items used in composites, not sold directly (e.g., Buns, Wieners)'}
+                {newItemType === 'bulk_ingredient' && 'Container-based items reconciled at session close (e.g., Nacho Chips, Condiments)'}
               </div>
             </form>
 
@@ -2960,6 +3065,13 @@ function CashBoxAdmin() {
                 <span className="menu-tab-badge">{getMenuCategoryCounts.sellable}</span>
               </button>
               <button
+                className={`menu-tab-button ${activeMenuTab === 'composite' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('composite')}
+              >
+                Composite
+                <span className="menu-tab-badge">{getMenuCategoryCounts.composite}</span>
+              </button>
+              <button
                 className={`menu-tab-button ${activeMenuTab === 'ingredients' ? 'active' : ''}`}
                 onClick={() => setActiveMenuTab('ingredients')}
               >
@@ -2967,11 +3079,11 @@ function CashBoxAdmin() {
                 <span className="menu-tab-badge">{getMenuCategoryCounts.ingredients}</span>
               </button>
               <button
-                className={`menu-tab-button ${activeMenuTab === 'supplies' ? 'active' : ''}`}
-                onClick={() => setActiveMenuTab('supplies')}
+                className={`menu-tab-button ${activeMenuTab === 'bulk' ? 'active' : ''}`}
+                onClick={() => setActiveMenuTab('bulk')}
               >
-                Supplies
-                <span className="menu-tab-badge">{getMenuCategoryCounts.supplies}</span>
+                Bulk
+                <span className="menu-tab-badge">{getMenuCategoryCounts.bulk}</span>
               </button>
             </div>
 
@@ -3474,7 +3586,9 @@ function CashBoxAdmin() {
                   <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
                     A composite item is made up of other items. When sold, inventory is deducted from its components.
                     <br />
-                    Example: Hot Dog = 1 Bun + 1 Wiener
+                    <strong>Precise ingredients:</strong> Deducted per sale (e.g., 1 bun per hot dog)
+                    <br />
+                    <strong>Bulk ingredients:</strong> Reconciled at session close (e.g., ketchup, relish)
                   </p>
 
                   {/* Current Components */}
@@ -3496,22 +3610,49 @@ function CashBoxAdmin() {
                               alignItems: 'center',
                               gap: '12px',
                               padding: '10px',
-                              background: 'var(--color-bg-input)',
-                              borderRadius: '6px'
+                              background: comp.is_bulk ? 'rgba(59, 130, 246, 0.1)' : 'var(--color-bg-input)',
+                              borderRadius: '6px',
+                              borderLeft: comp.is_bulk ? '3px solid #3b82f6' : '3px solid transparent'
                             }}
                           >
                             <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>
                               {comp.componentName}
+                              {comp.is_bulk && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  marginLeft: '8px',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#dbeafe',
+                                  color: '#3b82f6',
+                                  fontWeight: '600'
+                                }}>BULK</span>
+                              )}
                             </span>
-                            <input
-                              type="number"
-                              className="input"
-                              step="0.25"
-                              min="0.25"
-                              value={comp.quantity}
-                              onChange={(e) => updateComponentQuantity(comp.componentItemId, e.target.value)}
-                              style={{ width: '80px', padding: '6px' }}
-                            />
+                            {comp.is_bulk ? (
+                              <span style={{ width: '80px', textAlign: 'center', color: 'var(--color-text-subtle)', fontSize: '12px' }}>
+                                ~varies
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                className="input"
+                                step="0.25"
+                                min="0.25"
+                                value={comp.quantity}
+                                onChange={(e) => updateComponentQuantity(comp.componentItemId, e.target.value)}
+                                style={{ width: '80px', padding: '6px' }}
+                              />
+                            )}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-text-subtle)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={comp.is_bulk || false}
+                                onChange={() => toggleComponentBulk(comp.componentItemId)}
+                                style={{ width: '14px', height: '14px' }}
+                              />
+                              Bulk
+                            </label>
                             <button
                               className="btn btn-danger btn-small"
                               onClick={() => removeComponent(comp.componentItemId)}
@@ -3536,25 +3677,41 @@ function CashBoxAdmin() {
                     ) : (
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                         gap: '8px'
                       }}>
                         {availableComponents
                           .filter(item => !compositeComponents.find(c => c.componentItemId === item.id))
-                          .map((item) => (
-                            <button
-                              key={item.id}
-                              className="btn btn-small"
-                              onClick={() => addComponent(item)}
-                              style={{
-                                background: 'var(--color-border)',
-                                padding: '8px 12px',
-                                textAlign: 'left'
-                              }}
-                            >
-                              + {item.name}
-                            </button>
-                          ))}
+                          .map((item) => {
+                            const isBulkItem = item.item_type === 'bulk_ingredient' || item.is_supply === 1;
+                            return (
+                              <button
+                                key={item.id}
+                                className="btn btn-small"
+                                onClick={() => addComponent(item)}
+                                style={{
+                                  background: isBulkItem ? 'rgba(59, 130, 246, 0.15)' : 'var(--color-border)',
+                                  padding: '8px 12px',
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                <span>+ {item.name}</span>
+                                {isBulkItem && (
+                                  <span style={{
+                                    fontSize: '9px',
+                                    padding: '1px 4px',
+                                    borderRadius: '3px',
+                                    backgroundColor: '#3b82f6',
+                                    color: 'white',
+                                    fontWeight: '600'
+                                  }}>B</span>
+                                )}
+                              </button>
+                            );
+                          })}
                       </div>
                     )}
                   </div>
