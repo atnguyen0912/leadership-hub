@@ -109,6 +109,27 @@ router.post('/programs', (req, res) => {
   );
 });
 
+// GET /api/cashbox/programs/earnings - Get all programs with earnings
+// NOTE: This route must come BEFORE /programs/:id to avoid matching 'earnings' as an id
+router.get('/programs/earnings', (req, res) => {
+  const db = getDb();
+  db.all(
+    `SELECT p.*, COALESCE(SUM(pe.amount), 0) as total_earnings
+     FROM cashbox_programs p
+     LEFT JOIN program_earnings pe ON p.id = pe.program_id
+     WHERE p.active = 1
+     GROUP BY p.id
+     ORDER BY p.name`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows);
+    }
+  );
+});
+
 // GET /api/cashbox/programs/:id - Get program details with earnings
 router.get('/programs/:id', (req, res) => {
   const { id } = req.params;
@@ -144,26 +165,6 @@ router.get('/programs/:id', (req, res) => {
           res.json({ ...row, earnings_history: history });
         }
       );
-    }
-  );
-});
-
-// GET /api/cashbox/programs/earnings - Get all programs with earnings
-router.get('/programs/earnings', (req, res) => {
-  const db = getDb();
-  db.all(
-    `SELECT p.*, COALESCE(SUM(pe.amount), 0) as total_earnings
-     FROM cashbox_programs p
-     LEFT JOIN program_earnings pe ON p.id = pe.program_id
-     WHERE p.active = 1
-     GROUP BY p.id
-     ORDER BY p.name`,
-    [],
-    (err, rows) => {
-      if (err) {
-        return res.status(500).json({ error: 'Database error' });
-      }
-      res.json(rows);
     }
   );
 });
