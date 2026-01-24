@@ -36,7 +36,14 @@ router.get('/', (req, res) => {
 router.get('/all', (req, res) => {
   const db = getDb();
   db.all(
-    'SELECT * FROM menu_items ORDER BY display_order, name',
+    `SELECT *,
+      CASE
+        WHEN last_inventory_check >= date('now', '-7 days') THEN 'verified'
+        WHEN last_inventory_check >= date('now', '-14 days') THEN 'estimated'
+        WHEN last_inventory_check IS NOT NULL THEN 'stale'
+        ELSE 'never'
+      END as inventory_confidence
+     FROM menu_items ORDER BY display_order, name`,
     [],
     (err, rows) => {
       if (err) {
@@ -45,7 +52,7 @@ router.get('/all', (req, res) => {
 
       // Get all components
       db.all(
-        `SELECT mc.*, mi.name as component_name
+        `SELECT mc.*, mi.name as component_name, mi.item_type as component_type
          FROM menu_item_components mc
          JOIN menu_items mi ON mc.component_item_id = mi.id`,
         [],
@@ -78,17 +85,39 @@ router.get('/all', (req, res) => {
 
 // POST /api/menu - Create a new menu item (Admin)
 router.post('/', (req, res) => {
-  const { name, price, parentId, displayOrder, isSupply } = req.body;
+  const {
+    name,
+    price,
+    parentId,
+    displayOrder,
+    isSupply,
+    // New Phase 1 fields
+    itemType,
+    containerName,
+    servingsPerContainer,
+    costPerContainer,
+    unitCost
+  } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Item name is required' });
   }
 
-  // Supply items don't need a price
-  // If no parentId and no price, it's a category with sub-menu
-  // If parentId provided, price is required (unless it's a supply)
-  if (parentId && !isSupply && (price === undefined || price === null)) {
-    return res.status(400).json({ error: 'Price is required for sub-items' });
+  // Validate item type
+  const validItemTypes = ['sellable', 'composite', 'ingredient', 'bulk_ingredient'];
+  const finalItemType = itemType && validItemTypes.includes(itemType) ? itemType : 'sellable';
+
+  // Validation based on item type
+  if (finalItemType === 'sellable' || finalItemType === 'composite') {
+    // Sellable and composite items need a price (unless they're categories)
+    if (parentId && (price === undefined || price === null)) {
+      return res.status(400).json({ error: 'Price is required for sellable/composite items' });
+    }
+  }
+
+  if (finalItemType === 'bulk_ingredient' && !containerName) {
+    // Bulk ingredients should have a container name
+    console.warn('Bulk ingredient created without container_name');
   }
 
   const db = getDb();
@@ -128,14 +157,32 @@ router.post('/', (req, res) => {
   );
 
   function insertMenuItem() {
+    // Determine is_supply based on item_type for backwards compatibility
+    const finalIsSupply = finalItemType === 'bulk_ingredient' ? 1 : (isSupply ? 1 : 0);
+
     db.run(
-      'INSERT INTO menu_items (name, price, parent_id, display_order, is_supply, track_inventory) VALUES (?, ?, ?, ?, ?, ?)',
-      [trimmedName, price || null, parentId || null, displayOrder || 0, isSupply ? 1 : 0, 1],
+      `INSERT INTO menu_items (
+        name, price, parent_id, display_order, is_supply, track_inventory,
+        item_type, container_name, servings_per_container, cost_per_container, unit_cost
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        trimmedName,
+        price || null,
+        parentId || null,
+        displayOrder || 0,
+        finalIsSupply,
+        1,
+        finalItemType,
+        containerName || null,
+        servingsPerContainer || null,
+        costPerContainer || null,
+        unitCost || 0
+      ],
       function (err) {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
         }
-        res.json({ success: true, id: this.lastID });
+        res.json({ success: true, id: this.lastID, itemType: finalItemType });
       }
     );
   }
@@ -207,7 +254,17 @@ router.post('/:id/set-parent', (req, res) => {
 // PUT /api/menu/:id - Update a menu item (Admin)
 router.put('/:id', (req, res) => {
   const { id } = req.params;
-  const { name, price, displayOrder, active } = req.body;
+  const {
+    name,
+    price,
+    displayOrder,
+    active,
+    // New Phase 1 fields
+    itemType,
+    containerName,
+    servingsPerContainer,
+    costPerContainer
+  } = req.body;
 
   const db = getDb();
 
@@ -239,6 +296,44 @@ router.put('/:id', (req, res) => {
     if (active !== undefined) {
       updates.push('active = ?');
       params.push(active ? 1 : 0);
+    }
+
+    // Handle item_type change
+    if (itemType !== undefined) {
+      const validItemTypes = ['sellable', 'composite', 'ingredient', 'bulk_ingredient'];
+      if (validItemTypes.includes(itemType)) {
+        updates.push('item_type = ?');
+        params.push(itemType);
+
+        // Update is_supply for backwards compatibility
+        updates.push('is_supply = ?');
+        params.push(itemType === 'bulk_ingredient' ? 1 : 0);
+
+        // Update is_composite for backwards compatibility
+        updates.push('is_composite = ?');
+        params.push(itemType === 'composite' ? 1 : 0);
+
+        // Clear irrelevant fields when type changes
+        if (itemType !== 'bulk_ingredient') {
+          updates.push('container_name = NULL');
+          updates.push('servings_per_container = NULL');
+          updates.push('cost_per_container = NULL');
+        }
+      }
+    }
+
+    // Bulk ingredient specific fields
+    if (containerName !== undefined) {
+      updates.push('container_name = ?');
+      params.push(containerName);
+    }
+    if (servingsPerContainer !== undefined) {
+      updates.push('servings_per_container = ?');
+      params.push(servingsPerContainer);
+    }
+    if (costPerContainer !== undefined) {
+      updates.push('cost_per_container = ?');
+      params.push(costPerContainer);
     }
 
     if (updates.length === 0) {
@@ -732,9 +827,11 @@ router.get('/:id/components', (req, res) => {
 });
 
 // PUT /api/menu/:id/components - Set components for a composite menu item
+// Components array: [{ componentItemId, quantity, is_bulk }]
+// is_bulk: true = bulk ingredient (no per-sale deduction), false = precise ingredient
 router.put('/:id/components', (req, res) => {
   const { id } = req.params;
-  const { components, append } = req.body; // Array of { componentItemId, quantity }, append=true to add to existing
+  const { components, append } = req.body; // Array of { componentItemId, quantity, is_bulk }, append=true to add to existing
 
   if (!Array.isArray(components)) {
     return res.status(400).json({ error: 'Components must be an array' });
@@ -760,19 +857,24 @@ router.put('/:id/components', (req, res) => {
         return res.json({ success: true, message: 'No components to add' });
       }
 
-      // Update is_composite flag
-      db.run('UPDATE menu_items SET is_composite = 1 WHERE id = ?', [id]);
+      // Update is_composite flag and item_type
+      db.run('UPDATE menu_items SET is_composite = 1, item_type = ? WHERE id = ? AND item_type = ?',
+        ['composite', id, 'sellable']);
 
-      // Insert new components
+      // Insert new components with is_bulk flag
       const stmt = db.prepare(
-        'INSERT INTO menu_item_components (menu_item_id, component_item_id, quantity) VALUES (?, ?, ?)'
+        'INSERT INTO menu_item_components (menu_item_id, component_item_id, quantity, is_bulk) VALUES (?, ?, ?, ?)'
       );
 
       let inserted = 0;
       let errors = [];
 
       components.forEach((comp, index) => {
-        stmt.run(id, comp.componentItemId, comp.quantity || 1, function(err) {
+        // For bulk ingredients, quantity is optional (null means "some amount")
+        const quantity = comp.is_bulk ? (comp.quantity || null) : (comp.quantity || 1);
+        const isBulk = comp.is_bulk ? 1 : 0;
+
+        stmt.run(id, comp.componentItemId, quantity, isBulk, function(err) {
           if (err) {
             errors.push(`Component ${index}: ${err.message}`);
           } else {
@@ -865,6 +967,38 @@ router.put('/:id/inventory', (req, res) => {
         return res.status(404).json({ error: 'Menu item not found' });
       }
       res.json({ success: true });
+    }
+  );
+});
+
+// GET /api/menu/by-type/:type - Get items filtered by item_type
+router.get('/by-type/:type', (req, res) => {
+  const { type } = req.params;
+  const validTypes = ['sellable', 'composite', 'ingredient', 'bulk_ingredient'];
+
+  if (!validTypes.includes(type)) {
+    return res.status(400).json({ error: `Invalid item type. Must be one of: ${validTypes.join(', ')}` });
+  }
+
+  const db = getDb();
+
+  db.all(
+    `SELECT *,
+      CASE
+        WHEN last_inventory_check >= date('now', '-7 days') THEN 'verified'
+        WHEN last_inventory_check >= date('now', '-14 days') THEN 'estimated'
+        WHEN last_inventory_check IS NOT NULL THEN 'stale'
+        ELSE 'never'
+      END as inventory_confidence
+     FROM menu_items
+     WHERE item_type = ? AND active = 1
+     ORDER BY name`,
+    [type],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows);
     }
   );
 });

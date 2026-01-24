@@ -176,4 +176,248 @@ router.post('/:id/close', requirePermission('sessions.close'), async (req, res) 
   }
 });
 
+// POST /api/sessions/:id/start-inventory - Record starting inventory for a session
+router.post('/:id/start-inventory', requirePermission('sessions.run'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { verifiedBy, skipVerification, preciseItems, bulkItems } = req.body;
+
+    // Verify session exists and is in created state
+    const session = await get('SELECT * FROM concession_sessions WHERE id = ?', [id]);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'created' && session.status !== 'active') {
+      return res.status(400).json({ error: 'Session must be in created or active state' });
+    }
+
+    if (skipVerification) {
+      // Quick start - just mark as not verified
+      await run(
+        `UPDATE concession_sessions SET
+         inventory_verified_at_start = 0,
+         status = 'active'
+         WHERE id = ?`,
+        [id]
+      );
+
+      return res.json({
+        success: true,
+        skipped: true,
+        message: 'Session started without inventory verification'
+      });
+    }
+
+    // Record precise item verifications
+    if (preciseItems && Array.isArray(preciseItems)) {
+      for (const item of preciseItems) {
+        await run(
+          `INSERT INTO inventory_verifications
+           (menu_item_id, session_id, verification_type, system_quantity, actual_quantity, discrepancy, verified_by)
+           VALUES (?, ?, 'start', ?, ?, ?, ?)`,
+          [item.menuItemId, id, item.systemQuantity || 0, item.quantity, (item.quantity - (item.systemQuantity || 0)), verifiedBy || '']
+        );
+
+        // Update menu item verification tracking
+        await run(
+          `UPDATE menu_items SET
+           quantity_on_hand = ?,
+           last_inventory_check = date('now'),
+           last_checked_by = ?
+           WHERE id = ?`,
+          [item.quantity, verifiedBy || '', item.menuItemId]
+        );
+      }
+    }
+
+    // Record bulk item starting containers
+    if (bulkItems && Array.isArray(bulkItems)) {
+      for (const item of bulkItems) {
+        await run(
+          `INSERT INTO session_bulk_inventory
+           (session_id, menu_item_id, starting_containers, notes)
+           VALUES (?, ?, ?, ?)`,
+          [id, item.menuItemId, item.startingContainers, item.notes || '']
+        );
+      }
+    }
+
+    // Mark session as verified at start
+    await run(
+      `UPDATE concession_sessions SET
+       inventory_verified_at_start = 1,
+       start_verified_by = ?,
+       status = 'active'
+       WHERE id = ?`,
+      [verifiedBy || '', id]
+    );
+
+    res.json({
+      success: true,
+      verified: true,
+      preciseItemsCount: preciseItems?.length || 0,
+      bulkItemsCount: bulkItems?.length || 0
+    });
+  } catch (err) {
+    console.error('Start inventory error:', err);
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// POST /api/sessions/:id/end-inventory - Record ending inventory for session close
+router.post('/:id/end-inventory', requirePermission('sessions.close'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { verifiedBy, skipVerification, preciseItems, bulkItems } = req.body;
+
+    // Verify session exists and is active
+    const session = await get('SELECT * FROM concession_sessions WHERE id = ?', [id]);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.status !== 'active') {
+      return res.status(400).json({ error: 'Session must be active' });
+    }
+
+    if (skipVerification) {
+      // Quick close - just mark as not verified
+      await run(
+        `UPDATE concession_sessions SET inventory_verified_at_end = 0 WHERE id = ?`,
+        [id]
+      );
+
+      return res.json({
+        success: true,
+        skipped: true,
+        message: 'Inventory verification skipped'
+      });
+    }
+
+    const discrepancies = [];
+
+    // Record precise item verifications
+    if (preciseItems && Array.isArray(preciseItems)) {
+      for (const item of preciseItems) {
+        const discrepancy = item.actual - item.expected;
+
+        await run(
+          `INSERT INTO inventory_verifications
+           (menu_item_id, session_id, verification_type, system_quantity, actual_quantity, discrepancy, verified_by, notes)
+           VALUES (?, ?, 'end', ?, ?, ?, ?, ?)`,
+          [item.menuItemId, id, item.expected, item.actual, discrepancy, verifiedBy || '', item.notes || '']
+        );
+
+        // Update menu item with actual quantity
+        await run(
+          `UPDATE menu_items SET
+           quantity_on_hand = ?,
+           last_inventory_check = date('now'),
+           last_checked_by = ?
+           WHERE id = ?`,
+          [item.actual, verifiedBy || '', item.menuItemId]
+        );
+
+        if (discrepancy !== 0) {
+          // Get item details for discrepancy report
+          const menuItem = await get('SELECT name, unit_cost FROM menu_items WHERE id = ?', [item.menuItemId]);
+          discrepancies.push({
+            menuItemId: item.menuItemId,
+            name: menuItem?.name || 'Unknown',
+            expected: item.expected,
+            actual: item.actual,
+            discrepancy,
+            reason: item.reason || null,
+            costImpact: discrepancy * (menuItem?.unit_cost || 0)
+          });
+
+          // Create loss record if reason provided and discrepancy is negative
+          if (item.reason && discrepancy < 0) {
+            await run(
+              `INSERT INTO losses (session_id, loss_type, amount, description, recorded_by, created_by)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [id, item.reason, Math.abs(discrepancy * (menuItem?.unit_cost || 0)),
+               `Session close: ${menuItem?.name || 'Unknown'} - expected ${item.expected}, actual ${item.actual}`,
+               verifiedBy || '', verifiedBy || '']
+            );
+          }
+        }
+      }
+    }
+
+    // Update bulk item ending containers
+    if (bulkItems && Array.isArray(bulkItems)) {
+      for (const item of bulkItems) {
+        const containersUsed = (item.startingContainers || 0) - item.endingContainers;
+
+        await run(
+          `UPDATE session_bulk_inventory SET
+           ending_containers = ?,
+           containers_used = ?,
+           notes = COALESCE(notes || ' ', '') || ?,
+           updated_at = CURRENT_TIMESTAMP
+           WHERE session_id = ? AND menu_item_id = ?`,
+          [item.endingContainers, containersUsed, item.notes || '', id, item.menuItemId]
+        );
+
+        // Update menu item quantity to reflect containers remaining
+        await run(
+          `UPDATE menu_items SET
+           quantity_on_hand = ?,
+           last_inventory_check = date('now'),
+           last_checked_by = ?
+           WHERE id = ?`,
+          [item.endingContainers, verifiedBy || '', item.menuItemId]
+        );
+      }
+    }
+
+    // Mark session as verified at end
+    await run(
+      `UPDATE concession_sessions SET
+       inventory_verified_at_end = 1,
+       end_verified_by = ?
+       WHERE id = ?`,
+      [verifiedBy || '', id]
+    );
+
+    res.json({
+      success: true,
+      verified: true,
+      preciseItemsCount: preciseItems?.length || 0,
+      bulkItemsCount: bulkItems?.length || 0,
+      discrepancies,
+      discrepancyCount: discrepancies.length,
+      totalDiscrepancyCost: discrepancies.reduce((sum, d) => sum + d.costImpact, 0)
+    });
+  } catch (err) {
+    console.error('End inventory error:', err);
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
+// GET /api/sessions/:id/bulk-inventory - Get bulk inventory for a session
+router.get('/:id/bulk-inventory', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const bulkItems = await all(
+      `SELECT sbi.*, mi.name, mi.container_name, mi.servings_per_container, mi.cost_per_container
+       FROM session_bulk_inventory sbi
+       JOIN menu_items mi ON sbi.menu_item_id = mi.id
+       WHERE sbi.session_id = ?
+       ORDER BY mi.name`,
+      [id]
+    );
+
+    res.json(bulkItems);
+  } catch (err) {
+    console.error('Get bulk inventory error:', err);
+    res.status(500).json({ error: 'Database error: ' + err.message });
+  }
+});
+
 module.exports = router;
