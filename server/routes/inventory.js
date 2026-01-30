@@ -8,10 +8,18 @@ router.get('/', (req, res) => {
 
   db.all(
     `SELECT m.id, m.name, m.price, m.unit_cost, m.quantity_on_hand, m.track_inventory, m.is_composite, m.parent_id, m.active,
-     m.fill_percentage, m.is_liquid,
+     m.fill_percentage, m.is_liquid, m.item_type, m.container_name, m.servings_per_container, m.cost_per_container,
+     m.last_inventory_check, m.last_checked_by,
+     CASE
+       WHEN m.last_inventory_check >= date('now', '-7 days') THEN 'verified'
+       WHEN m.last_inventory_check >= date('now', '-14 days') THEN 'estimated'
+       WHEN m.last_inventory_check IS NOT NULL THEN 'stale'
+       ELSE 'never'
+     END as inventory_confidence,
+     CAST(julianday('now') - julianday(m.last_inventory_check) AS INTEGER) as days_since_check,
      (SELECT SUM(quantity_remaining) FROM inventory_lots WHERE menu_item_id = m.id) as lot_quantity
      FROM menu_items m
-     WHERE m.price IS NOT NULL
+     WHERE m.price IS NOT NULL OR m.item_type IN ('ingredient', 'bulk_ingredient')
      ORDER BY m.name`,
     [],
     (err, items) => {
@@ -21,6 +29,170 @@ router.get('/', (req, res) => {
       res.json(items);
     }
   );
+});
+
+// GET /api/inventory/verification-status - Get verification status for all inventory items
+router.get('/verification-status', (req, res) => {
+  const db = getDb();
+
+  db.all(
+    `SELECT
+      m.id, m.name, m.item_type, m.quantity_on_hand,
+      m.last_inventory_check, m.last_checked_by,
+      m.container_name, m.servings_per_container,
+      CASE
+        WHEN m.last_inventory_check >= date('now', '-7 days') THEN 'verified'
+        WHEN m.last_inventory_check >= date('now', '-14 days') THEN 'estimated'
+        WHEN m.last_inventory_check IS NOT NULL THEN 'stale'
+        ELSE 'never'
+      END as inventory_confidence,
+      CAST(julianday('now') - julianday(m.last_inventory_check) AS INTEGER) as days_since_check
+     FROM menu_items m
+     WHERE m.active = 1
+       AND m.track_inventory = 1
+       AND (m.price IS NOT NULL OR m.item_type IN ('ingredient', 'bulk_ingredient'))
+     ORDER BY
+       CASE
+         WHEN m.last_inventory_check IS NULL THEN 0
+         WHEN m.last_inventory_check < date('now', '-14 days') THEN 1
+         WHEN m.last_inventory_check < date('now', '-7 days') THEN 2
+         ELSE 3
+       END,
+       m.name`,
+    [],
+    (err, items) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // Calculate summary
+      const summary = {
+        verified: items.filter(i => i.inventory_confidence === 'verified').length,
+        estimated: items.filter(i => i.inventory_confidence === 'estimated').length,
+        stale: items.filter(i => i.inventory_confidence === 'stale').length,
+        never: items.filter(i => i.inventory_confidence === 'never').length
+      };
+
+      res.json({ items, summary });
+    }
+  );
+});
+
+// POST /api/inventory/verify - Record inventory verification for one or more items
+router.post('/verify', (req, res) => {
+  const db = getDb();
+  const { sessionId, verificationType, verifiedBy, items } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Items array is required' });
+  }
+
+  const validTypes = ['start', 'end', 'standalone'];
+  const finalType = validTypes.includes(verificationType) ? verificationType : 'standalone';
+
+  let processed = 0;
+  const results = [];
+  const errors = [];
+  const discrepancies = [];
+
+  items.forEach(item => {
+    const { menuItemId, actualQuantity } = item;
+
+    // Get current system quantity
+    db.get('SELECT * FROM menu_items WHERE id = ?', [menuItemId], (err, menuItem) => {
+      if (err) {
+        errors.push({ menuItemId, error: err.message });
+        processed++;
+        checkComplete();
+        return;
+      }
+
+      if (!menuItem) {
+        errors.push({ menuItemId, error: 'Item not found' });
+        processed++;
+        checkComplete();
+        return;
+      }
+
+      const systemQuantity = menuItem.quantity_on_hand || 0;
+      const discrepancy = actualQuantity - systemQuantity;
+
+      // Insert verification record
+      db.run(
+        `INSERT INTO inventory_verifications
+         (menu_item_id, session_id, verification_type, system_quantity, actual_quantity, discrepancy, verified_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [menuItemId, sessionId || null, finalType, systemQuantity, actualQuantity, discrepancy, verifiedBy || ''],
+        function(insertErr) {
+          if (insertErr) {
+            errors.push({ menuItemId, error: insertErr.message });
+            processed++;
+            checkComplete();
+            return;
+          }
+
+          const verificationId = this.lastID;
+
+          // Update menu item with verification info and actual quantity
+          db.run(
+            `UPDATE menu_items SET
+             quantity_on_hand = ?,
+             last_inventory_check = date('now'),
+             last_checked_by = ?
+             WHERE id = ?`,
+            [actualQuantity, verifiedBy || '', menuItemId],
+            (updateErr) => {
+              if (updateErr) {
+                errors.push({ menuItemId, error: updateErr.message });
+              } else {
+                results.push({
+                  verificationId,
+                  menuItemId,
+                  name: menuItem.name,
+                  systemQuantity,
+                  actualQuantity,
+                  discrepancy
+                });
+
+                if (discrepancy !== 0) {
+                  discrepancies.push({
+                    menuItemId,
+                    name: menuItem.name,
+                    discrepancy,
+                    unitCost: menuItem.unit_cost || 0,
+                    costImpact: discrepancy * (menuItem.unit_cost || 0)
+                  });
+                }
+              }
+
+              processed++;
+              checkComplete();
+            }
+          );
+        }
+      );
+    });
+  });
+
+  function checkComplete() {
+    if (processed === items.length) {
+      if (errors.length > 0 && results.length === 0) {
+        return res.status(400).json({ error: 'All verifications failed', errors });
+      }
+
+      res.json({
+        success: true,
+        results,
+        discrepancies,
+        errors: errors.length > 0 ? errors : undefined,
+        summary: {
+          verified: results.length,
+          discrepancyCount: discrepancies.length,
+          totalDiscrepancyCost: discrepancies.reduce((sum, d) => sum + d.costImpact, 0)
+        }
+      });
+    }
+  }
 });
 
 // Get lots for a specific item

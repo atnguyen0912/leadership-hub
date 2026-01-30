@@ -3,9 +3,10 @@ const router = express.Router();
 const { run, get, all } = require('../db-utils');
 
 // Helper function to get components for a composite item
+// Returns components with is_bulk flag to differentiate precise vs bulk ingredients
 async function getComponents(menuItemId) {
   return await all(
-    `SELECT mc.*, mi.name as component_name
+    `SELECT mc.*, mi.name as component_name, mi.item_type as component_item_type
      FROM menu_item_components mc
      JOIN menu_items mi ON mc.component_item_id = mi.id
      WHERE mc.menu_item_id = ?`,
@@ -13,10 +14,10 @@ async function getComponents(menuItemId) {
   );
 }
 
-// Helper function to check if an item is composite
-async function isCompositeItem(menuItemId) {
-  const row = await get('SELECT is_composite FROM menu_items WHERE id = ?', [menuItemId]);
-  return row && row.is_composite === 1;
+// Helper function to get item type info
+async function getItemTypeInfo(menuItemId) {
+  const row = await get('SELECT item_type, is_composite FROM menu_items WHERE id = ?', [menuItemId]);
+  return row || { item_type: 'sellable', is_composite: 0 };
 }
 
 // Helper function to deduct from FIFO lots
@@ -136,13 +137,36 @@ router.post('/', async (req, res) => {
     // Process inventory (skip for test sessions)
     if (!isTestSession) {
       for (const item of items) {
-        const isComposite = await isCompositeItem(item.menuItemId);
+        const itemInfo = await getItemTypeInfo(item.menuItemId);
+        const itemType = itemInfo.item_type || 'sellable';
 
-        if (isComposite) {
+        // Reject direct sales of ingredient and bulk_ingredient items
+        if (itemType === 'ingredient' || itemType === 'bulk_ingredient') {
+          return res.status(400).json({
+            error: `Cannot sell ${itemType} items directly. Item: ${item.menuItemId}`
+          });
+        }
+
+        if (itemType === 'composite' || itemInfo.is_composite === 1) {
+          // Composite item - deduct from precise ingredients only
           const components = await getComponents(item.menuItemId);
           if (components.length > 0) {
             for (const comp of components) {
-              const componentQuantity = comp.quantity * item.quantity;
+              // Skip bulk ingredients - they're reconciled at session close, not per-sale
+              if (comp.is_bulk === 1 || comp.component_item_type === 'bulk_ingredient') {
+                // Track servings sold for bulk ingredients (for estimates/reporting)
+                // This doesn't deduct inventory but logs the usage
+                await run(
+                  `INSERT INTO inventory_transactions
+                   (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by)
+                   VALUES (?, 'bulk_usage', ?, 0, 0, ?, ?)`,
+                  [comp.component_item_id, item.quantity, `Bulk usage for composite item (session ${sessionId})`, '']
+                );
+                continue;
+              }
+
+              // Precise ingredient - deduct per sale
+              const componentQuantity = (comp.quantity || 1) * item.quantity;
               const costInfo = await processInventoryItem(comp.component_item_id, componentQuantity, true);
               totalCogs += costInfo.totalCost;
               reimbursableCogs += costInfo.reimbursableCost;
@@ -154,6 +178,7 @@ router.post('/', async (req, res) => {
             reimbursableCogs += costInfo.reimbursableCost;
           }
         } else {
+          // Sellable item - direct 1:1 inventory deduction
           const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false);
           totalCogs += costInfo.totalCost;
           reimbursableCogs += costInfo.reimbursableCost;

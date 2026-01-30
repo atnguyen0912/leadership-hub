@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 import { RecordLossModal } from '../losses';
+import { SessionCloseInventory } from '../cashbox';
 
 function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   const [preview, setPreview] = useState(null);
@@ -9,6 +10,9 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [showRecordLossModal, setShowRecordLossModal] = useState(false);
+  // Inventory reconciliation state
+  const [showInventoryReconciliation, setShowInventoryReconciliation] = useState(false);
+  const [inventoryReconciled, setInventoryReconciled] = useState(false);
 
   // Fetch preview data when modal opens
   useEffect(() => {
@@ -19,6 +23,8 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
       setPreview(null);
       setActualCashCount('');
       setError('');
+      setShowInventoryReconciliation(false);
+      setInventoryReconciled(false);
     }
   }, [isOpen, sessionId]);
 
@@ -436,6 +442,48 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
               </div>
             </div>
 
+            {/* Inventory Reconciliation Section */}
+            <div style={{
+              background: inventoryReconciled ? 'rgba(34, 197, 94, 0.1)' : 'var(--color-bg-input)',
+              padding: '14px',
+              borderRadius: '8px',
+              marginBottom: '12px',
+              border: `1px solid ${inventoryReconciled ? 'rgba(34, 197, 94, 0.3)' : 'var(--color-border)'}`
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <h4 style={{
+                    color: 'var(--color-primary)',
+                    marginBottom: '4px',
+                    fontSize: '15px',
+                    fontWeight: '600'
+                  }}>
+                    INVENTORY RECONCILIATION
+                  </h4>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-subtle)', margin: 0 }}>
+                    {inventoryReconciled
+                      ? '✓ Inventory has been reconciled'
+                      : 'Optional: Count ending inventory and record discrepancies'}
+                  </p>
+                </div>
+                <button
+                  className="btn btn-small"
+                  onClick={() => setShowInventoryReconciliation(true)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    background: inventoryReconciled ? 'var(--color-text-subtle)' : 'var(--color-warning)'
+                  }}
+                >
+                  {inventoryReconciled ? 'Review' : 'Reconcile'}
+                </button>
+              </div>
+            </div>
+
             {/* Cash Reconciliation Section */}
             <div style={{
               background: 'var(--color-bg-input)',
@@ -613,6 +661,28 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
             description: `Cash discrepancy from session close. Expected: ${formatCurrency(preview.expectedCashInDrawer)}, Counted: ${formatCurrency(parseFloat(actualCashCount))}`
           }}
         />
+      )}
+
+      {/* Inventory Reconciliation Modal */}
+      {showInventoryReconciliation && preview && (
+        <div className="pos-modal-overlay" onClick={() => setShowInventoryReconciliation(false)}>
+          <div
+            className="pos-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <SessionCloseInventory
+              session={{ id: sessionId, name: preview.sessionName }}
+              onComplete={(result) => {
+                setShowInventoryReconciliation(false);
+                setInventoryReconciled(true);
+                // Optionally refresh preview to get updated data
+                fetchPreview();
+              }}
+              onSkip={() => setShowInventoryReconciliation(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

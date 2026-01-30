@@ -238,6 +238,140 @@ const migrations = [
         db.run('UPDATE losses SET created_by = recorded_by WHERE created_by IS NULL', () => resolve());
       });
     }
+  },
+  // =====================
+  // PHASE 1: Enhanced Inventory & Component System
+  // =====================
+  {
+    name: '011_add_item_type_to_menu_items',
+    run: async (db) => {
+      // Add item_type column
+      await new Promise((resolve) => {
+        db.run("ALTER TABLE menu_items ADD COLUMN item_type TEXT DEFAULT 'sellable'", () => resolve());
+      });
+
+      // Migrate existing data based on current flags
+      // Items with is_composite = 1 → 'composite'
+      await new Promise((resolve) => {
+        db.run("UPDATE menu_items SET item_type = 'composite' WHERE is_composite = 1", () => resolve());
+      });
+
+      // Items with is_supply = 1 → 'bulk_ingredient'
+      await new Promise((resolve) => {
+        db.run("UPDATE menu_items SET item_type = 'bulk_ingredient' WHERE is_supply = 1", () => resolve());
+      });
+
+      // Items with no price that are used as components → 'ingredient'
+      await new Promise((resolve) => {
+        db.run(`
+          UPDATE menu_items SET item_type = 'ingredient'
+          WHERE price IS NULL
+          AND id IN (SELECT DISTINCT component_item_id FROM menu_item_components)
+          AND item_type = 'sellable'
+        `, () => resolve());
+      });
+    }
+  },
+  {
+    name: '012_add_bulk_ingredient_fields_to_menu_items',
+    run: async (db) => {
+      const columns = [
+        "ALTER TABLE menu_items ADD COLUMN container_name TEXT",
+        "ALTER TABLE menu_items ADD COLUMN servings_per_container INTEGER",
+        "ALTER TABLE menu_items ADD COLUMN cost_per_container REAL"
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+    }
+  },
+  {
+    name: '013_add_inventory_verification_to_menu_items',
+    run: async (db) => {
+      const columns = [
+        "ALTER TABLE menu_items ADD COLUMN last_inventory_check DATE",
+        "ALTER TABLE menu_items ADD COLUMN last_checked_by TEXT"
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+    }
+  },
+  {
+    name: '014_add_is_bulk_to_menu_item_components',
+    run: (db) => new Promise((resolve) => {
+      db.run("ALTER TABLE menu_item_components ADD COLUMN is_bulk INTEGER DEFAULT 0", () => resolve());
+    })
+  },
+  {
+    name: '015_add_inventory_verification_to_sessions',
+    run: async (db) => {
+      const columns = [
+        "ALTER TABLE concession_sessions ADD COLUMN inventory_verified_at_start INTEGER DEFAULT 0",
+        "ALTER TABLE concession_sessions ADD COLUMN inventory_verified_at_end INTEGER DEFAULT 0",
+        "ALTER TABLE concession_sessions ADD COLUMN start_verified_by TEXT",
+        "ALTER TABLE concession_sessions ADD COLUMN end_verified_by TEXT"
+      ];
+
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+    }
+  },
+  {
+    name: '016_create_session_bulk_inventory_table',
+    run: (db) => new Promise((resolve, reject) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS session_bulk_inventory (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id INTEGER NOT NULL,
+          menu_item_id INTEGER NOT NULL,
+          starting_containers REAL NOT NULL,
+          ending_containers REAL,
+          containers_used REAL,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (session_id) REFERENCES concession_sessions(id),
+          FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+        )
+      `, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    })
+  },
+  {
+    name: '017_create_inventory_verifications_table',
+    run: (db) => new Promise((resolve, reject) => {
+      db.run(`
+        CREATE TABLE IF NOT EXISTS inventory_verifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          menu_item_id INTEGER NOT NULL,
+          session_id INTEGER,
+          verification_type TEXT CHECK (verification_type IN ('start', 'end', 'standalone')),
+          system_quantity REAL NOT NULL,
+          actual_quantity REAL NOT NULL,
+          discrepancy REAL,
+          verified_by TEXT,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+          FOREIGN KEY (session_id) REFERENCES concession_sessions(id)
+        )
+      `, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    })
   }
 ];
 
