@@ -1,6 +1,7 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth, ThemeProvider } from './contexts';
+import { setSessionExpiredCallback, resetSessionExpirationFlag } from './utils/api';
 import Login from './pages/Login';
 import StudentDashboard from './pages/StudentDashboard';
 import LogHours from './pages/LogHours';
@@ -16,11 +17,80 @@ import CashBoxAdmin from './pages/CashBoxAdmin';
 import ConcessionSession from './pages/ConcessionSession';
 import LossesManagement from './pages/LossesManagement';
 
+// Session expired notification component
+function SessionExpiredBanner({ onDismiss }) {
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+      color: 'white',
+      padding: '12px 20px',
+      textAlign: 'center',
+      zIndex: 9999,
+      boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '16px'
+    }}>
+      <span style={{ fontSize: '14px' }}>
+        Your session has expired. Please log in again to continue.
+      </span>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: 'rgba(255,255,255,0.2)',
+          border: 'none',
+          color: 'white',
+          padding: '4px 12px',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '12px'
+        }}
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
 function AppRoutes() {
-  const { user, isStudent } = useAuth();
+  const { user, isStudent, sessionExpired, clearSessionExpired, logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Set up API session expiration callback
+  useEffect(() => {
+    setSessionExpiredCallback(() => {
+      logout(true); // true = session expired
+      navigate('/', { replace: true });
+    });
+
+    return () => {
+      setSessionExpiredCallback(null);
+    };
+  }, [logout, navigate]);
+
+  // Reset session expiration flag when user logs in
+  useEffect(() => {
+    if (user) {
+      resetSessionExpirationFlag();
+    }
+  }, [user]);
 
   if (!user) {
-    return <Login />;
+    return (
+      <>
+        {sessionExpired && (
+          <SessionExpiredBanner onDismiss={clearSessionExpired} />
+        )}
+        <div style={{ paddingTop: sessionExpired ? '50px' : 0 }}>
+          <Login />
+        </div>
+      </>
+    );
   }
 
   return (
