@@ -14,3 +14,4 @@ export { default as InventoryMovementsSection } from './InventoryMovementsSectio
 export { default as InventoryCountSection } from './InventoryCountSection';
 export { default as InventoryVerificationModal } from './InventoryVerificationModal';
 export { default as SessionStartInventory } from './SessionStartInventory';
+export { default as SessionCloseInventory } from './SessionCloseInventory';
