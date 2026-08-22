@@ -3384,9 +3384,10 @@ function CashBoxAdmin() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {(() => {
                   // Separate categories (parent items with no price) from standalone items
-                  const categories = menuItems.filter(item => item.price === null && item.subItems && item.subItems.length > 0);
-                  const standalone = getFilteredMenuItems.filter(item => item.parent_id === null && item.price !== null);
-                  const emptyCategories = menuItems.filter(item => item.price === null && (!item.subItems || item.subItems.length === 0));
+                  const isCategory = (item) => item.price === null && item.parent_id === null && (!item.item_type || item.item_type === 'sellable') && !['ingredient', 'bulk_ingredient', 'composite'].includes(item.item_type);
+                  const categories = menuItems.filter(item => isCategory(item) && item.subItems && item.subItems.length > 0);
+                  const standalone = getFilteredMenuItems.filter(item => item.parent_id === null && (item.price !== null || ['ingredient', 'bulk_ingredient', 'composite'].includes(item.item_type)));
+                  const emptyCategories = menuItems.filter(item => isCategory(item) && (!item.subItems || item.subItems.length === 0));
 
                   const renderItemRow = (item, indent = false) => {
                     const isEditingThis = editingMenuItemId === item.id;
@@ -3493,20 +3494,7 @@ function CashBoxAdmin() {
 
                   return (
                     <>
-                      {/* Standalone items (no category) */}
-                      {standalone.length > 0 && (
-                        <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                          <div style={{ padding: '8px 12px', background: 'var(--color-bg-input)', borderBottom: '1px solid var(--color-border)', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-subtle)' }}>
-                            Uncategorized Items
-                          </div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                            {tableHeader}
-                            <tbody>{standalone.map(item => renderItemRow(item))}</tbody>
-                          </table>
-                        </div>
-                      )}
-
-                      {/* Category groups */}
+                      {/* Category groups (shown first) */}
                       {categories.map(cat => {
                         const isCollapsed = collapsedMenuCategories.has(cat.id);
                         const filteredSubs = (cat.subItems || []).filter(sub => {
@@ -3555,6 +3543,19 @@ function CashBoxAdmin() {
                           </div>
                         );
                       })}
+
+                      {/* Uncategorized items */}
+                      {standalone.length > 0 && (
+                        <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ padding: '8px 12px', background: 'var(--color-bg-input)', borderBottom: '1px solid var(--color-border)', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-subtle)' }}>
+                            Uncategorized Items
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            {tableHeader}
+                            <tbody>{standalone.map(item => renderItemRow(item))}</tbody>
+                          </table>
+                        </div>
+                      )}
 
                       {/* Empty categories */}
                       {emptyCategories.length > 0 && activeMenuTab === 'all' && (
