@@ -40,13 +40,13 @@ router.post('/archive-year', (req, res) => {
   // Use cutoffDate + ' 00:00:00' so the entire cutoff day is excluded from deletion
   const cutoff = cutoffDate;
   const clearStatements = [
-    // Order items for orders before cutoff
-    `DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE created_at < '${cutoff}')`,
-    // Orders before cutoff
-    `DELETE FROM orders WHERE created_at < '${cutoff}'`,
+    // Order items for orders before cutoff, plus orders in stale pending/active sessions
+    `DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE created_at < '${cutoff}' OR session_id IN (SELECT id FROM concession_sessions WHERE status IN ('created', 'active') AND created_at < '${cutoff}'))`,
+    // Orders before cutoff, plus orders in stale pending/active sessions
+    `DELETE FROM orders WHERE created_at < '${cutoff}' OR session_id IN (SELECT id FROM concession_sessions WHERE status IN ('created', 'active') AND created_at < '${cutoff}')`,
     // Session bulk inventory for sessions before cutoff
     `DELETE FROM session_bulk_inventory WHERE session_id IN (SELECT id FROM concession_sessions WHERE created_at < '${cutoff}')`,
-    // Sessions before cutoff
+    // Sessions before cutoff — includes any still-pending (created/active) sessions
     `DELETE FROM concession_sessions WHERE created_at < '${cutoff}'`,
     // Payment tracking before cutoff
     `DELETE FROM cashapp_payments WHERE created_at < '${cutoff}'`,
