@@ -698,6 +698,19 @@ function CashBoxAdmin() {
       if (needsIngredients && data.id) {
         await fetchData();
         openCompositeEditor({ id: data.id, name: itemName });
+      } else if (itemType === 'ingredient' && data.id) {
+        // Prompt to assign ingredient to a parent item
+        await fetchData();
+        try {
+          const res = await fetch('/api/menu/flat');
+          const allItems = await res.json();
+          const parentCandidates = allItems.filter(i =>
+            i.id !== data.id &&
+            (i.item_type === 'sellable' || i.item_type === 'composite')
+          );
+          setIngredientParentItems(parentCandidates);
+          setPendingIngredient({ id: data.id, name: itemName });
+        } catch { /* ignore */ }
       } else {
         fetchData();
       }
