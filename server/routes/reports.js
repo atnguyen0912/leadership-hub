@@ -25,7 +25,7 @@ function toCSV(data, columns) {
 
 // GET /api/reports/sessions - Export sessions data
 router.get('/sessions', (req, res) => {
-  const { startDate, endDate, format = 'json' } = req.query;
+  const { startDate, endDate, sessionId, format = 'json' } = req.query;
   const db = getDb();
 
   let query = `
@@ -34,8 +34,8 @@ router.get('/sessions', (req, res) => {
       cs.name,
       cp.name as program_name,
       cs.status,
-      cs.start_time,
-      cs.end_time,
+      cs.started_at,
+      cs.closed_at,
       cs.start_total,
       cs.end_total,
       cs.profit,
@@ -48,16 +48,20 @@ router.get('/sessions', (req, res) => {
   `;
   const params = [];
 
+  if (sessionId) {
+    query += ' AND cs.id = ?';
+    params.push(sessionId);
+  }
   if (startDate) {
-    query += ' AND DATE(cs.start_time) >= ?';
+    query += ' AND DATE(cs.started_at) >= ?';
     params.push(startDate);
   }
   if (endDate) {
-    query += ' AND DATE(cs.start_time) <= ?';
+    query += ' AND DATE(cs.started_at) <= ?';
     params.push(endDate);
   }
 
-  query += ' ORDER BY cs.start_time DESC';
+  query += ' ORDER BY cs.started_at DESC';
 
   db.all(query, params, (err, rows) => {
     if (err) {
@@ -70,8 +74,8 @@ router.get('/sessions', (req, res) => {
         { key: 'name', label: 'Session Name' },
         { key: 'program_name', label: 'Program' },
         { key: 'status', label: 'Status' },
-        { key: 'start_time', label: 'Start Time' },
-        { key: 'end_time', label: 'End Time' },
+        { key: 'started_at', label: 'Start Time' },
+        { key: 'closed_at', label: 'End Time' },
         { key: 'start_total', label: 'Starting Cash' },
         { key: 'end_total', label: 'Ending Cash' },
         { key: 'profit', label: 'Profit' },
@@ -197,7 +201,7 @@ router.get('/purchases', (req, res) => {
 
 // GET /api/reports/losses - Export losses data
 router.get('/losses', (req, res) => {
-  const { startDate, endDate, format = 'json' } = req.query;
+  const { startDate, endDate, programId, format = 'json' } = req.query;
   const db = getDb();
 
   let query = `
@@ -217,6 +221,10 @@ router.get('/losses', (req, res) => {
   `;
   const params = [];
 
+  if (programId) {
+    query += ' AND l.program_id = ?';
+    params.push(programId);
+  }
   if (startDate) {
     query += ' AND DATE(l.created_at) >= ?';
     params.push(startDate);
@@ -327,20 +335,30 @@ router.get('/orders', (req, res) => {
 
 // GET /api/reports/programs - Program P&L report
 router.get('/programs', (req, res) => {
-  const { startDate, endDate, format = 'json' } = req.query;
+  const { startDate, endDate, programId, format = 'json' } = req.query;
   const db = getDb();
 
   let dateFilter = '';
+  let programFilter = '';
   const params = [];
 
+  if (programId) {
+    programFilter = ' AND cp.id = ?';
+    params.push(programId);
+  }
   if (startDate) {
-    dateFilter += ' AND DATE(cs.start_time) >= ?';
+    dateFilter += ' AND DATE(cs.started_at) >= ?';
     params.push(startDate);
   }
   if (endDate) {
-    dateFilter += ' AND DATE(cs.start_time) <= ?';
+    dateFilter += ' AND DATE(cs.started_at) <= ?';
     params.push(endDate);
   }
+
+  // Build date params for the subquery (needs its own copy)
+  const dateParams = [];
+  if (startDate) dateParams.push(startDate);
+  if (endDate) dateParams.push(endDate);
 
   db.all(
     `SELECT
@@ -354,9 +372,10 @@ router.get('/programs', (req, res) => {
                 WHERE pd.program_id = cp.id ${dateFilter.replace(/cs\./g, 'cs2.')}), 0) as total_distributed
     FROM cashbox_programs cp
     LEFT JOIN concession_sessions cs ON cp.id = cs.program_id ${dateFilter}
+    WHERE 1=1 ${programFilter}
     GROUP BY cp.id
     ORDER BY cp.name`,
-    [...params, ...params],
+    [...dateParams, ...dateParams, ...(programId ? [programId] : [])],
     (err, rows) => {
       if (err) {
         return res.status(500).json({ error: 'Database error: ' + err.message });
@@ -383,11 +402,11 @@ router.get('/programs', (req, res) => {
 
 // GET /api/reports/reimbursement - Reimbursement history
 router.get('/reimbursement', (req, res) => {
-  const { format = 'json' } = req.query;
+  const { startDate, endDate, sessionId, format = 'json' } = req.query;
   const db = getDb();
 
-  db.all(
-    `SELECT
+  let query = `
+    SELECT
       rl.id,
       rl.entry_type,
       rl.amount,
@@ -397,8 +416,28 @@ router.get('/reimbursement', (req, res) => {
       rl.created_at
     FROM reimbursement_ledger rl
     LEFT JOIN concession_sessions cs ON rl.session_id = cs.id
-    ORDER BY rl.created_at DESC`,
-    [],
+    WHERE 1=1
+  `;
+  const params = [];
+
+  if (sessionId) {
+    query += ' AND rl.session_id = ?';
+    params.push(sessionId);
+  }
+  if (startDate) {
+    query += ' AND DATE(rl.created_at) >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    query += ' AND DATE(rl.created_at) <= ?';
+    params.push(endDate);
+  }
+
+  query += ' ORDER BY rl.created_at DESC';
+
+  db.all(
+    query,
+    params,
     (err, rows) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
@@ -450,6 +489,70 @@ router.get('/reimbursement', (req, res) => {
   );
 });
 
+// GET /api/reports/session-sales - Per-session item breakdown
+router.get('/session-sales', (req, res) => {
+  const { startDate, endDate, sessionId, format = 'json' } = req.query;
+  const db = getDb();
+
+  let dateFilter = '';
+  const params = [];
+
+  if (sessionId) {
+    dateFilter += ' AND cs.id = ?';
+    params.push(sessionId);
+  }
+  if (startDate) {
+    dateFilter += ' AND DATE(cs.started_at) >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    dateFilter += ' AND DATE(cs.started_at) <= ?';
+    params.push(endDate);
+  }
+
+  db.all(
+    `SELECT
+      cs.id as session_id,
+      cs.name as session_name,
+      DATE(cs.started_at) as session_date,
+      cp.name as program_name,
+      mi.name as item_name,
+      SUM(oi.quantity) as quantity_sold,
+      SUM(oi.quantity * oi.unit_price) as item_revenue
+    FROM concession_sessions cs
+    LEFT JOIN cashbox_programs cp ON cs.program_id = cp.id
+    JOIN orders o ON o.session_id = cs.id
+    JOIN order_items oi ON oi.order_id = o.id
+    JOIN menu_items mi ON oi.menu_item_id = mi.id
+    WHERE cs.status = 'closed' ${dateFilter}
+    GROUP BY cs.id, mi.id
+    ORDER BY cs.started_at DESC, quantity_sold DESC`,
+    params,
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error: ' + err.message });
+      }
+
+      if (format === 'csv') {
+        const csv = toCSV(rows, [
+          { key: 'session_id', label: 'Session ID' },
+          { key: 'session_name', label: 'Session Name' },
+          { key: 'session_date', label: 'Date' },
+          { key: 'program_name', label: 'Program' },
+          { key: 'item_name', label: 'Item' },
+          { key: 'quantity_sold', label: 'Quantity Sold' },
+          { key: 'item_revenue', label: 'Revenue' }
+        ]);
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=session-sales.csv');
+        return res.send(csv);
+      }
+
+      res.json(rows);
+    }
+  );
+});
+
 // GET /api/reports/summary - Overall summary dashboard
 router.get('/summary', (req, res) => {
   const { startDate, endDate } = req.query;
@@ -476,7 +579,7 @@ router.get('/summary', (req, res) => {
       COUNT(CASE WHEN status = 'closed' THEN 1 END) as closed_sessions,
       COALESCE(SUM(CASE WHEN status = 'closed' THEN profit ELSE 0 END), 0) as total_profit
     FROM concession_sessions
-    WHERE 1=1 ${dateFilter.replace('created_at', 'start_time')}`,
+    WHERE 1=1 ${dateFilter.replace('created_at', 'started_at')}`,
     params,
     (err, sessionStats) => {
       if (err) return res.status(500).json({ error: 'Database error' });

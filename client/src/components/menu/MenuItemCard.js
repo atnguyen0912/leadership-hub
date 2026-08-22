@@ -1,7 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatCurrency } from '../../utils/formatters';
 
-function MenuItemCard({ item, category, components = [], onEdit, onDelete }) {
+function MenuItemCard({ item, category, components = [], onEdit, onDelete, isEditing, editState, onEditChange, onEditSave, onEditCancel }) {
+  const [priceHistory, setPriceHistory] = useState(null);
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
+
+  const togglePriceHistory = async () => {
+    if (showPriceHistory) {
+      setShowPriceHistory(false);
+      return;
+    }
+    if (!priceHistory) {
+      try {
+        const res = await fetch(`/api/menu/${item.id}/price-history`);
+        const data = await res.json();
+        setPriceHistory(data);
+      } catch {
+        setPriceHistory([]);
+      }
+    }
+    setShowPriceHistory(true);
+  };
+
   // Determine icon based on item type
   const getItemIcon = () => {
     const itemType = item.item_type || category;
@@ -182,6 +202,54 @@ function MenuItemCard({ item, category, components = [], onEdit, onDelete }) {
           </div>
         )}
 
+        {/* Price History */}
+        {item.price !== null && (
+          <div style={{ marginTop: '4px' }}>
+            <button
+              onClick={togglePriceHistory}
+              style={{
+                fontSize: '11px',
+                color: 'var(--color-primary)',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              {showPriceHistory ? 'Hide' : 'Show'} price history
+            </button>
+            {showPriceHistory && priceHistory && (
+              priceHistory.length === 0 ? (
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  No price changes recorded
+                </div>
+              ) : (
+                <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                  {priceHistory.map((entry, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '2px 0',
+                      borderBottom: idx < priceHistory.length - 1 ? '1px solid var(--color-border)' : 'none',
+                      color: 'var(--color-text-subtle)'
+                    }}>
+                      <span>
+                        {entry.old_price != null ? formatCurrency(entry.old_price) : 'N/A'}
+                        {' → '}
+                        {entry.new_price != null ? formatCurrency(entry.new_price) : 'N/A'}
+                      </span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>
+                        {new Date(entry.changed_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        )}
+
         {/* Inactive indicator */}
         {!item.active && (
           <div style={{
@@ -195,22 +263,93 @@ function MenuItemCard({ item, category, components = [], onEdit, onDelete }) {
         )}
       </div>
 
-      {/* Actions */}
-      <div className="menu-card-actions">
-        <button
-          className="btn btn-small"
-          onClick={() => onEdit(item)}
-          title="Edit item"
-          style={{
-            padding: '4px 10px',
-            fontSize: '12px',
-            background: 'var(--color-primary)',
-            color: 'white'
-          }}
-        >
-          Edit
-        </button>
-      </div>
+      {/* Edit Form or Actions */}
+      {isEditing && editState ? (
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '10px', marginTop: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <input
+              className="input"
+              value={editState.name}
+              onChange={(e) => onEditChange({ ...editState, name: e.target.value })}
+              placeholder="Item name"
+              style={{ fontSize: '13px', padding: '6px 8px' }}
+            />
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={editState.price}
+                onChange={(e) => onEditChange({ ...editState, price: e.target.value })}
+                placeholder="Price"
+                style={{ fontSize: '13px', padding: '6px 8px', flex: 1 }}
+              />
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={editState.unitCost}
+                onChange={(e) => onEditChange({ ...editState, unitCost: e.target.value })}
+                placeholder="Unit Cost (COGS)"
+                style={{ fontSize: '13px', padding: '6px 8px', flex: 1 }}
+              />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-subtle)' }}>
+              <input
+                type="checkbox"
+                checked={editState.trackInventory}
+                onChange={(e) => onEditChange({ ...editState, trackInventory: e.target.checked })}
+              />
+              Track Inventory
+            </label>
+            {editState.defaultCogs != null && editState.defaultCogs !== editState.unitCost && (
+              <button
+                type="button"
+                onClick={() => onEditChange({ ...editState, unitCost: editState.defaultCogs })}
+                style={{
+                  fontSize: '11px', padding: '3px 8px', border: '1px solid var(--color-border)',
+                  borderRadius: '4px', background: 'var(--color-bg)', color: 'var(--color-text-subtle)',
+                  cursor: 'pointer', textAlign: 'left'
+                }}
+              >
+                Use purchase COGS: {formatCurrency(parseFloat(editState.defaultCogs))}
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+            <button
+              className="btn btn-primary btn-small"
+              onClick={onEditSave}
+              style={{ fontSize: '12px', padding: '4px 12px' }}
+            >
+              Save
+            </button>
+            <button
+              className="btn btn-small"
+              onClick={onEditCancel}
+              style={{ fontSize: '12px', padding: '4px 12px' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="menu-card-actions">
+          <button
+            className="btn btn-small"
+            onClick={() => onEdit(item)}
+            title="Edit item"
+            style={{
+              padding: '4px 10px',
+              fontSize: '12px',
+              background: 'var(--color-primary)',
+              color: 'white'
+            }}
+          >
+            Edit
+          </button>
+        </div>
+      )}
     </div>
   );
 }

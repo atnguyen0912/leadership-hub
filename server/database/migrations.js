@@ -372,6 +372,134 @@ const migrations = [
         else resolve();
       });
     })
+  },
+  {
+    name: '018_create_inventory_tracking_tables',
+    run: async (db) => {
+      // 1. inventory_lots — FIFO lot tracking for purchases
+      await new Promise((resolve, reject) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_lots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            purchase_item_id INTEGER,
+            quantity_original REAL NOT NULL DEFAULT 0,
+            quantity_remaining REAL NOT NULL DEFAULT 0,
+            unit_cost REAL NOT NULL DEFAULT 0,
+            is_reimbursable INTEGER DEFAULT 0,
+            purchase_date DATE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+            FOREIGN KEY (purchase_item_id) REFERENCES purchase_items(id)
+          )
+        `, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      // 2. inventory_transactions — Audit log for all inventory movements
+      await new Promise((resolve, reject) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            transaction_type TEXT NOT NULL,
+            quantity_change REAL NOT NULL DEFAULT 0,
+            unit_cost_at_time REAL,
+            is_reimbursable INTEGER DEFAULT 0,
+            reference_id INTEGER,
+            notes TEXT,
+            created_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+          )
+        `, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      // 3. inventory_counts — Physical count reconciliation
+      await new Promise((resolve, reject) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS inventory_counts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            menu_item_id INTEGER NOT NULL,
+            expected_quantity REAL NOT NULL DEFAULT 0,
+            actual_quantity REAL NOT NULL DEFAULT 0,
+            discrepancy REAL DEFAULT 0,
+            cost_impact REAL DEFAULT 0,
+            counted_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES concession_sessions(id),
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+          )
+        `, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      // Performance indexes
+      await new Promise((resolve) => {
+        db.run('CREATE INDEX IF NOT EXISTS idx_inventory_lots_menu_item ON inventory_lots(menu_item_id)', () => resolve());
+      });
+      await new Promise((resolve) => {
+        db.run('CREATE INDEX IF NOT EXISTS idx_inventory_transactions_menu_item ON inventory_transactions(menu_item_id)', () => resolve());
+      });
+      await new Promise((resolve) => {
+        db.run('CREATE INDEX IF NOT EXISTS idx_inventory_counts_session ON inventory_counts(session_id)', () => resolve());
+      });
+    }
+  }
+  ,
+  {
+    name: '019_add_missing_orders_columns',
+    run: async (db) => {
+      const columns = [
+        "ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN discount_charged_to TEXT",
+        "ALTER TABLE orders ADD COLUMN discount_reason TEXT",
+        "ALTER TABLE orders ADD COLUMN final_total REAL",
+        "ALTER TABLE orders ADD COLUMN is_comp INTEGER DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT 'cash'",
+        "ALTER TABLE orders ADD COLUMN cogs_total REAL DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN cogs_reimbursable REAL DEFAULT 0"
+      ];
+      for (const sql of columns) {
+        await new Promise((resolve) => {
+          db.run(sql, () => resolve());
+        });
+      }
+    }
+  }
+  ,
+  {
+    name: '020_create_menu_item_price_history',
+    run: async (db) => {
+      await new Promise((resolve, reject) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS menu_item_price_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_item_id INTEGER NOT NULL,
+            old_price REAL,
+            new_price REAL,
+            changed_by TEXT,
+            changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+          )
+        `, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      await new Promise((resolve) => {
+        db.run('CREATE INDEX IF NOT EXISTS idx_price_history_menu_item ON menu_item_price_history(menu_item_id)', () => resolve());
+      });
+    }
   }
 ];
 

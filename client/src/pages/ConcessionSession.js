@@ -734,20 +734,19 @@ function ConcessionSession() {
       const maxRowSpan = Math.min(item.row_span || 1, GRID_ROWS - item.grid_row);
       const maxColSpan = Math.min(item.col_span || 1, GRID_COLS - item.grid_col);
 
-      // Find the largest span that doesn't overlap
+      // Find the largest span by area that doesn't overlap
       let safeRowSpan = 1;
       let safeColSpan = 1;
+      let bestArea = 1;
 
-      // Try to expand column span first, then row span
-      for (let cs = maxColSpan; cs >= 1; cs--) {
-        for (let rs = maxRowSpan; rs >= 1; rs--) {
+      for (let rs = 1; rs <= maxRowSpan; rs++) {
+        for (let cs = 1; cs <= maxColSpan; cs++) {
+          if (rs * cs <= bestArea) continue;
+
           let canPlace = true;
-
-          // Check all cells this item would occupy
           for (let r = item.grid_row; r < item.grid_row + rs && canPlace; r++) {
             for (let c = item.grid_col; c < item.grid_col + cs && canPlace; c++) {
-              const cellKey = `${r},${c}`;
-              if (occupiedCells.has(cellKey)) {
+              if (occupiedCells.has(`${r},${c}`)) {
                 canPlace = false;
               }
             }
@@ -756,10 +755,9 @@ function ConcessionSession() {
           if (canPlace) {
             safeRowSpan = rs;
             safeColSpan = cs;
-            break;
+            bestArea = rs * cs;
           }
         }
-        if (safeRowSpan > 1 || safeColSpan > 1) break;
       }
 
       // Mark cells as occupied

@@ -216,6 +216,11 @@ function CashBoxAdmin() {
   const [reportEndDate, setReportEndDate] = useState('');
   const [reportSummary, setReportSummary] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [selectedReport, setSelectedReport] = useState('');
+  const [reportData, setReportData] = useState([]);
+  const [loadingReportData, setLoadingReportData] = useState(false);
+  const [reportSessionFilter, setReportSessionFilter] = useState('');
+  const [reportProgramFilter, setReportProgramFilter] = useState('');
 
   // Session details view state
   const [showSessionDetails, setShowSessionDetails] = useState(false);
@@ -762,12 +767,24 @@ function CashBoxAdmin() {
     }
   };
 
-  const startEditingMenuItem = (item) => {
+  const [defaultCogsMap, setDefaultCogsMap] = useState({});
+
+  const startEditingMenuItem = async (item) => {
     setEditingMenuItemId(item.id);
     setEditMenuItemName(item.name);
     setEditMenuItemPrice(item.price !== null ? item.price.toString() : '');
     setEditMenuItemUnitCost(item.unit_cost ? item.unit_cost.toString() : '');
     setEditMenuItemTrackInventory(item.track_inventory !== 0);
+    // Fetch default COGS from purchase history
+    try {
+      const res = await fetch(`/api/menu/${item.id}/default-cogs`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.defaultCogs != null) {
+          setDefaultCogsMap(prev => ({ ...prev, [item.id]: data.defaultCogs }));
+        }
+      }
+    } catch { /* ignore */ }
   };
 
   const cancelEditingMenuItem = () => {
@@ -2256,7 +2273,8 @@ function CashBoxAdmin() {
       if (params.toString()) url += '?' + params.toString();
 
       const response = await fetch(url);
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
         setReportSummary(data);
       }
@@ -2265,13 +2283,55 @@ function CashBoxAdmin() {
     } finally {
       setLoadingReport(false);
     }
+    // Also refresh the report preview if one is selected
+    if (selectedReport) {
+      fetchReportData(selectedReport);
+    }
   };
 
   const downloadReport = (reportType) => {
+    const token = localStorage.getItem('token');
     let url = `/api/reports/${reportType}?format=csv`;
+    if (token) url += `&token=${encodeURIComponent(token)}`;
     if (reportStartDate) url += `&startDate=${reportStartDate}`;
     if (reportEndDate) url += `&endDate=${reportEndDate}`;
+    if (reportSessionFilter && ['sessions', 'orders', 'session-sales', 'reimbursement'].includes(reportType)) {
+      url += `&sessionId=${reportSessionFilter}`;
+    }
+    if (reportProgramFilter && ['programs', 'losses'].includes(reportType)) {
+      url += `&programId=${reportProgramFilter}`;
+    }
     window.open(url, '_blank');
+  };
+
+  const fetchReportData = async (reportType) => {
+    if (!reportType) return;
+    setLoadingReportData(true);
+    try {
+      const params = new URLSearchParams();
+      if (reportStartDate) params.append('startDate', reportStartDate);
+      if (reportEndDate) params.append('endDate', reportEndDate);
+      if (reportSessionFilter && ['sessions', 'orders', 'session-sales', 'reimbursement'].includes(reportType)) {
+        params.append('sessionId', reportSessionFilter);
+      }
+      if (reportProgramFilter && ['programs', 'losses'].includes(reportType)) {
+        params.append('programId', reportProgramFilter);
+      }
+      let url = `/api/reports/${reportType}`;
+      if (params.toString()) url += '?' + params.toString();
+
+      const response = await fetch(url);
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
+        const data = await response.json();
+        // Reimbursement endpoint returns { entries, summary } instead of flat array
+        setReportData(Array.isArray(data) ? data : (data.entries || []));
+      }
+    } catch (err) {
+      console.error('Failed to fetch report data:', err);
+    } finally {
+      setLoadingReportData(false);
+    }
   };
 
   // Get sellable menu items (excludes composites - they need ingredients, not direct purchase)
@@ -3167,6 +3227,22 @@ function CashBoxAdmin() {
                     components={item.components}
                     onEdit={() => startEditingMenuItem(item)}
                     onDelete={() => handleDeleteMenuItem(item.id, item.name)}
+                    isEditing={editingMenuItemId === item.id}
+                    editState={editingMenuItemId === item.id ? {
+                      name: editMenuItemName,
+                      price: editMenuItemPrice,
+                      unitCost: editMenuItemUnitCost,
+                      trackInventory: editMenuItemTrackInventory,
+                      defaultCogs: defaultCogsMap[item.id] != null ? String(defaultCogsMap[item.id]) : null,
+                    } : null}
+                    onEditChange={(state) => {
+                      setEditMenuItemName(state.name);
+                      setEditMenuItemPrice(state.price);
+                      setEditMenuItemUnitCost(state.unitCost);
+                      setEditMenuItemTrackInventory(state.trackInventory);
+                    }}
+                    onEditSave={() => handleUpdateMenuItem(item.id)}
+                    onEditCancel={cancelEditingMenuItem}
                   />
                 ))}
               </div>
@@ -5147,8 +5223,19 @@ function CashBoxAdmin() {
               reportSummary={reportSummary}
               loadingReport={loadingReport}
               onFetchReport={fetchReportSummary}
-              onClearFilters={() => { setReportStartDate(''); setReportEndDate(''); fetchReportSummary(); }}
+              onClearFilters={() => { setReportStartDate(''); setReportEndDate(''); setSelectedReport(''); setReportData([]); setReportSessionFilter(''); setReportProgramFilter(''); fetchReportSummary(); }}
               onDownloadReport={downloadReport}
+              selectedReport={selectedReport}
+              setSelectedReport={setSelectedReport}
+              reportData={reportData}
+              loadingReportData={loadingReportData}
+              onPreviewReport={fetchReportData}
+              sessions={sessions}
+              programs={programs}
+              reportSessionFilter={reportSessionFilter}
+              setReportSessionFilter={setReportSessionFilter}
+              reportProgramFilter={reportProgramFilter}
+              setReportProgramFilter={setReportProgramFilter}
             />
           )}
 

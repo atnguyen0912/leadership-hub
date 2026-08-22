@@ -37,6 +37,18 @@ window.fetch = function(url, options = {}) {
   }
 
   return originalFetch(url, options).then(async response => {
+    // Guard: if an /api call returns HTML instead of JSON, the server/proxy is misconfigured.
+    // Return a synthetic JSON error so callers' .json() doesn't blow up on <!DOCTYPE.
+    if (typeof url === 'string' && url.startsWith('/api')) {
+      const ct = response.headers.get('content-type') || '';
+      if (!ct.includes('application/json') && !ct.includes('text/csv') && ct !== '') {
+        return new Response(JSON.stringify({ error: 'Server unavailable — please refresh and try again' }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Handle 401 - token expired or invalid (but not for auth routes)
     // Note: 403 means "permission denied" - user is authenticated but not authorized
     // We should NOT logout on 403, just show the error to the user

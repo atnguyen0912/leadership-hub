@@ -21,7 +21,7 @@ function verifyToken(token) {
 // Verify JWT token middleware
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = (authHeader && authHeader.split(' ')[1]) || req.query.token; // Bearer TOKEN or ?token=
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });

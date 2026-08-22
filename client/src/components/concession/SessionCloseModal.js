@@ -13,6 +13,8 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   // Inventory reconciliation state
   const [showInventoryReconciliation, setShowInventoryReconciliation] = useState(false);
   const [inventoryReconciled, setInventoryReconciled] = useState(false);
+  // Items sold summary
+  const [itemsSold, setItemsSold] = useState([]);
 
   // Fetch preview data when modal opens
   useEffect(() => {
@@ -25,6 +27,7 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
       setError('');
       setShowInventoryReconciliation(false);
       setInventoryReconciled(false);
+      setItemsSold([]);
     }
   }, [isOpen, sessionId]);
 
@@ -41,6 +44,16 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
       setPreview(data);
       // Pre-fill with expected cash amount
       setActualCashCount(String(data.expectedCashInDrawer || 0));
+      // Fetch items sold summary
+      try {
+        const summaryRes = await fetch(`/api/orders/session/${sessionId}/summary`);
+        if (summaryRes.ok) {
+          const summaryData = await summaryRes.json();
+          setItemsSold(summaryData.itemBreakdown || []);
+        }
+      } catch (e) {
+        // Non-critical, don't block close modal
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -187,6 +200,44 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
                 </div>
               </div>
             </div>
+
+            {/* Items Sold Section */}
+            {itemsSold.length > 0 && (
+              <div style={{
+                background: 'var(--color-bg-input)',
+                padding: '14px',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                border: '1px solid var(--color-border)'
+              }}>
+                <h4 style={{
+                  color: 'var(--color-primary)',
+                  marginBottom: '12px',
+                  fontSize: '15px',
+                  fontWeight: '600'
+                }}>
+                  ITEMS SOLD
+                </h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--color-text-subtle)', fontWeight: '500' }}>Item</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--color-text-subtle)', fontWeight: '500' }}>Qty</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--color-text-subtle)', fontWeight: '500' }}>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemsSold.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td style={{ padding: '6px 8px', color: 'var(--color-text-muted)' }}>{item.name}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--color-text-muted)', textAlign: 'right' }}>{item.total_quantity}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--color-primary)', textAlign: 'right', fontWeight: '500' }}>{formatCurrency(item.total_revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Payment Breakdown Section */}
             <div style={{

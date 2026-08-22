@@ -349,6 +349,19 @@ router.put('/:id', (req, res) => {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
         }
+
+        // Log price change if price was updated
+        if (price !== undefined && price !== item.price) {
+          db.run(
+            `INSERT INTO menu_item_price_history (menu_item_id, old_price, new_price, changed_by)
+             VALUES (?, ?, ?, ?)`,
+            [id, item.price, price, req.user?.username || 'unknown'],
+            (histErr) => {
+              if (histErr) console.error('Failed to log price change:', histErr.message);
+            }
+          );
+        }
+
         res.json({ success: true });
       }
     );
@@ -915,6 +928,29 @@ router.put('/:id/components', (req, res) => {
   });
 });
 
+// GET /api/menu/:id/default-cogs - Get the mode unit_cost from recent purchases
+router.get('/:id/default-cogs', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  // Find the most frequently occurring unit_cost (mode) from purchase_items for this menu item
+  db.get(
+    `SELECT unit_cost, COUNT(*) as freq
+     FROM purchase_items
+     WHERE menu_item_id = ?
+     GROUP BY ROUND(unit_cost, 2)
+     ORDER BY freq DESC, rowid DESC
+     LIMIT 1`,
+    [id],
+    (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ defaultCogs: row ? Math.round(row.unit_cost * 100) / 100 : null });
+    }
+  );
+});
+
 // PUT /api/menu/:id/inventory - Update inventory settings for a menu item
 router.put('/:id/inventory', (req, res) => {
   const { id } = req.params;
@@ -1055,6 +1091,27 @@ router.get('/with-components', (req, res) => {
           res.json(itemsWithComponents);
         }
       );
+    }
+  );
+});
+
+// GET /api/menu/:id/price-history - Get price change history for an item
+router.get('/:id/price-history', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+
+  db.all(
+    `SELECT old_price, new_price, changed_by, changed_at
+     FROM menu_item_price_history
+     WHERE menu_item_id = ?
+     ORDER BY changed_at DESC
+     LIMIT 50`,
+    [id],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json(rows || []);
     }
   );
 });
