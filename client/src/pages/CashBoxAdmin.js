@@ -65,7 +65,7 @@ function CashBoxAdmin() {
   const [newItemNeedsIngredients, setNewItemNeedsIngredients] = useState(false);
   const [addingMenuItem, setAddingMenuItem] = useState(false);
   const [activeMenuTab, setActiveMenuTab] = useState('all');
-  const [menuViewMode, setMenuViewMode] = useState('grid'); // 'grid' or 'list'
+  const [menuViewMode, setMenuViewMode] = useState('list'); // 'grid' or 'list'
   const [listEditPrices, setListEditPrices] = useState({}); // { [itemId]: { price, unitCost } }
   // New item type fields (Phase 1)
   const [newItemType, setNewItemType] = useState('sellable');
@@ -3290,90 +3290,128 @@ function CashBoxAdmin() {
                   </thead>
                   <tbody>
                     {getFilteredMenuItems.map((item) => {
-                      const editing = listEditPrices[item.id];
+                      const isEditingThis = editingMenuItemId === item.id;
                       return (
-                        <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                          <td style={{ padding: '6px 12px' }}>
-                            <div style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</div>
-                            {item.parent_name && (
-                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>in {item.parent_name}</div>
-                            )}
-                          </td>
-                          <td style={{ padding: '6px 12px' }}>
-                            <span style={{
-                              fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
-                              background: item.item_type === 'sellable' ? '#dcfce7' : item.item_type === 'composite' ? '#ede9fe' : item.item_type === 'ingredient' ? '#fef3c7' : '#dbeafe',
-                              color: item.item_type === 'sellable' ? '#22c55e' : item.item_type === 'composite' ? '#8b5cf6' : item.item_type === 'ingredient' ? '#f59e0b' : '#3b82f6'
-                            }}>
-                              {item.item_type === 'bulk_ingredient' ? 'Bulk' : (item.item_type || 'sellable')}
-                            </span>
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
-                            {editing ? (
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="input"
-                                value={editing.price}
-                                onChange={(e) => setListEditPrices(prev => ({ ...prev, [item.id]: { ...prev[item.id], price: e.target.value } }))}
-                                onKeyDown={(e) => { if (e.key === 'Enter') handleQuickPriceUpdate(item.id, 'price', editing.price); if (e.key === 'Escape') setListEditPrices(prev => { const n = { ...prev }; delete n[item.id]; return n; }); }}
-                                autoFocus
-                                style={{ width: '90px', fontSize: '13px', padding: '3px 6px', textAlign: 'right' }}
-                              />
-                            ) : (
+                        <React.Fragment key={item.id}>
+                          <tr style={{ borderBottom: isEditingThis ? 'none' : '1px solid var(--color-border)' }}>
+                            <td style={{ padding: '6px 12px' }}>
+                              <div style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</div>
+                              {item.parent_name && (
+                                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>in {item.parent_name}</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '6px 12px' }}>
+                              <span style={{
+                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
+                                background: item.item_type === 'sellable' ? '#dcfce7' : item.item_type === 'composite' ? '#ede9fe' : item.item_type === 'ingredient' ? '#fef3c7' : '#dbeafe',
+                                color: item.item_type === 'sellable' ? '#22c55e' : item.item_type === 'composite' ? '#8b5cf6' : item.item_type === 'ingredient' ? '#f59e0b' : '#3b82f6'
+                              }}>
+                                {item.item_type === 'bulk_ingredient' ? 'Bulk' : (item.item_type || 'sellable')}
+                              </span>
+                            </td>
+                            <td style={{ padding: '6px 12px', textAlign: 'right' }}>
                               <span
-                                onClick={() => setListEditPrices(prev => ({ ...prev, [item.id]: { price: item.price != null ? item.price.toString() : '', unitCost: item.unit_cost ? item.unit_cost.toString() : '0' } }))}
-                                style={{ cursor: 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}
-                                title="Click to edit"
+                                onClick={() => !isEditingThis && startEditingMenuItem(item)}
+                                style={{ cursor: isEditingThis ? 'default' : 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}
+                                title={isEditingThis ? '' : 'Click to edit'}
                               >
                                 {item.price != null ? formatCurrency(item.price) : '-'}
                               </span>
-                            )}
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                            {item.unit_cost ? formatCurrency(item.unit_cost) : '-'}
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
-                            {item.track_inventory ? (
-                              <span style={{
-                                color: item.quantity_on_hand === 0 ? '#ef4444' : item.quantity_on_hand <= 20 ? '#f59e0b' : '#22c55e',
-                                fontWeight: '500'
-                              }}>
-                                {item.quantity_on_hand ?? '-'}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--color-text-muted)' }}>-</span>
-                            )}
-                          </td>
-                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
-                            {editing ? (
-                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                <button
-                                  className="btn btn-small btn-primary"
-                                  onClick={() => handleQuickPriceUpdate(item.id, 'price', editing.price)}
-                                  style={{ fontSize: '11px', padding: '2px 8px' }}
-                                >
-                                  Save
-                                </button>
+                            </td>
+                            <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                              {item.unit_cost ? formatCurrency(item.unit_cost) : '-'}
+                            </td>
+                            <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                              {item.track_inventory ? (
+                                <span style={{
+                                  color: item.quantity_on_hand === 0 ? '#ef4444' : item.quantity_on_hand <= 20 ? '#f59e0b' : '#22c55e',
+                                  fontWeight: '500'
+                                }}>
+                                  {item.quantity_on_hand ?? '-'}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                              {isEditingThis ? (
                                 <button
                                   className="btn btn-small"
-                                  onClick={() => setListEditPrices(prev => { const n = { ...prev }; delete n[item.id]; return n; })}
+                                  onClick={cancelEditingMenuItem}
                                   style={{ fontSize: '11px', padding: '2px 8px' }}
                                 >
-                                  X
+                                  Cancel
                                 </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="btn btn-small"
-                                onClick={() => startEditingMenuItem(item)}
-                                style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}
-                              >
-                                Edit
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+                              ) : (
+                                <button
+                                  className="btn btn-small"
+                                  onClick={() => startEditingMenuItem(item)}
+                                  style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {isEditingThis && (
+                            <tr style={{ borderBottom: '2px solid var(--color-primary)' }}>
+                              <td colSpan="6" style={{ padding: '8px 12px', background: 'var(--color-bg-input)' }}>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                  <div style={{ flex: '2', minWidth: '120px' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Name</label>
+                                    <input
+                                      className="input"
+                                      value={editMenuItemName}
+                                      onChange={(e) => setEditMenuItemName(e.target.value)}
+                                      style={{ fontSize: '13px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: '1', minWidth: '100px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '3px' }}>Sell Price</label>
+                                    <div style={{ position: 'relative' }}>
+                                      <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)', fontWeight: '600' }}>$</span>
+                                      <input
+                                        className="input"
+                                        type="number"
+                                        step="0.01"
+                                        value={editMenuItemPrice}
+                                        onChange={(e) => setEditMenuItemPrice(e.target.value)}
+                                        style={{ fontSize: '14px', fontWeight: '600', padding: '6px 8px 6px 20px', width: '100%', boxSizing: 'border-box', border: '2px solid var(--color-primary)', borderRadius: '6px' }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div style={{ flex: '1', minWidth: '90px' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>Unit Cost</label>
+                                    <input
+                                      className="input"
+                                      type="number"
+                                      step="0.01"
+                                      value={editMenuItemUnitCost}
+                                      onChange={(e) => setEditMenuItemUnitCost(e.target.value)}
+                                      placeholder="auto from receipts"
+                                      style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box', color: 'var(--color-text-muted)' }}
+                                    />
+                                  </div>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-text-subtle)', whiteSpace: 'nowrap' }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={editMenuItemTrackInventory}
+                                      onChange={(e) => setEditMenuItemTrackInventory(e.target.checked)}
+                                    />
+                                    Track Inv.
+                                  </label>
+                                  <button
+                                    className="btn btn-small btn-primary"
+                                    onClick={() => handleUpdateMenuItem(item.id)}
+                                    style={{ fontSize: '12px', padding: '6px 14px', whiteSpace: 'nowrap' }}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
