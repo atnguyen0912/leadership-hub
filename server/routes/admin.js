@@ -7,12 +7,16 @@ const { getDb } = require('../database');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/leadership-hub.db');
 const DATA_DIR = path.dirname(DB_PATH);
 
-// POST /api/admin/archive-year - Archive current data and reset for new year
+// POST /api/admin/archive-year - Archive data before a cutoff date and reset
 router.post('/archive-year', (req, res) => {
-  const { confirmPhrase } = req.body;
+  const { confirmPhrase, cutoffDate } = req.body;
 
   if (confirmPhrase !== 'ARCHIVE AND RESET') {
     return res.status(400).json({ error: 'Confirmation phrase required. Send { confirmPhrase: "ARCHIVE AND RESET" }' });
+  }
+
+  if (!cutoffDate || !/^\d{4}-\d{2}-\d{2}$/.test(cutoffDate)) {
+    return res.status(400).json({ error: 'Valid cutoff date required (YYYY-MM-DD). Only data before this date will be archived.' });
   }
 
   const db = getDb();
@@ -32,36 +36,37 @@ router.post('/archive-year', (req, res) => {
     return res.status(500).json({ error: `Failed to create backup: ${err.message}` });
   }
 
-  // Step 2: Clear transactional tables and reset inventory
+  // Step 2: Clear transactional data BEFORE the cutoff date
+  // Use cutoffDate + ' 00:00:00' so the entire cutoff day is excluded from deletion
+  const cutoff = cutoffDate;
   const clearStatements = [
-    // Order data
-    'DELETE FROM order_items',
-    'DELETE FROM orders',
-    // Session data
-    'DELETE FROM session_bulk_inventory',
-    'DELETE FROM concession_sessions',
-    // Payment tracking
-    'DELETE FROM cashapp_payments',
-    'DELETE FROM zelle_payments',
-    // Financial records
-    'DELETE FROM reimbursement_ledger',
-    'DELETE FROM losses',
-    'DELETE FROM profit_distributions',
-    'DELETE FROM program_earnings',
-    // Purchase history
-    'DELETE FROM purchase_items',
-    'DELETE FROM purchases',
-    // Inventory tracking
-    'DELETE FROM inventory_lots',
-    'DELETE FROM inventory_transactions',
-    'DELETE FROM inventory_counts',
-    'DELETE FROM inventory_verifications',
-    // Hours tracking
-    'DELETE FROM hours',
-    // Reset menu item inventory quantities
-    'UPDATE menu_items SET quantity_on_hand = 0, last_inventory_check = NULL, last_checked_by = NULL',
-    // Reset program balances
-    'UPDATE cashbox_programs SET balance = 0',
+    // Order items for orders before cutoff
+    `DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE created_at < '${cutoff}')`,
+    // Orders before cutoff
+    `DELETE FROM orders WHERE created_at < '${cutoff}'`,
+    // Session bulk inventory for sessions before cutoff
+    `DELETE FROM session_bulk_inventory WHERE session_id IN (SELECT id FROM concession_sessions WHERE created_at < '${cutoff}')`,
+    // Sessions before cutoff
+    `DELETE FROM concession_sessions WHERE created_at < '${cutoff}'`,
+    // Payment tracking before cutoff
+    `DELETE FROM cashapp_payments WHERE created_at < '${cutoff}'`,
+    `DELETE FROM zelle_payments WHERE created_at < '${cutoff}'`,
+    // Financial records before cutoff
+    `DELETE FROM reimbursement_ledger WHERE created_at < '${cutoff}'`,
+    `DELETE FROM losses WHERE created_at < '${cutoff}'`,
+    `DELETE FROM profit_distributions WHERE created_at < '${cutoff}'`,
+    `DELETE FROM program_earnings WHERE created_at < '${cutoff}'`,
+    // Purchase items for purchases before cutoff
+    `DELETE FROM purchase_items WHERE purchase_id IN (SELECT id FROM purchases WHERE purchase_date < '${cutoff}')`,
+    // Purchases before cutoff
+    `DELETE FROM purchases WHERE purchase_date < '${cutoff}'`,
+    // Inventory tracking before cutoff
+    `DELETE FROM inventory_lots WHERE created_at < '${cutoff}'`,
+    `DELETE FROM inventory_transactions WHERE created_at < '${cutoff}'`,
+    `DELETE FROM inventory_counts WHERE created_at < '${cutoff}'`,
+    `DELETE FROM inventory_verifications WHERE created_at < '${cutoff}'`,
+    // Hours before cutoff
+    `DELETE FROM hours WHERE created_at < '${cutoff}'`,
   ];
 
   db.serialize(() => {
@@ -79,7 +84,6 @@ router.post('/archive-year', (req, res) => {
 
     db.run('COMMIT', (err) => {
       if (err || failed) {
-        // Attempt rollback
         db.run('ROLLBACK');
         return res.status(500).json({
           error: 'Some cleanup operations failed. Backup was still created.',
@@ -89,16 +93,16 @@ router.post('/archive-year', (req, res) => {
 
       res.json({
         success: true,
-        message: 'Year archived successfully. All transactional data cleared.',
+        message: `Data before ${cutoffDate} archived and cleared successfully.`,
         backupFile: backupFilename,
+        cutoffDate: cutoffDate,
         tablesCleared: [
           'orders', 'order_items', 'concession_sessions', 'session_bulk_inventory',
           'cashapp_payments', 'zelle_payments', 'reimbursement_ledger', 'losses',
           'profit_distributions', 'program_earnings', 'purchases', 'purchase_items',
           'inventory_lots', 'inventory_transactions', 'inventory_counts',
           'inventory_verifications', 'hours'
-        ],
-        resets: ['menu_items.quantity_on_hand → 0', 'cashbox_programs.balance → 0']
+        ]
       });
     });
   });

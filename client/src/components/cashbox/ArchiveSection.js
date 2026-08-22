@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 function ArchiveSection() {
   const [backups, setBackups] = useState([]);
+  const [cutoffDate, setCutoffDate] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [archiving, setArchiving] = useState(false);
   const [result, setResult] = useState(null);
@@ -21,8 +22,10 @@ function ArchiveSection() {
     fetchBackups();
   }, []);
 
+  const canArchive = confirmText === 'ARCHIVE AND RESET' && cutoffDate && !archiving;
+
   const handleArchive = async () => {
-    if (confirmText !== 'ARCHIVE AND RESET') return;
+    if (!canArchive) return;
 
     setArchiving(true);
     setError('');
@@ -32,7 +35,7 @@ function ArchiveSection() {
       const res = await fetch('/api/admin/archive-year', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmPhrase: 'ARCHIVE AND RESET' })
+        body: JSON.stringify({ confirmPhrase: 'ARCHIVE AND RESET', cutoffDate })
       });
 
       const data = await res.json();
@@ -43,6 +46,7 @@ function ArchiveSection() {
 
       setResult(data);
       setConfirmText('');
+      setCutoffDate('');
       fetchBackups();
     } catch (err) {
       setError(err.message);
@@ -117,11 +121,12 @@ function ArchiveSection() {
         border: '2px solid #ef4444'
       }}>
         <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: '#ef4444' }}>
-          Archive & Reset for New Year
+          Archive & Reset
         </h3>
         <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', margin: '0 0 12px 0' }}>
-          This will create a full backup of the database, then clear all transactional data to start fresh.
-          Your menu items, programs, students, and settings will be preserved.
+          This will create a full backup of the database, then clear all transactional data
+          <strong> before the cutoff date</strong> you specify. Data on or after that date is kept.
+          Menu items, programs, students, and settings are always preserved.
         </p>
 
         <div style={{
@@ -132,59 +137,74 @@ function ArchiveSection() {
           fontSize: '13px'
         }}>
           <div style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--color-text)' }}>
-            What will be cleared:
+            What will be cleared (before cutoff date):
           </div>
           <div style={{ color: 'var(--color-text-subtle)', lineHeight: '1.8' }}>
-            <div>&#x2022; All orders and session history</div>
+            <div>&#x2022; Orders and session history</div>
             <div>&#x2022; Purchase records</div>
-            <div>&#x2022; Inventory lots, transactions, and counts (quantities reset to 0)</div>
+            <div>&#x2022; Inventory lots, transactions, and counts</div>
             <div>&#x2022; CashApp and Zelle payment records</div>
             <div>&#x2022; Reimbursement ledger and losses</div>
             <div>&#x2022; Profit distributions and program earnings</div>
-            <div>&#x2022; Program balances (reset to $0)</div>
             <div>&#x2022; Student hours</div>
           </div>
           <div style={{ fontWeight: '600', marginTop: '12px', marginBottom: '8px', color: 'var(--color-text)' }}>
-            What will be kept:
+            What is always kept:
           </div>
           <div style={{ color: 'var(--color-text-subtle)', lineHeight: '1.8' }}>
-            <div>&#x2022; Menu items and recipes</div>
+            <div>&#x2022; All data on or after the cutoff date</div>
+            <div>&#x2022; Menu items, recipes, and price history</div>
             <div>&#x2022; Programs and their configuration</div>
             <div>&#x2022; Students and admin accounts</div>
-            <div>&#x2022; Permission groups</div>
-            <div>&#x2022; Price history</div>
-            <div>&#x2022; Purchase templates</div>
+            <div>&#x2022; Permission groups and purchase templates</div>
           </div>
         </div>
 
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ display: 'block', fontSize: '13px', color: 'var(--color-text-subtle)', marginBottom: '6px' }}>
-            Type <strong>ARCHIVE AND RESET</strong> to confirm:
-          </label>
-          <input
-            className="input"
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            placeholder="ARCHIVE AND RESET"
-            style={{ fontSize: '14px', padding: '8px 12px', width: '100%', boxSizing: 'border-box' }}
-          />
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+          <div style={{ flex: '1', minWidth: '180px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: 'var(--color-text)', marginBottom: '6px' }}>
+              Cutoff Date
+            </label>
+            <input
+              type="date"
+              className="input"
+              value={cutoffDate}
+              onChange={(e) => setCutoffDate(e.target.value)}
+              style={{ fontSize: '14px', padding: '8px 12px', width: '100%', boxSizing: 'border-box' }}
+            />
+            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+              Everything <strong>before</strong> this date will be removed
+            </div>
+          </div>
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <label style={{ display: 'block', fontSize: '13px', color: 'var(--color-text-subtle)', marginBottom: '6px' }}>
+              Type <strong>ARCHIVE AND RESET</strong> to confirm:
+            </label>
+            <input
+              className="input"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="ARCHIVE AND RESET"
+              style={{ fontSize: '14px', padding: '8px 12px', width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
         </div>
 
         <button
           className="btn"
           onClick={handleArchive}
-          disabled={confirmText !== 'ARCHIVE AND RESET' || archiving}
+          disabled={!canArchive}
           style={{
-            background: confirmText === 'ARCHIVE AND RESET' ? '#ef4444' : '#94a3b8',
+            background: canArchive ? '#ef4444' : '#94a3b8',
             color: 'white',
             padding: '10px 24px',
             fontSize: '14px',
             fontWeight: '600',
-            cursor: confirmText === 'ARCHIVE AND RESET' ? 'pointer' : 'not-allowed',
+            cursor: canArchive ? 'pointer' : 'not-allowed',
             opacity: archiving ? 0.6 : 1
           }}
         >
-          {archiving ? 'Archiving...' : 'Archive & Reset'}
+          {archiving ? 'Archiving...' : cutoffDate ? `Archive data before ${cutoffDate}` : 'Select a cutoff date'}
         </button>
 
         {error && (
@@ -213,7 +233,7 @@ function ArchiveSection() {
               Archive complete!
             </div>
             <div>Backup saved as: <strong>{result.backupFile}</strong></div>
-            <div>{result.tablesCleared.length} tables cleared, inventory and balances reset to zero.</div>
+            <div>All data before <strong>{result.cutoffDate}</strong> has been cleared from {result.tablesCleared.length} tables.</div>
           </div>
         )}
       </div>
