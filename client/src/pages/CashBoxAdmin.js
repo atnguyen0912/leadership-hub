@@ -19,7 +19,8 @@ import {
   InventoryMovementsSection,
   InventoryCountSection,
   InventoryVerificationModal,
-  SessionStartInventory
+  SessionStartInventory,
+  ArchiveSection
 } from '../components/cashbox';
 import { MenuItemCard } from '../components/menu';
 import '../styles/MenuOrganization.css';
@@ -64,6 +65,8 @@ function CashBoxAdmin() {
   const [newItemNeedsIngredients, setNewItemNeedsIngredients] = useState(false);
   const [addingMenuItem, setAddingMenuItem] = useState(false);
   const [activeMenuTab, setActiveMenuTab] = useState('all');
+  const [menuViewMode, setMenuViewMode] = useState('grid'); // 'grid' or 'list'
+  const [listEditPrices, setListEditPrices] = useState({}); // { [itemId]: { price, unitCost } }
   // New item type fields (Phase 1)
   const [newItemType, setNewItemType] = useState('sellable');
   const [newItemContainerName, setNewItemContainerName] = useState('');
@@ -835,6 +838,35 @@ function CashBoxAdmin() {
 
       setSuccess('Menu item updated successfully!');
       cancelEditingMenuItem();
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  // Quick price update from list view
+  const handleQuickPriceUpdate = async (id, field, value) => {
+    try {
+      if (field === 'price') {
+        const response = await fetch(`/api/menu/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ price: value ? parseFloat(value) : null })
+        });
+        if (!response.ok) throw new Error('Failed to update price');
+      } else if (field === 'unitCost') {
+        const response = await fetch(`/api/menu/${id}/inventory`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ unitCost: parseFloat(value) || 0 })
+        });
+        if (!response.ok) throw new Error('Failed to update unit cost');
+      }
+      setListEditPrices(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       fetchData();
     } catch (err) {
       setError(err.message);
@@ -2640,7 +2672,8 @@ function CashBoxAdmin() {
       'financials-reimbursement': 'payments',
       'financials-losses': 'losses',
       'menu': 'menu',
-      'reports': 'reports'
+      'reports': 'reports',
+      'archive': 'archive'
     };
     const key = subSection ? `${section}-${subSection}` : section;
     if (tabMap[key]) {
@@ -2715,7 +2748,8 @@ function CashBoxAdmin() {
       ]
     },
     { id: 'menu', label: 'Menu', icon: '🍔' },
-    { id: 'reports', label: 'Reports', icon: '📈' }
+    { id: 'reports', label: 'Reports', icon: '📈' },
+    { id: 'archive', label: 'Year Archive', icon: '🗄️' }
   ];
 
   // Check if a section is expanded
@@ -3011,7 +3045,30 @@ function CashBoxAdmin() {
               <h2 style={{ fontSize: '18px', color: 'var(--color-primary)', margin: 0 }}>
                 Manage Menu Items
               </h2>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '6px', overflow: 'hidden' }}>
+                  <button
+                    onClick={() => setMenuViewMode('grid')}
+                    style={{
+                      padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                      background: menuViewMode === 'grid' ? 'var(--color-primary)' : 'var(--color-bg-input)',
+                      color: menuViewMode === 'grid' ? 'white' : 'var(--color-text-subtle)'
+                    }}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    onClick={() => setMenuViewMode('list')}
+                    style={{
+                      padding: '4px 10px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                      borderLeft: '1px solid var(--color-border)',
+                      background: menuViewMode === 'list' ? 'var(--color-primary)' : 'var(--color-bg-input)',
+                      color: menuViewMode === 'list' ? 'white' : 'var(--color-text-subtle)'
+                    }}
+                  >
+                    List
+                  </button>
+                </div>
                 <button
                   className="btn btn-small"
                   onClick={handleDownloadMenuCSV}
@@ -3217,7 +3274,113 @@ function CashBoxAdmin() {
                 <div className="menu-empty-text">No items in this category</div>
                 <div className="menu-empty-subtext">Try switching to a different tab</div>
               </div>
+            ) : menuViewMode === 'list' ? (
+              /* Compact List View */
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--color-bg-input)', borderBottom: '2px solid var(--color-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600' }}>Item</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '80px' }}>Type</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600', width: '120px' }}>Sell Price</th>
+                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-text-muted)', fontWeight: '600', width: '120px' }}>Unit Cost</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '60px' }}>Stock</th>
+                      <th style={{ textAlign: 'center', padding: '8px 12px', width: '80px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredMenuItems.map((item) => {
+                      const editing = listEditPrices[item.id];
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '6px 12px' }}>
+                            <div style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</div>
+                            {item.parent_name && (
+                              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>in {item.parent_name}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 12px' }}>
+                            <span style={{
+                              fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
+                              background: item.item_type === 'sellable' ? '#dcfce7' : item.item_type === 'composite' ? '#ede9fe' : item.item_type === 'ingredient' ? '#fef3c7' : '#dbeafe',
+                              color: item.item_type === 'sellable' ? '#22c55e' : item.item_type === 'composite' ? '#8b5cf6' : item.item_type === 'ingredient' ? '#f59e0b' : '#3b82f6'
+                            }}>
+                              {item.item_type === 'bulk_ingredient' ? 'Bulk' : (item.item_type || 'sellable')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                            {editing ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                className="input"
+                                value={editing.price}
+                                onChange={(e) => setListEditPrices(prev => ({ ...prev, [item.id]: { ...prev[item.id], price: e.target.value } }))}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleQuickPriceUpdate(item.id, 'price', editing.price); if (e.key === 'Escape') setListEditPrices(prev => { const n = { ...prev }; delete n[item.id]; return n; }); }}
+                                autoFocus
+                                style={{ width: '90px', fontSize: '13px', padding: '3px 6px', textAlign: 'right' }}
+                              />
+                            ) : (
+                              <span
+                                onClick={() => setListEditPrices(prev => ({ ...prev, [item.id]: { price: item.price != null ? item.price.toString() : '', unitCost: item.unit_cost ? item.unit_cost.toString() : '0' } }))}
+                                style={{ cursor: 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}
+                                title="Click to edit"
+                              >
+                                {item.price != null ? formatCurrency(item.price) : '-'}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                            {item.unit_cost ? formatCurrency(item.unit_cost) : '-'}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                            {item.track_inventory ? (
+                              <span style={{
+                                color: item.quantity_on_hand === 0 ? '#ef4444' : item.quantity_on_hand <= 20 ? '#f59e0b' : '#22c55e',
+                                fontWeight: '500'
+                              }}>
+                                {item.quantity_on_hand ?? '-'}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                            {editing ? (
+                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                <button
+                                  className="btn btn-small btn-primary"
+                                  onClick={() => handleQuickPriceUpdate(item.id, 'price', editing.price)}
+                                  style={{ fontSize: '11px', padding: '2px 8px' }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  className="btn btn-small"
+                                  onClick={() => setListEditPrices(prev => { const n = { ...prev }; delete n[item.id]; return n; })}
+                                  style={{ fontSize: '11px', padding: '2px 8px' }}
+                                >
+                                  X
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-small"
+                                onClick={() => startEditingMenuItem(item)}
+                                style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
+              /* Card Grid View */
               <div className="menu-items-grid">
                 {getFilteredMenuItems.map((item) => (
                   <MenuItemCard
@@ -5237,6 +5400,11 @@ function CashBoxAdmin() {
               reportProgramFilter={reportProgramFilter}
               setReportProgramFilter={setReportProgramFilter}
             />
+          )}
+
+          {/* Year Archive */}
+          {activeSection === 'archive' && (
+            <ArchiveSection />
           )}
 
           {/* Sessions - History */}

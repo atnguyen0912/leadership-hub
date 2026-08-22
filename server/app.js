@@ -18,6 +18,7 @@ const inventoryRoutes = require('./routes/inventory');
 const cashappRoutes = require('./routes/cashapp');
 const lossesRoutes = require('./routes/losses');
 const reportsRoutes = require('./routes/reports');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api/permissions', authenticateToken, requireAdmin, permissionsRoutes);
 app.use('/api/cashapp', authenticateToken, requireAdmin, cashappRoutes);
 app.use('/api/losses', authenticateToken, requireAdmin, lossesRoutes);
 app.use('/api/reports', authenticateToken, requirePermission('reports.view'), reportsRoutes);
+app.use('/api/admin', authenticateToken, requireAdmin, adminRoutes);
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, '../client/build');

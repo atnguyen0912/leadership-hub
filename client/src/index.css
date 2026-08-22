@@ -2693,15 +2693,15 @@ textarea.input {
   gap: var(--spacing-md);
 }
 
-/* Fixed 4x3 grid that maintains layout on ALL screen sizes */
+/* Fixed 4x5 grid that maintains layout on ALL screen sizes */
 .pos-fixed-grid {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(80px, 1fr)) !important;
-  grid-template-rows: repeat(3, minmax(70px, 1fr)) !important;
+  grid-template-rows: repeat(5, minmax(50px, 1fr)) !important;
   gap: 6px !important;
   width: 100% !important;
   height: 100% !important;
-  min-height: 200px !important;
+  min-height: 300px !important;
 }
 
 .pos-fixed-grid .pos-item-btn {
@@ -3820,7 +3820,7 @@ textarea.input {
 
   .pos-edit-grid {
     grid-template-columns: repeat(3, 1fr) !important;
-    grid-template-rows: repeat(4, 1fr) !important;
+    grid-template-rows: repeat(5, 1fr) !important;
     gap: 6px !important;
     padding: 8px !important;
   }

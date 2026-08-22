@@ -274,24 +274,35 @@ function MenuItemCard({ item, category, components = [], onEdit, onDelete, isEdi
               placeholder="Item name"
               style={{ fontSize: '13px', padding: '6px 8px' }}
             />
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                className="input"
-                type="number"
-                step="0.01"
-                value={editState.price}
-                onChange={(e) => onEditChange({ ...editState, price: e.target.value })}
-                placeholder="Price"
-                style={{ fontSize: '13px', padding: '6px 8px', flex: 1 }}
-              />
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '4px' }}>
+                Sell Price
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)', fontWeight: '600', fontSize: '15px' }}>$</span>
+                <input
+                  className="input"
+                  type="number"
+                  step="0.01"
+                  value={editState.price}
+                  onChange={(e) => onEditChange({ ...editState, price: e.target.value })}
+                  placeholder="0.00"
+                  style={{ fontSize: '16px', fontWeight: '600', padding: '8px 8px 8px 24px', width: '100%', boxSizing: 'border-box', border: '2px solid var(--color-primary)', borderRadius: '6px' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                Unit Cost:
+              </label>
               <input
                 className="input"
                 type="number"
                 step="0.01"
                 value={editState.unitCost}
                 onChange={(e) => onEditChange({ ...editState, unitCost: e.target.value })}
-                placeholder="Unit Cost (COGS)"
-                style={{ fontSize: '13px', padding: '6px 8px', flex: 1 }}
+                placeholder="auto from receipts"
+                style={{ fontSize: '12px', padding: '4px 6px', flex: 1, color: 'var(--color-text-muted)' }}
               />
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-subtle)' }}>

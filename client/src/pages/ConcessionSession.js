@@ -81,7 +81,7 @@ function ConcessionSession() {
 
   // Grid configuration
   const GRID_COLS = 4;
-  const GRID_ROWS = 3;
+  const GRID_ROWS = 5;
 
   useEffect(() => {
     fetchData();
