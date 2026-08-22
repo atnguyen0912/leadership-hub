@@ -651,11 +651,12 @@ function CashBoxAdmin() {
     const needsIngredients = (newItemNeedsIngredients && newItemPrice) || itemType === 'composite';
 
     try {
+      const isCategory = itemType === 'category';
       const requestBody = {
         name: itemName,
-        price: newItemPrice ? parseFloat(newItemPrice) : null,
-        parentId: newItemParentId ? parseInt(newItemParentId) : null,
-        itemType: itemType
+        price: isCategory ? null : (newItemPrice ? parseFloat(newItemPrice) : null),
+        parentId: isCategory ? null : (newItemParentId ? parseInt(newItemParentId) : null),
+        itemType: isCategory ? 'sellable' : itemType
       };
 
       // Add bulk ingredient fields if applicable
@@ -3241,6 +3242,7 @@ function CashBoxAdmin() {
                     value={newItemType}
                     onChange={(e) => setNewItemType(e.target.value)}
                   >
+                    <option value="category">Category (group for POS)</option>
                     <option value="sellable">Sellable (1:1 inventory)</option>
                     <option value="composite">Composite (has ingredients)</option>
                     <option value="ingredient">Ingredient (used in composites)</option>
@@ -3360,6 +3362,7 @@ function CashBoxAdmin() {
               </div>
               {/* Type helper text */}
               <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                {newItemType === 'category' && 'A group to organize items in the POS grid (e.g., Drinks, Snacks)'}
                 {newItemType === 'sellable' && 'Items sold directly with 1:1 inventory tracking (e.g., Gatorade, Candy)'}
                 {newItemType === 'composite' && 'Items made from ingredients - inventory deducted from components (e.g., Hot Dog, Nachos)'}
                 {newItemType === 'ingredient' && 'Precise items used in composites, not sold directly (e.g., Buns, Wieners)'}
@@ -3497,11 +3500,32 @@ function CashBoxAdmin() {
                                 </div>
                                 <div style={{ flex: '1', minWidth: '110px' }}>
                                   <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Category</label>
-                                  <select className="input" value={editMenuItemParentId} onChange={(e) => setEditMenuItemParentId(e.target.value)} style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}>
+                                  <select className="input" value={editMenuItemParentId} onChange={async (e) => {
+                                    if (e.target.value === '__new__') {
+                                      const name = window.prompt('New category name:');
+                                      if (name && name.trim()) {
+                                        try {
+                                          const res = await fetch('/api/menu', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ name: name.trim(), price: null, itemType: 'sellable' })
+                                          });
+                                          const data = await res.json();
+                                          if (res.ok && data.id) {
+                                            await fetchData();
+                                            setEditMenuItemParentId(String(data.id));
+                                          }
+                                        } catch { /* ignore */ }
+                                      }
+                                    } else {
+                                      setEditMenuItemParentId(e.target.value);
+                                    }
+                                  }} style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}>
                                     <option value="">None</option>
                                     {parentItems.filter(p => p.id !== item.id).map(p => (
                                       <option key={p.id} value={p.id}>{p.name}</option>
                                     ))}
+                                    <option value="__new__">+ New Category</option>
                                   </select>
                                 </div>
                                 <div style={{ flex: '1', minWidth: '100px' }}>
