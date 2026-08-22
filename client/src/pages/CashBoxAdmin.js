@@ -246,6 +246,10 @@ function CashBoxAdmin() {
   const [reimbursementLedger, setReimbursementLedger] = useState([]);
   const [loadingReimbursement, setLoadingReimbursement] = useState(false);
 
+  // Ingredient assignment state
+  const [pendingIngredient, setPendingIngredient] = useState(null); // { id, name } of item just set to ingredient
+  const [ingredientParentItems, setIngredientParentItems] = useState([]); // sellable/composite items to pick from
+
   // Composite item editing state
   const [editingCompositeItem, setEditingCompositeItem] = useState(null);
   const [compositeComponents, setCompositeComponents] = useState([]);
@@ -851,6 +855,20 @@ function CashBoxAdmin() {
       if (savedItemType === 'composite') {
         setTimeout(() => openCompositeEditor({ id: savedItemId, name: savedItemName }), 300);
       }
+
+      // If changed to ingredient, prompt to pick which item it belongs to
+      if (savedItemType === 'ingredient') {
+        try {
+          const res = await fetch('/api/menu/flat');
+          const allItems = await res.json();
+          const parentCandidates = allItems.filter(i =>
+            i.id !== savedItemId &&
+            (i.item_type === 'sellable' || i.item_type === 'composite')
+          );
+          setIngredientParentItems(parentCandidates);
+          setPendingIngredient({ id: savedItemId, name: savedItemName });
+        } catch { /* ignore */ }
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -986,6 +1004,49 @@ function CashBoxAdmin() {
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  // Assign ingredient to a parent composite item
+  const assignIngredientToParent = async (parentItem) => {
+    if (!pendingIngredient) return;
+
+    try {
+      // Add ingredient as component of parent (append mode)
+      const res = await fetch(`/api/menu/${parentItem.id}/components`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          components: [{ componentItemId: pendingIngredient.id, quantity: 1, is_bulk: false }],
+          append: true
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to assign ingredient');
+      }
+
+      // Set parent to composite type if not already
+      if (parentItem.item_type !== 'composite') {
+        await fetch(`/api/menu/${parentItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemType: 'composite' })
+        });
+      }
+
+      setSuccess(`"${pendingIngredient.name}" added as ingredient of "${parentItem.name}"`);
+      setPendingIngredient(null);
+      setIngredientParentItems([]);
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const cancelIngredientAssignment = () => {
+    setPendingIngredient(null);
+    setIngredientParentItems([]);
   };
 
   const startEditingProgram = (program) => {
@@ -4096,6 +4157,70 @@ function CashBoxAdmin() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Ingredient Assignment Modal */}
+        {pendingIngredient && (
+          <div className="modal-overlay" onClick={cancelIngredientAssignment}>
+            <div
+              className="modal-content"
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '500px', maxHeight: '70vh', overflowY: 'auto' }}
+            >
+              <h2 style={{ marginBottom: '8px', color: 'var(--color-primary)' }}>
+                Assign Ingredient
+              </h2>
+              <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
+                <strong>"{pendingIngredient.name}"</strong> is now an ingredient.
+                Which item is it a component of?
+              </p>
+
+              {ingredientParentItems.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>
+                  No sellable or composite items available.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {ingredientParentItems.map((item) => (
+                    <button
+                      key={item.id}
+                      className="btn"
+                      onClick={() => assignIngredientToParent(item)}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        background: 'var(--color-bg-input)',
+                        border: '1px solid var(--color-border)',
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <span style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</span>
+                      <span style={{
+                        fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
+                        background: item.item_type === 'composite' ? '#ede9fe' : '#dcfce7',
+                        color: item.item_type === 'composite' ? '#8b5cf6' : '#22c55e'
+                      }}>
+                        {item.item_type === 'composite' ? 'Composite' : 'Sellable'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  className="btn"
+                  onClick={cancelIngredientAssignment}
+                  style={{ background: 'var(--color-text-muted)' }}
+                >
+                  Skip
+                </button>
+              </div>
             </div>
           </div>
         )}
