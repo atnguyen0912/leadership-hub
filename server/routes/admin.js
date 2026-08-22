@@ -67,6 +67,8 @@ router.post('/archive-year', (req, res) => {
     `DELETE FROM inventory_verifications WHERE created_at < '${cutoff}'`,
     // Hours before cutoff
     `DELETE FROM hours WHERE created_at < '${cutoff}'`,
+    // Reset menu item inventory counts since historical lots/transactions are gone
+    'UPDATE menu_items SET quantity_on_hand = 0, last_inventory_check = NULL, last_checked_by = NULL',
   ];
 
   db.serialize(() => {
