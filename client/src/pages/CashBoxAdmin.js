@@ -67,6 +67,7 @@ function CashBoxAdmin() {
   const [activeMenuTab, setActiveMenuTab] = useState('all');
   const [menuViewMode, setMenuViewMode] = useState('list'); // 'grid' or 'list'
   const [listEditPrices, setListEditPrices] = useState({}); // { [itemId]: { price, unitCost } }
+  const [collapsedMenuCategories, setCollapsedMenuCategories] = useState(new Set());
   // New item type fields (Phase 1)
   const [newItemType, setNewItemType] = useState('sellable');
   const [newItemContainerName, setNewItemContainerName] = useState('');
@@ -3348,161 +3349,200 @@ function CashBoxAdmin() {
                 <div className="menu-empty-subtext">Try switching to a different tab</div>
               </div>
             ) : menuViewMode === 'list' ? (
-              /* Compact List View */
-              <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--color-bg-input)', borderBottom: '2px solid var(--color-border)' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600' }}>Item</th>
-                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '80px' }}>Type</th>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600', width: '120px' }}>Sell Price</th>
-                      <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-text-muted)', fontWeight: '600', width: '120px' }}>Unit Cost</th>
-                      <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '60px' }}>Stock</th>
-                      <th style={{ textAlign: 'center', padding: '8px 12px', width: '80px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getFilteredMenuItems.map((item) => {
-                      const isEditingThis = editingMenuItemId === item.id;
-                      return (
-                        <React.Fragment key={item.id}>
-                          <tr style={{ borderBottom: isEditingThis ? 'none' : '1px solid var(--color-border)' }}>
-                            <td style={{ padding: '6px 12px' }}>
-                              <div style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</div>
-                              {item.parent_name && (
-                                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>in {item.parent_name}</div>
-                              )}
-                            </td>
-                            <td style={{ padding: '6px 12px' }}>
+              /* Compact List View - grouped by category */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(() => {
+                  // Separate categories (parent items with no price) from standalone items
+                  const categories = menuItems.filter(item => item.price === null && item.subItems && item.subItems.length > 0);
+                  const standalone = getFilteredMenuItems.filter(item => item.parent_id === null && item.price !== null);
+                  const emptyCategories = menuItems.filter(item => item.price === null && (!item.subItems || item.subItems.length === 0));
+
+                  const renderItemRow = (item, indent = false) => {
+                    const isEditingThis = editingMenuItemId === item.id;
+                    return (
+                      <React.Fragment key={item.id}>
+                        <tr style={{ borderBottom: isEditingThis ? 'none' : '1px solid var(--color-border)' }}>
+                          <td style={{ padding: '6px 12px', paddingLeft: indent ? '28px' : '12px' }}>
+                            <span style={{ fontWeight: '500', color: 'var(--color-text)' }}>{item.name}</span>
+                          </td>
+                          <td style={{ padding: '6px 12px' }}>
+                            <span style={{
+                              fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
+                              background: item.item_type === 'sellable' ? '#dcfce7' : item.item_type === 'composite' ? '#ede9fe' : item.item_type === 'ingredient' ? '#fef3c7' : '#dbeafe',
+                              color: item.item_type === 'sellable' ? '#22c55e' : item.item_type === 'composite' ? '#8b5cf6' : item.item_type === 'ingredient' ? '#f59e0b' : '#3b82f6'
+                            }}>
+                              {item.item_type === 'bulk_ingredient' ? 'Bulk' : (item.item_type || 'sellable')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                            <span
+                              onClick={() => !isEditingThis && startEditingMenuItem(item)}
+                              style={{ cursor: isEditingThis ? 'default' : 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}
+                              title={isEditingThis ? '' : 'Click to edit'}
+                            >
+                              {item.price != null ? formatCurrency(item.price) : '-'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                            {item.unit_cost ? formatCurrency(item.unit_cost) : '-'}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                            {item.track_inventory ? (
                               <span style={{
-                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: '600',
-                                background: item.item_type === 'sellable' ? '#dcfce7' : item.item_type === 'composite' ? '#ede9fe' : item.item_type === 'ingredient' ? '#fef3c7' : '#dbeafe',
-                                color: item.item_type === 'sellable' ? '#22c55e' : item.item_type === 'composite' ? '#8b5cf6' : item.item_type === 'ingredient' ? '#f59e0b' : '#3b82f6'
+                                color: item.quantity_on_hand === 0 ? '#ef4444' : item.quantity_on_hand <= 20 ? '#f59e0b' : '#22c55e',
+                                fontWeight: '500'
                               }}>
-                                {item.item_type === 'bulk_ingredient' ? 'Bulk' : (item.item_type || 'sellable')}
+                                {item.quantity_on_hand ?? '-'}
                               </span>
-                            </td>
-                            <td style={{ padding: '6px 12px', textAlign: 'right' }}>
-                              <span
-                                onClick={() => !isEditingThis && startEditingMenuItem(item)}
-                                style={{ cursor: isEditingThis ? 'default' : 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}
-                                title={isEditingThis ? '' : 'Click to edit'}
-                              >
-                                {item.price != null ? formatCurrency(item.price) : '-'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '6px 12px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
-                              {item.unit_cost ? formatCurrency(item.unit_cost) : '-'}
-                            </td>
-                            <td style={{ padding: '6px 12px', textAlign: 'center' }}>
-                              {item.track_inventory ? (
-                                <span style={{
-                                  color: item.quantity_on_hand === 0 ? '#ef4444' : item.quantity_on_hand <= 20 ? '#f59e0b' : '#22c55e',
-                                  fontWeight: '500'
-                                }}>
-                                  {item.quantity_on_hand ?? '-'}
-                                </span>
-                              ) : (
-                                <span style={{ color: 'var(--color-text-muted)' }}>-</span>
-                              )}
-                            </td>
-                            <td style={{ padding: '6px 12px', textAlign: 'center' }}>
-                              {isEditingThis ? (
-                                <button
-                                  className="btn btn-small"
-                                  onClick={cancelEditingMenuItem}
-                                  style={{ fontSize: '11px', padding: '2px 8px' }}
-                                >
-                                  Cancel
-                                </button>
-                              ) : (
-                                <button
-                                  className="btn btn-small"
-                                  onClick={() => startEditingMenuItem(item)}
-                                  style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}
-                                >
-                                  Edit
-                                </button>
-                              )}
+                            ) : (
+                              <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '6px 12px', textAlign: 'center' }}>
+                            {isEditingThis ? (
+                              <button className="btn btn-small" onClick={cancelEditingMenuItem} style={{ fontSize: '11px', padding: '2px 8px' }}>Cancel</button>
+                            ) : (
+                              <button className="btn btn-small" onClick={() => startEditingMenuItem(item)} style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}>Edit</button>
+                            )}
+                          </td>
+                        </tr>
+                        {isEditingThis && (
+                          <tr style={{ borderBottom: '2px solid var(--color-primary)' }}>
+                            <td colSpan="6" style={{ padding: '8px 12px', background: 'var(--color-bg-input)' }}>
+                              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                <div style={{ flex: '2', minWidth: '120px' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Name</label>
+                                  <input className="input" value={editMenuItemName} onChange={(e) => setEditMenuItemName(e.target.value)} style={{ fontSize: '13px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }} />
+                                </div>
+                                <div style={{ flex: '1', minWidth: '100px' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Type</label>
+                                  <select className="input" value={editMenuItemType} onChange={(e) => setEditMenuItemType(e.target.value)} style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}>
+                                    <option value="sellable">Sellable</option>
+                                    <option value="composite">Composite</option>
+                                    <option value="ingredient">Ingredient</option>
+                                    <option value="bulk_ingredient">Bulk Ingredient</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex: '1', minWidth: '100px' }}>
+                                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '3px' }}>Sell Price</label>
+                                  <div style={{ position: 'relative' }}>
+                                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)', fontWeight: '600' }}>$</span>
+                                    <input className="input" type="number" step="0.01" value={editMenuItemPrice} onChange={(e) => setEditMenuItemPrice(e.target.value)} style={{ fontSize: '14px', fontWeight: '600', padding: '6px 8px 6px 20px', width: '100%', boxSizing: 'border-box', border: '2px solid var(--color-primary)', borderRadius: '6px' }} />
+                                  </div>
+                                </div>
+                                <div style={{ flex: '1', minWidth: '90px' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>Unit Cost</label>
+                                  <input className="input" type="number" step="0.01" value={editMenuItemUnitCost} onChange={(e) => setEditMenuItemUnitCost(e.target.value)} placeholder="auto from receipts" style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box', color: 'var(--color-text-muted)' }} />
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-text-subtle)', whiteSpace: 'nowrap' }}>
+                                  <input type="checkbox" checked={editMenuItemTrackInventory} onChange={(e) => setEditMenuItemTrackInventory(e.target.checked)} />
+                                  Track Inv.
+                                </label>
+                                <button className="btn btn-small btn-primary" onClick={() => handleUpdateMenuItem(item.id)} style={{ fontSize: '12px', padding: '6px 14px', whiteSpace: 'nowrap' }}>Save</button>
+                              </div>
                             </td>
                           </tr>
-                          {isEditingThis && (
-                            <tr style={{ borderBottom: '2px solid var(--color-primary)' }}>
-                              <td colSpan="6" style={{ padding: '8px 12px', background: 'var(--color-bg-input)' }}>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                                  <div style={{ flex: '2', minWidth: '120px' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Name</label>
-                                    <input
-                                      className="input"
-                                      value={editMenuItemName}
-                                      onChange={(e) => setEditMenuItemName(e.target.value)}
-                                      style={{ fontSize: '13px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}
-                                    />
-                                  </div>
-                                  <div style={{ flex: '1', minWidth: '100px' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Type</label>
-                                    <select
-                                      className="input"
-                                      value={editMenuItemType}
-                                      onChange={(e) => setEditMenuItemType(e.target.value)}
-                                      style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}
-                                    >
-                                      <option value="sellable">Sellable</option>
-                                      <option value="composite">Composite</option>
-                                      <option value="ingredient">Ingredient</option>
-                                      <option value="bulk_ingredient">Bulk Ingredient</option>
-                                    </select>
-                                  </div>
-                                  <div style={{ flex: '1', minWidth: '100px' }}>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '3px' }}>Sell Price</label>
-                                    <div style={{ position: 'relative' }}>
-                                      <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)', fontWeight: '600' }}>$</span>
-                                      <input
-                                        className="input"
-                                        type="number"
-                                        step="0.01"
-                                        value={editMenuItemPrice}
-                                        onChange={(e) => setEditMenuItemPrice(e.target.value)}
-                                        style={{ fontSize: '14px', fontWeight: '600', padding: '6px 8px 6px 20px', width: '100%', boxSizing: 'border-box', border: '2px solid var(--color-primary)', borderRadius: '6px' }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div style={{ flex: '1', minWidth: '90px' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>Unit Cost</label>
-                                    <input
-                                      className="input"
-                                      type="number"
-                                      step="0.01"
-                                      value={editMenuItemUnitCost}
-                                      onChange={(e) => setEditMenuItemUnitCost(e.target.value)}
-                                      placeholder="auto from receipts"
-                                      style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box', color: 'var(--color-text-muted)' }}
-                                    />
-                                  </div>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-text-subtle)', whiteSpace: 'nowrap' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={editMenuItemTrackInventory}
-                                      onChange={(e) => setEditMenuItemTrackInventory(e.target.checked)}
-                                    />
-                                    Track Inv.
-                                  </label>
-                                  <button
-                                    className="btn btn-small btn-primary"
-                                    onClick={() => handleUpdateMenuItem(item.id)}
-                                    style={{ fontSize: '12px', padding: '6px 14px', whiteSpace: 'nowrap' }}
-                                  >
-                                    Save
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        )}
+                      </React.Fragment>
+                    );
+                  };
+
+                  const tableHeader = (
+                    <thead>
+                      <tr style={{ background: 'var(--color-bg-input)', borderBottom: '2px solid var(--color-border)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600' }}>Item</th>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '80px' }}>Type</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600', width: '120px' }}>Sell Price</th>
+                        <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--color-text-muted)', fontWeight: '600', width: '120px' }}>Unit Cost</th>
+                        <th style={{ textAlign: 'center', padding: '8px 12px', color: 'var(--color-text-subtle)', fontWeight: '600', width: '60px' }}>Stock</th>
+                        <th style={{ textAlign: 'center', padding: '8px 12px', width: '80px' }}></th>
+                      </tr>
+                    </thead>
+                  );
+
+                  return (
+                    <>
+                      {/* Standalone items (no category) */}
+                      {standalone.length > 0 && (
+                        <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ padding: '8px 12px', background: 'var(--color-bg-input)', borderBottom: '1px solid var(--color-border)', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-subtle)' }}>
+                            Uncategorized Items
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            {tableHeader}
+                            <tbody>{standalone.map(item => renderItemRow(item))}</tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Category groups */}
+                      {categories.map(cat => {
+                        const isCollapsed = collapsedMenuCategories.has(cat.id);
+                        const filteredSubs = (cat.subItems || []).filter(sub => {
+                          if (activeMenuTab === 'all') return true;
+                          const t = sub.item_type || 'sellable';
+                          if (activeMenuTab === 'sellable') return t === 'sellable';
+                          if (activeMenuTab === 'composite') return t === 'composite';
+                          if (activeMenuTab === 'ingredients') return t === 'ingredient';
+                          if (activeMenuTab === 'bulk') return t === 'bulk_ingredient';
+                          return true;
+                        });
+                        if (filteredSubs.length === 0 && activeMenuTab !== 'all') return null;
+                        return (
+                          <div key={cat.id} style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                            <div
+                              onClick={() => setCollapsedMenuCategories(prev => {
+                                const next = new Set(prev);
+                                if (next.has(cat.id)) next.delete(cat.id);
+                                else next.add(cat.id);
+                                return next;
+                              })}
+                              style={{
+                                padding: '10px 12px',
+                                background: 'var(--color-primary)',
+                                color: 'white',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                userSelect: 'none'
+                              }}
+                            >
+                              <span style={{ fontWeight: '600', fontSize: '14px' }}>
+                                {isCollapsed ? '>' : 'v'} {cat.name}
+                              </span>
+                              <span style={{ fontSize: '12px', opacity: 0.8 }}>
+                                {filteredSubs.length} item{filteredSubs.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {!isCollapsed && (
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                                {tableHeader}
+                                <tbody>{filteredSubs.map(sub => renderItemRow(sub, true))}</tbody>
+                              </table>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Empty categories */}
+                      {emptyCategories.length > 0 && activeMenuTab === 'all' && (
+                        <div style={{ border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ padding: '8px 12px', background: 'var(--color-bg-input)', borderBottom: '1px solid var(--color-border)', fontSize: '13px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                            Empty Categories
+                          </div>
+                          {emptyCategories.map(cat => (
+                            <div key={cat.id} style={{ padding: '6px 12px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>{cat.name}</span>
+                              <button className="btn btn-small" onClick={() => handleDeleteMenuItem(cat.id, cat.name)} style={{ fontSize: '11px', padding: '2px 8px', background: '#ef4444', color: 'white' }}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
+                }
               </div>
             ) : (
               /* Card Grid View */
