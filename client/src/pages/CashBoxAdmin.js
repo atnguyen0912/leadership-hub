@@ -82,6 +82,7 @@ function CashBoxAdmin() {
   const [editMenuItemUnitCost, setEditMenuItemUnitCost] = useState('');
   const [editMenuItemTrackInventory, setEditMenuItemTrackInventory] = useState(true);
   const [editMenuItemType, setEditMenuItemType] = useState('sellable');
+  const [editMenuItemParentId, setEditMenuItemParentId] = useState('');
 
   // Edit program
   const [editingProgramId, setEditingProgramId] = useState(null);
@@ -790,6 +791,7 @@ function CashBoxAdmin() {
     setEditMenuItemUnitCost(item.unit_cost ? item.unit_cost.toString() : '');
     setEditMenuItemTrackInventory(item.track_inventory !== 0);
     setEditMenuItemType(item.item_type || 'sellable');
+    setEditMenuItemParentId(item.parent_id != null ? String(item.parent_id) : '');
     // Fetch default COGS from purchase history
     try {
       const res = await fetch(`/api/menu/${item.id}/default-cogs`);
@@ -809,6 +811,7 @@ function CashBoxAdmin() {
     setEditMenuItemUnitCost('');
     setEditMenuItemTrackInventory(true);
     setEditMenuItemType('sellable');
+    setEditMenuItemParentId('');
   };
 
   const handleUpdateMenuItem = async (id) => {
@@ -848,6 +851,30 @@ function CashBoxAdmin() {
       if (!inventoryResponse.ok) {
         const invData = await inventoryResponse.json();
         throw new Error(invData.error || 'Failed to update inventory settings');
+      }
+
+      // Update category (parent) if changed
+      const currentParentId = (() => {
+        for (const mi of menuItems) {
+          if (mi.id === id) return mi.parent_id;
+          if (mi.subItems) {
+            const sub = mi.subItems.find(s => s.id === id);
+            if (sub) return sub.parent_id;
+          }
+        }
+        return null;
+      })();
+      const newParentId = editMenuItemParentId ? parseInt(editMenuItemParentId) : null;
+      if (newParentId !== currentParentId) {
+        const parentRes = await fetch(`/api/menu/${id}/set-parent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: newParentId })
+        });
+        if (!parentRes.ok) {
+          const parentData = await parentRes.json();
+          throw new Error(parentData.error || 'Failed to update category');
+        }
       }
 
       setSuccess('Menu item updated successfully!');
@@ -3453,6 +3480,15 @@ function CashBoxAdmin() {
                                     <option value="composite">Composite</option>
                                     <option value="ingredient">Ingredient</option>
                                     <option value="bulk_ingredient">Bulk Ingredient</option>
+                                  </select>
+                                </div>
+                                <div style={{ flex: '1', minWidth: '110px' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Category</label>
+                                  <select className="input" value={editMenuItemParentId} onChange={(e) => setEditMenuItemParentId(e.target.value)} style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}>
+                                    <option value="">None</option>
+                                    {parentItems.filter(p => p.id !== item.id).map(p => (
+                                      <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
                                   </select>
                                 </div>
                                 <div style={{ flex: '1', minWidth: '100px' }}>
