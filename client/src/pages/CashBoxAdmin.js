@@ -3552,6 +3552,10 @@ function CashBoxAdmin() {
                     );
                   };
 
+                  const typePriority = { composite: 0, sellable: 1, ingredient: 2, bulk_ingredient: 3 };
+                  const sortByType = (a, b) => (typePriority[a.item_type] ?? 1) - (typePriority[b.item_type] ?? 1);
+                  standalone.sort(sortByType);
+
                   const tableHeader = (
                     <thead>
                       <tr style={{ background: 'var(--color-bg-input)', borderBottom: '2px solid var(--color-border)' }}>
@@ -3610,7 +3614,7 @@ function CashBoxAdmin() {
                             {!isCollapsed && (
                               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                 {tableHeader}
-                                <tbody>{filteredSubs.map(sub => renderItemRow(sub, true))}</tbody>
+                                <tbody>{[...filteredSubs].sort(sortByType).map(sub => renderItemRow(sub, true))}</tbody>
                               </table>
                             )}
                           </div>
