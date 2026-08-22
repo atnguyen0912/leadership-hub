@@ -186,11 +186,14 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Flag as cogs_pending if we sold items but had no inventory lots to calculate cost from
+    const cogsPending = (!isTestSession && totalCogs === 0 && finalTotal > 0 && !isComp) ? 1 : 0;
+
     // Insert the order
     const orderResult = await run(
-      `INSERT INTO orders (session_id, subtotal, amount_tendered, change_given, discount_amount, discount_charged_to, discount_reason, final_total, is_comp, payment_method, cogs_total, cogs_reimbursable)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, subtotal, amountTendered || finalTotal, changeGiven, discount, discountChargedTo || null, discountReason || null, finalTotal, isComp ? 1 : 0, paymentMethod, totalCogs, reimbursableCogs]
+      `INSERT INTO orders (session_id, subtotal, amount_tendered, change_given, discount_amount, discount_charged_to, discount_reason, final_total, is_comp, payment_method, cogs_total, cogs_reimbursable, cogs_pending)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sessionId, subtotal, amountTendered || finalTotal, changeGiven, discount, discountChargedTo || null, discountReason || null, finalTotal, isComp ? 1 : 0, paymentMethod, totalCogs, reimbursableCogs, cogsPending]
     );
 
     const orderId = orderResult.lastID;
@@ -345,6 +348,107 @@ router.get('/:id', async (req, res) => {
     res.json({ ...order, items });
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /api/orders/pending-cogs/sessions - Get sessions that have orders with pending COGS
+router.get('/pending-cogs/sessions', async (req, res) => {
+  try {
+    const sessions = await all(
+      `SELECT cs.id, cs.name, cs.status, cs.created_at,
+         COUNT(o.id) as pending_orders,
+         COALESCE(SUM(o.final_total), 0) as pending_revenue
+       FROM concession_sessions cs
+       JOIN orders o ON o.session_id = cs.id AND o.cogs_pending = 1
+       GROUP BY cs.id
+       ORDER BY cs.created_at DESC`
+    );
+    res.json(sessions);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST /api/orders/recalculate-cogs/:sessionId - Recalculate COGS for pending orders in a session
+router.post('/recalculate-cogs/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Get all pending orders for this session
+    const pendingOrders = await all(
+      'SELECT id FROM orders WHERE session_id = ? AND cogs_pending = 1',
+      [sessionId]
+    );
+
+    if (pendingOrders.length === 0) {
+      return res.json({ success: true, message: 'No pending orders to recalculate', updated: 0 });
+    }
+
+    let totalUpdated = 0;
+    let totalCogsAdded = 0;
+
+    for (const order of pendingOrders) {
+      // Get order items
+      const orderItems = await all(
+        'SELECT oi.*, mi.item_type, mi.is_composite FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id WHERE oi.order_id = ?',
+        [order.id]
+      );
+
+      let orderCogs = 0;
+      let orderReimbursable = 0;
+
+      for (const item of orderItems) {
+        const itemType = item.item_type || 'sellable';
+
+        if (itemType === 'composite' || item.is_composite === 1) {
+          const components = await getComponents(item.menu_item_id);
+          for (const comp of components) {
+            if (comp.is_bulk === 1 || comp.component_item_type === 'bulk_ingredient') continue;
+            const qty = (comp.quantity || 1) * item.quantity;
+            // Look up current unit_cost from menu_items (from latest purchase)
+            const menuItem = await get('SELECT unit_cost FROM menu_items WHERE id = ?', [comp.component_item_id]);
+            const unitCost = (menuItem && menuItem.unit_cost) || 0;
+            orderCogs += unitCost * qty;
+            orderReimbursable += unitCost * qty;
+          }
+        } else {
+          const menuItem = await get('SELECT unit_cost FROM menu_items WHERE id = ?', [item.menu_item_id]);
+          const unitCost = (menuItem && menuItem.unit_cost) || 0;
+          orderCogs += unitCost * item.quantity;
+          orderReimbursable += unitCost * item.quantity;
+        }
+      }
+
+      // Update the order with calculated COGS
+      await run(
+        'UPDATE orders SET cogs_total = ?, cogs_reimbursable = ?, cogs_pending = 0 WHERE id = ?',
+        [orderCogs, orderReimbursable, order.id]
+      );
+
+      totalUpdated++;
+      totalCogsAdded += orderCogs;
+    }
+
+    // Recalculate session profit if session is closed
+    const session = await get('SELECT status FROM concession_sessions WHERE id = ?', [sessionId]);
+    if (session && session.status === 'closed') {
+      const totals = await get(
+        'SELECT COALESCE(SUM(final_total), 0) as revenue, COALESCE(SUM(cogs_total), 0) as cogs FROM orders WHERE session_id = ?',
+        [sessionId]
+      );
+      const newProfit = totals.revenue - totals.cogs;
+      await run('UPDATE concession_sessions SET profit = ? WHERE id = ?', [newProfit, sessionId]);
+    }
+
+    res.json({
+      success: true,
+      updated: totalUpdated,
+      totalCogsAdded: Math.round(totalCogsAdded * 100) / 100,
+      message: `Recalculated COGS for ${totalUpdated} orders`
+    });
+  } catch (err) {
+    console.error('COGS recalculation error:', err);
+    res.status(500).json({ error: 'Database error: ' + err.message });
   }
 });
 

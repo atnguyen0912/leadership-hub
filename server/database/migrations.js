@@ -501,6 +501,19 @@ const migrations = [
       });
     }
   }
+  ,
+  {
+    name: '021_add_cogs_pending_to_orders',
+    run: async (db) => {
+      await new Promise((resolve) => {
+        db.run("ALTER TABLE orders ADD COLUMN cogs_pending INTEGER DEFAULT 0", () => resolve());
+      });
+      // Mark any existing orders with cogs_total = 0 and non-zero subtotal as pending
+      await new Promise((resolve) => {
+        db.run("UPDATE orders SET cogs_pending = 1 WHERE cogs_total = 0 AND subtotal > 0 AND is_comp = 0", () => resolve());
+      });
+    }
+  }
 ];
 
 /**

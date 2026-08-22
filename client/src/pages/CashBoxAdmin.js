@@ -141,6 +141,10 @@ function CashBoxAdmin() {
   const [confirmedRows, setConfirmedRows] = useState(new Set());
   const purchaseRowRefs = useRef([]);
 
+  // Pending COGS sessions
+  const [pendingCogsSessions, setPendingCogsSessions] = useState([]);
+  const [recalculatingCogs, setRecalculatingCogs] = useState(null);
+
   // Auto-populate quantity hints
   const [purchaseItemHints, setPurchaseItemHints] = useState({});
 
@@ -260,6 +264,7 @@ function CashBoxAdmin() {
   useEffect(() => {
     fetchData();
     fetchPurchases();
+    fetchPendingCogsSessions();
     fetchPurchaseTemplates();
     fetchInventory();
     fetchCashAppBalance();
@@ -1899,6 +1904,31 @@ function CashBoxAdmin() {
     setPurchaseItemHints({});
   };
 
+  const fetchPendingCogsSessions = async () => {
+    try {
+      const res = await fetch('/api/orders/pending-cogs/sessions');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingCogsSessions(data);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleRecalculateCogs = async (sessionId) => {
+    setRecalculatingCogs(sessionId);
+    try {
+      const res = await fetch(`/api/orders/recalculate-cogs/${sessionId}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Recalculation failed');
+      setSuccess(`COGS recalculated: ${data.updated} orders updated, ${formatCurrency(data.totalCogsAdded)} total COGS added`);
+      fetchPendingCogsSessions();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRecalculatingCogs(null);
+    }
+  };
+
   const handleSubmitPurchase = async (e) => {
     e.preventDefault();
     setError('');
@@ -1951,6 +1981,7 @@ function CashBoxAdmin() {
       resetPurchaseForm();
       fetchPurchases();
       fetchData(); // Refresh menu items to show updated quantities
+      fetchPendingCogsSessions(); // Check if any sessions need COGS recalculation
     } catch (err) {
       setError(err.message);
     } finally {
@@ -4293,6 +4324,57 @@ function CashBoxAdmin() {
               <strong>New Purchase:</strong> Enter receipts with tax/fees - costs are distributed to calculate true unit costs (reimbursable).<br />
               <strong>Stock Update:</strong> Manual inventory additions without receipts (non-reimbursable).
             </p>
+
+            {/* Pending COGS Banner */}
+            {pendingCogsSessions.length > 0 && (
+              <div style={{
+                background: '#fef3c7',
+                border: '1px solid #f59e0b',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontWeight: '600', color: '#92400e', marginBottom: '8px', fontSize: '14px' }}>
+                  Sessions with pending COGS — input receipts then recalculate
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {pendingCogsSessions.map(session => (
+                    <div key={session.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      background: 'white',
+                      borderRadius: '6px',
+                      border: '1px solid #fcd34d'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '500', color: 'var(--color-text)', fontSize: '13px' }}>
+                          {session.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                          {new Date(session.created_at).toLocaleDateString()} — {session.pending_orders} order{session.pending_orders !== 1 ? 's' : ''} pending, {formatCurrency(session.pending_revenue)} revenue
+                        </div>
+                      </div>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => handleRecalculateCogs(session.id)}
+                        disabled={recalculatingCogs === session.id}
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 12px',
+                          background: '#f59e0b',
+                          color: 'white',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {recalculatingCogs === session.id ? 'Calculating...' : 'Recalculate COGS'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Purchase History */}
             <h3 style={{ marginBottom: '12px', fontSize: '16px', color: 'var(--color-text-muted)' }}>
