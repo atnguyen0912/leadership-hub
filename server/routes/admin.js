@@ -150,4 +150,18 @@ router.get('/backups/:filename', (req, res) => {
   res.download(filePath, filename);
 });
 
+// POST /api/admin/reset-inventory - One-time reset of all inventory counts
+router.post('/reset-inventory', (req, res) => {
+  const db = getDb();
+  db.run(
+    'UPDATE menu_items SET quantity_on_hand = 0, last_inventory_check = NULL, last_checked_by = NULL',
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, itemsReset: this.changes });
+    }
+  );
+});
+
 module.exports = router;
