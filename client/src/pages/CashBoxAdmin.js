@@ -2791,7 +2791,7 @@ function CashBoxAdmin() {
   }
 
   // Get parent items (items with no price) for sub-menu selection
-  const parentItems = menuItems.filter(item => item.price === null);
+  const parentItems = menuItems.filter(item => item.price === null && item.parent_id === null && !['ingredient', 'bulk_ingredient', 'composite'].includes(item.item_type));
 
   // Navigation helper
   const navigateTo = (section, subSection = null) => {
