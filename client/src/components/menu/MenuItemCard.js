@@ -275,6 +275,20 @@ function MenuItemCard({ item, category, components = [], onEdit, onDelete, isEdi
               style={{ fontSize: '13px', padding: '6px 8px' }}
             />
             <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Type</label>
+              <select
+                className="input"
+                value={editState.itemType || 'sellable'}
+                onChange={(e) => onEditChange({ ...editState, itemType: e.target.value })}
+                style={{ fontSize: '12px', padding: '5px 8px', width: '100%', boxSizing: 'border-box' }}
+              >
+                <option value="sellable">Sellable</option>
+                <option value="composite">Composite</option>
+                <option value="ingredient">Ingredient</option>
+                <option value="bulk_ingredient">Bulk Ingredient</option>
+              </select>
+            </div>
+            <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '4px' }}>
                 Sell Price
               </label>

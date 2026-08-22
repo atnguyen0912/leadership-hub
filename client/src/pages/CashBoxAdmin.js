@@ -80,6 +80,7 @@ function CashBoxAdmin() {
   const [editMenuItemPrice, setEditMenuItemPrice] = useState('');
   const [editMenuItemUnitCost, setEditMenuItemUnitCost] = useState('');
   const [editMenuItemTrackInventory, setEditMenuItemTrackInventory] = useState(true);
+  const [editMenuItemType, setEditMenuItemType] = useState('sellable');
 
   // Edit program
   const [editingProgramId, setEditingProgramId] = useState(null);
@@ -778,6 +779,7 @@ function CashBoxAdmin() {
     setEditMenuItemPrice(item.price !== null ? item.price.toString() : '');
     setEditMenuItemUnitCost(item.unit_cost ? item.unit_cost.toString() : '');
     setEditMenuItemTrackInventory(item.track_inventory !== 0);
+    setEditMenuItemType(item.item_type || 'sellable');
     // Fetch default COGS from purchase history
     try {
       const res = await fetch(`/api/menu/${item.id}/default-cogs`);
@@ -796,6 +798,7 @@ function CashBoxAdmin() {
     setEditMenuItemPrice('');
     setEditMenuItemUnitCost('');
     setEditMenuItemTrackInventory(true);
+    setEditMenuItemType('sellable');
   };
 
   const handleUpdateMenuItem = async (id) => {
@@ -811,7 +814,8 @@ function CashBoxAdmin() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editMenuItemName.trim(),
-          price: editMenuItemPrice ? parseFloat(editMenuItemPrice) : null
+          price: editMenuItemPrice ? parseFloat(editMenuItemPrice) : null,
+          itemType: editMenuItemType
         })
       });
 
@@ -837,8 +841,16 @@ function CashBoxAdmin() {
       }
 
       setSuccess('Menu item updated successfully!');
+      const savedItemType = editMenuItemType;
+      const savedItemId = id;
+      const savedItemName = editMenuItemName;
       cancelEditingMenuItem();
       fetchData();
+
+      // If changed to composite, open the component editor
+      if (savedItemType === 'composite') {
+        setTimeout(() => openCompositeEditor({ id: savedItemId, name: savedItemName }), 300);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -3367,6 +3379,20 @@ function CashBoxAdmin() {
                                     />
                                   </div>
                                   <div style={{ flex: '1', minWidth: '100px' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: 'var(--color-text-subtle)', marginBottom: '3px' }}>Type</label>
+                                    <select
+                                      className="input"
+                                      value={editMenuItemType}
+                                      onChange={(e) => setEditMenuItemType(e.target.value)}
+                                      style={{ fontSize: '12px', padding: '6px 8px', width: '100%', boxSizing: 'border-box' }}
+                                    >
+                                      <option value="sellable">Sellable</option>
+                                      <option value="composite">Composite</option>
+                                      <option value="ingredient">Ingredient</option>
+                                      <option value="bulk_ingredient">Bulk Ingredient</option>
+                                    </select>
+                                  </div>
+                                  <div style={{ flex: '1', minWidth: '100px' }}>
                                     <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)', marginBottom: '3px' }}>Sell Price</label>
                                     <div style={{ position: 'relative' }}>
                                       <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-primary)', fontWeight: '600' }}>$</span>
@@ -3434,6 +3460,7 @@ function CashBoxAdmin() {
                       price: editMenuItemPrice,
                       unitCost: editMenuItemUnitCost,
                       trackInventory: editMenuItemTrackInventory,
+                      itemType: editMenuItemType,
                       defaultCogs: defaultCogsMap[item.id] != null ? String(defaultCogsMap[item.id]) : null,
                     } : null}
                     onEditChange={(state) => {
@@ -3441,6 +3468,7 @@ function CashBoxAdmin() {
                       setEditMenuItemPrice(state.price);
                       setEditMenuItemUnitCost(state.unitCost);
                       setEditMenuItemTrackInventory(state.trackInventory);
+                      if (state.itemType !== undefined) setEditMenuItemType(state.itemType);
                     }}
                     onEditSave={() => handleUpdateMenuItem(item.id)}
                     onEditCancel={cancelEditingMenuItem}
