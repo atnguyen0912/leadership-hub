@@ -1289,9 +1289,9 @@ function ConcessionSession() {
                         {getItemQuantity(item.id) > 0 && (
                           <div className="pos-item-qty">{getItemQuantity(item.id)}</div>
                         )}
-                        {stockStatus !== 'none' && (
+                        {stockStatus === 'low' && (
                           <div className={`pos-stock-badge ${stockStatus}`}>
-                            {stockStatus === 'out' ? 'OUT' : item.quantity_on_hand}
+                            {item.quantity_on_hand}
                           </div>
                         )}
                       </button>
