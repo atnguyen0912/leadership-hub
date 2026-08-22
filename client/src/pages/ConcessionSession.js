@@ -688,10 +688,12 @@ function ConcessionSession() {
     );
   };
 
-  // Get items that are NOT on the grid (available in bank) - excludes supplies
+  // Get items that are NOT on the grid (available in bank) - excludes supplies and ingredients
   const getItemsInBank = () => {
+    const nonSellableTypes = ['ingredient', 'bulk_ingredient'];
     return menuItems.filter(item =>
-      !item.is_supply && (
+      !item.is_supply &&
+      !nonSellableTypes.includes(item.item_type) && (
         item.grid_row < 0 || item.grid_col < 0 ||
         item.grid_row >= GRID_ROWS || item.grid_col >= GRID_COLS
       )
@@ -711,10 +713,12 @@ function ConcessionSession() {
     return cells;
   };
 
-  // In normal mode, get items with safe spans (no overlaps, no overflow) - excludes supplies
+  // In normal mode, get items with safe spans (no overlaps, no overflow) - excludes ingredients/supplies
   const getActiveGridItems = () => {
+    const nonSellableTypes = ['ingredient', 'bulk_ingredient'];
     const validItems = menuItems.filter(item =>
       !item.is_supply &&
+      !nonSellableTypes.includes(item.item_type) &&
       item.grid_row >= 0 && item.grid_row < GRID_ROWS &&
       item.grid_col >= 0 && item.grid_col < GRID_COLS
     );
@@ -730,6 +734,11 @@ function ConcessionSession() {
     });
 
     for (const item of sortedItems) {
+      // Skip item entirely if its base cell is already occupied
+      if (occupiedCells.has(`${item.grid_row},${item.grid_col}`)) {
+        continue;
+      }
+
       // Clamp spans to not exceed grid boundaries
       const maxRowSpan = Math.min(item.row_span || 1, GRID_ROWS - item.grid_row);
       const maxColSpan = Math.min(item.col_span || 1, GRID_COLS - item.grid_col);
