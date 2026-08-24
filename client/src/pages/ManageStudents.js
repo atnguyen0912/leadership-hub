@@ -841,7 +841,7 @@ function ManageStudents() {
         <div className="card">
           <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>Add Student</h2>
           <form onSubmit={handleAddStudent}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+            <div className="add-student-form-grid">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label htmlFor="studentId">Student ID</label>
                 <input

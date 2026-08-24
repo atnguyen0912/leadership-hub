@@ -3544,10 +3544,22 @@ textarea.input {
     padding: var(--spacing-md);
   }
 
-  /* Calendar mobile */
+  /* Calendar mobile - compact sizing */
+  .calendar-grid {
+    gap: 3px;
+    padding: 4px;
+  }
+
   .calendar-day {
     font-size: var(--font-size-xs);
-    min-height: 45px;
+    min-height: 36px;
+    aspect-ratio: auto;
+    padding: 2px;
+  }
+
+  .calendar-day-name {
+    font-size: 10px;
+    padding: 2px;
   }
 
   .day-number {
@@ -3555,7 +3567,25 @@ textarea.input {
   }
 
   .day-hours {
-    font-size: 10px;
+    font-size: 9px;
+  }
+
+  /* Stats row mobile - stack vertically */
+  .stats-row {
+    gap: var(--spacing-sm);
+  }
+
+  .stat-inline-value {
+    font-size: 1.2rem;
+  }
+
+  /* Student table mobile - tighter */
+  table {
+    font-size: 12px;
+  }
+
+  table th, table td {
+    padding: 6px 8px;
   }
 
   /* Log hours layout */
@@ -4089,6 +4119,21 @@ textarea.input {
   }
 }
 
+/* Add student form grid */
+.add-student-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 480px) {
+  .add-student-form-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
 /* Very Small Screens (max-width: 480px) */
 @media (max-width: 480px) {
   .modal,
@@ -4103,6 +4148,51 @@ textarea.input {
 
   .menu-card {
     padding: var(--spacing-lg) var(--spacing-md);
+  }
+
+  /* Stats row - stack on small phones */
+  .stats-row {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .stat-inline-value {
+    font-size: 1.1rem;
+  }
+
+  /* Calendar - even more compact */
+  .calendar-grid {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .calendar-day {
+    min-height: 32px;
+    border-radius: 4px;
+  }
+
+  .calendar-header .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  /* POS grid - 3 columns on small phones */
+  .pos-fixed-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-rows: repeat(7, minmax(44px, 1fr)) !important;
+  }
+
+  .pos-fixed-grid .pos-item-btn {
+    padding: 3px !important;
+  }
+
+  .pos-fixed-grid .pos-item-name {
+    font-size: 10px;
+  }
+
+  .pos-fixed-grid .pos-item-price {
+    font-size: 11px;
   }
 }
 
