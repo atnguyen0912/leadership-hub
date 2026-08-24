@@ -67,7 +67,15 @@ function Navbar() {
             <Link to="/losses" className={`nav-link ${location.pathname === '/losses' ? 'active' : ''}`}>
               Losses
             </Link>
+            <Link to="/admin/student/09121999X314" className={`nav-link ${location.pathname.startsWith('/admin/student/') ? 'active' : ''}`} style={{ fontSize: '12px', opacity: 0.7 }}>
+              Student View
+            </Link>
           </>
+        )}
+        {user.type === 'student' && user.isAdmin && (
+          <Link to="/cashbox-admin" className={`nav-link ${location.pathname === '/cashbox-admin' ? 'active' : ''}`}>
+            Admin
+          </Link>
         )}
         <button
           className="theme-toggle-btn"
