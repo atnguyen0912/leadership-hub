@@ -68,15 +68,16 @@ router.get('/stats', (req, res) => {
   db.all(
     `SELECT hours.*, students.name
      FROM hours
-     JOIN students ON hours.student_id = students.student_id`,
+     JOIN students ON hours.student_id = students.student_id
+     WHERE students.is_former = 0`,
     [],
     (err, rows) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
       }
 
-      // Get all students for complete list
-      db.all('SELECT student_id, name FROM students ORDER BY name', [], (err, students) => {
+      // Get all active students for complete list
+      db.all('SELECT student_id, name FROM students WHERE is_former = 0 ORDER BY name', [], (err, students) => {
         if (err) {
           return res.status(500).json({ error: 'Database error' });
         }
@@ -175,7 +176,7 @@ router.get('/all', (req, res) => {
   const db = getDb();
 
   db.all(
-    `SELECT hours.*, students.name
+    `SELECT hours.*, students.name, students.is_former
      FROM hours
      JOIN students ON hours.student_id = students.student_id
      ORDER BY hours.date DESC, hours.time_in DESC`,
@@ -349,7 +350,7 @@ router.post('/upload-csv', upload.single('file'), (req, res) => {
     }
 
     // Get all valid student IDs and names
-    db.all('SELECT student_id, name FROM students', [], (err, students) => {
+    db.all('SELECT student_id, name FROM students WHERE is_former = 0', [], (err, students) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
       }

@@ -237,7 +237,7 @@ router.get('/search', (req, res) => {
   }
 
   db.all(
-    `SELECT * FROM students WHERE name LIKE ? OR student_id LIKE ? ORDER BY name LIMIT 10`,
+    `SELECT * FROM students WHERE (name LIKE ? OR student_id LIKE ?) AND is_former = 0 ORDER BY name LIMIT 10`,
     [`%${q}%`, `%${q}%`],
     (err, rows) => {
       if (err) {
@@ -355,7 +355,7 @@ router.delete('/:studentId', (req, res) => {
 router.post('/save-to-csv', (req, res) => {
   const db = getDb();
 
-  db.all('SELECT student_id, name, is_lead, lead_type FROM students ORDER BY name', [], (err, rows) => {
+  db.all('SELECT student_id, name, is_lead, lead_type, is_former FROM students WHERE is_former = 0 ORDER BY name', [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -381,7 +381,7 @@ router.post('/save-to-csv', (req, res) => {
 router.get('/csv', (req, res) => {
   const db = getDb();
 
-  db.all('SELECT student_id, name, is_lead, lead_type FROM students ORDER BY name', [], (err, rows) => {
+  db.all('SELECT student_id, name, is_lead, lead_type, is_former FROM students WHERE is_former = 0 ORDER BY name', [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }

@@ -78,9 +78,10 @@ router.get('/groups', (req, res) => {
   const db = getDb();
 
   db.all(
-    `SELECT pg.*, COUNT(sg.id) as member_count
+    `SELECT pg.*, COUNT(CASE WHEN s.is_former = 0 OR s.is_former IS NULL THEN sg.id END) as member_count
      FROM permission_groups pg
      LEFT JOIN student_groups sg ON pg.id = sg.group_id
+     LEFT JOIN students s ON sg.student_id = s.student_id
      GROUP BY pg.id
      ORDER BY pg.name`,
     [],
@@ -150,10 +151,10 @@ router.get('/groups/:id', (req, res) => {
 
         // Get members
         db.all(
-          `SELECT s.student_id, s.name, sg.assigned_at
+          `SELECT s.student_id, s.name, s.is_former, sg.assigned_at
            FROM student_groups sg
            JOIN students s ON sg.student_id = s.student_id
-           WHERE sg.group_id = ?
+           WHERE sg.group_id = ? AND s.is_former = 0
            ORDER BY s.name`,
           [id],
           (err, members) => {

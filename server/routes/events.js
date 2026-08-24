@@ -87,10 +87,10 @@ router.get('/:id', (req, res) => {
 
       // Get attendees
       db.all(
-        `SELECT ea.*, s.name as student_name
+        `SELECT ea.*, s.name as student_name, s.is_former
          FROM event_attendees ea
          JOIN students s ON ea.student_id = s.student_id
-         WHERE ea.event_id = ?
+         WHERE ea.event_id = ? AND s.is_former = 0
          ORDER BY s.name`,
         [id],
         (err, attendees) => {
