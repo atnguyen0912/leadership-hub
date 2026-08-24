@@ -44,6 +44,14 @@ function LogHours() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(null);
+  const [expandedRowId, setExpandedRowId] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     fetchHours();
@@ -115,6 +123,11 @@ function LogHours() {
         timeIn: '',
         timeOut: ''
       };
+
+      // Auto-expand new row on mobile
+      if (isMobile) {
+        setExpandedRowId(newRow.id);
+      }
 
       // Add and sort by date
       setSpreadsheetRows(prev => {
@@ -334,6 +347,158 @@ function LogHours() {
     );
   };
 
+  const renderMobileSpreadsheet = () => {
+    return (
+      <div className="spreadsheet-section">
+        <div className="spreadsheet-header">
+          <h2>Add Hours</h2>
+          <p className="spreadsheet-hint">Tap dates on the calendar to add entries</p>
+        </div>
+
+        {spreadsheetRows.length === 0 ? (
+          <div className="spreadsheet-empty">
+            <p>No dates selected. Tap on calendar dates to add entries.</p>
+          </div>
+        ) : (
+          <div className="mobile-hours-cards">
+            {spreadsheetRows.map(row => {
+              const isExpanded = expandedRowId === row.id;
+              const duration = calculateDuration(row.timeIn, row.timeOut);
+              const isValid = validateRow(row);
+
+              return (
+                <div
+                  key={row.id}
+                  className={`mobile-hours-card ${isExpanded ? 'expanded' : ''} ${!isValid && (row.timeIn || row.timeOut) ? 'invalid' : ''}`}
+                >
+                  {isExpanded ? (
+                    <div className="mobile-card-expanded">
+                      <div className="mobile-card-header">
+                        <span className="mobile-card-date">
+                          {new Date(row.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-remove-row"
+                          onClick={() => handleRemoveRow(row.id)}
+                        >
+                          X
+                        </button>
+                      </div>
+                      <div className="mobile-card-fields">
+                        <label className="mobile-field">
+                          <span className="mobile-field-label">Type</span>
+                          <select
+                            value={row.type}
+                            onChange={(e) => handleRowChange(row.id, 'type', e.target.value)}
+                            className="input"
+                          >
+                            {HOUR_TYPES.map(type => (
+                              <option key={type.value} value={type.value}>{type.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="mobile-field">
+                          <span className="mobile-field-label">Activity</span>
+                          <input
+                            type="text"
+                            value={row.item}
+                            onChange={(e) => handleRowChange(row.id, 'item', e.target.value)}
+                            placeholder="What did you work on?"
+                            className="input"
+                          />
+                        </label>
+                        <div className="mobile-time-row">
+                          <label className="mobile-field" style={{ flex: 1 }}>
+                            <span className="mobile-field-label">Time In</span>
+                            <input
+                              type="time"
+                              value={row.timeIn}
+                              onChange={(e) => handleRowChange(row.id, 'timeIn', e.target.value)}
+                              className="input"
+                            />
+                          </label>
+                          <label className="mobile-field" style={{ flex: 1 }}>
+                            <span className="mobile-field-label">Time Out</span>
+                            <input
+                              type="time"
+                              value={row.timeOut}
+                              onChange={(e) => handleRowChange(row.id, 'timeOut', e.target.value)}
+                              className="input"
+                            />
+                          </label>
+                        </div>
+                        {duration && (
+                          <div className="mobile-card-duration">{duration}</div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-small"
+                        onClick={() => setExpandedRowId(null)}
+                        style={{ width: '100%', marginTop: '8px', background: 'var(--color-bg-input)' }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="mobile-card-collapsed"
+                      onClick={() => setExpandedRowId(row.id)}
+                    >
+                      <span className="mobile-card-date">{formatDateDisplay(row.date)}</span>
+                      <span className="mobile-card-summary">
+                        {row.timeIn && row.timeOut ? (
+                          <>
+                            {formatTime(row.timeIn)} - {formatTime(row.timeOut)}
+                            {duration && <span className="mobile-card-dur"> ({duration})</span>}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)' }}>Tap to fill in</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-remove-row"
+                        onClick={(e) => { e.stopPropagation(); handleRemoveRow(row.id); }}
+                      >
+                        X
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {spreadsheetRows.length > 0 && (
+          <div className="spreadsheet-actions">
+            <button
+              type="button"
+              className="btn"
+              onClick={handleClearAll}
+              disabled={loading}
+            >
+              Clear All
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSaveAll}
+              disabled={loading || spreadsheetRows.every(row => !validateRow(row))}
+            >
+              {loading ? 'Saving...' : `Save All (${spreadsheetRows.filter(validateRow).length})`}
+            </button>
+          </div>
+        )}
+
+        {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>}
+      </div>
+    );
+  };
+
   const renderSpreadsheet = () => {
     return (
       <div className="spreadsheet-section">
@@ -469,10 +634,10 @@ function LogHours() {
             </div>
           </div>
 
-          {/* Right: Spreadsheet */}
+          {/* Right: Spreadsheet (desktop table / mobile cards) */}
           <div className="spreadsheet-panel">
             <div className="card">
-              {renderSpreadsheet()}
+              {isMobile ? renderMobileSpreadsheet() : renderSpreadsheet()}
             </div>
           </div>
         </div>

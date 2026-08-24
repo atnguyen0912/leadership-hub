@@ -3643,6 +3643,107 @@ textarea.input {
     min-width: 480px;
   }
 
+  /* Mobile hours cards - replaces table on small screens */
+  .mobile-hours-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mobile-hours-card {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-bg);
+  }
+
+  .mobile-hours-card.invalid {
+    border-color: #ef4444;
+  }
+
+  .mobile-hours-card.expanded {
+    border-color: var(--color-primary);
+    border-width: 2px;
+  }
+
+  .mobile-card-collapsed {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+  }
+
+  .mobile-card-collapsed .mobile-card-date {
+    font-weight: 600;
+    color: var(--color-primary);
+    min-width: 50px;
+  }
+
+  .mobile-card-summary {
+    flex: 1;
+    font-size: 13px;
+    color: var(--color-text);
+  }
+
+  .mobile-card-dur {
+    color: var(--color-text-muted);
+    font-size: 12px;
+  }
+
+  .mobile-card-expanded {
+    padding: 12px;
+  }
+
+  .mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .mobile-card-header .mobile-card-date {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--color-primary);
+  }
+
+  .mobile-card-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .mobile-field-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-subtle);
+  }
+
+  .mobile-field .input {
+    font-size: 14px;
+    padding: 8px 10px;
+  }
+
+  .mobile-time-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .mobile-card-duration {
+    text-align: center;
+    font-size: 13px;
+    color: var(--color-primary);
+    font-weight: 600;
+    padding: 4px 0;
+  }
+
   .time-input {
     min-width: 120px;
   }
