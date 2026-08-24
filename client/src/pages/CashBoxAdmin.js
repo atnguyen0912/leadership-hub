@@ -440,27 +440,22 @@ function CashBoxAdmin() {
 
   const fetchData = async () => {
     try {
-      const [cashboxRes, sessionsRes, programsRes, earningsRes, menuRes] = await Promise.all([
-        fetch('/api/cashbox'),
+      const [sessionsRes, programsRes, earningsRes, menuRes] = await Promise.all([
         fetch('/api/cashbox/sessions?limit=50'),
         fetch('/api/cashbox/programs'),
         fetch('/api/cashbox/programs/earnings'),
         fetch('/api/menu/all')
       ]);
 
-      const cashboxData = await cashboxRes.json();
       const sessionsData = await sessionsRes.json();
       const programsData = await programsRes.json();
       const earningsData = await earningsRes.json();
       const menuData = await menuRes.json();
 
-      if (!cashboxRes.ok) throw new Error(cashboxData.error);
       if (!sessionsRes.ok) throw new Error(sessionsData.error);
       if (!programsRes.ok) throw new Error(programsData.error);
       if (!earningsRes.ok) throw new Error(earningsData.error);
       if (!menuRes.ok) throw new Error(menuData.error);
-
-      setCashbox(cashboxData);
       setSessions(sessionsData);
       setPrograms(programsData);
       setProgramsWithEarnings(earningsData);
@@ -470,14 +465,7 @@ function CashBoxAdmin() {
         setSessionProgramId(programsData[0].id.toString());
       }
 
-      // Initialize edit values
-      setEditQuarters(cashboxData.quarters);
-      setEditBills1(cashboxData.bills_1);
-      setEditBills5(cashboxData.bills_5);
-      setEditBills10(cashboxData.bills_10);
-      setEditBills20(cashboxData.bills_20);
-      setEditBills50(cashboxData.bills_50);
-      setEditBills100(cashboxData.bills_100);
+      // Main cashbox edit values removed — no longer tracking main cashbox
     } catch (err) {
       setError(err.message);
     } finally {
