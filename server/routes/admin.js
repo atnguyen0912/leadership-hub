@@ -150,6 +150,24 @@ router.get('/backups/:filename', (req, res) => {
   res.download(filePath, filename);
 });
 
+// POST /api/admin/sync-inventory - Recalculate quantity_on_hand from inventory_lots
+router.post('/sync-inventory', (req, res) => {
+  const db = getDb();
+  // Set quantity_on_hand to sum of quantity_remaining across all lots for each item
+  db.run(
+    `UPDATE menu_items SET quantity_on_hand = COALESCE(
+      (SELECT SUM(quantity_remaining) FROM inventory_lots WHERE inventory_lots.menu_item_id = menu_items.id AND quantity_remaining > 0),
+      0
+    )`,
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, itemsUpdated: this.changes });
+    }
+  );
+});
+
 // POST /api/admin/reset-inventory - One-time reset of all inventory counts
 router.post('/reset-inventory', (req, res) => {
   const db = getDb();
