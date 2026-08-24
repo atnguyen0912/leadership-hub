@@ -514,6 +514,13 @@ const migrations = [
       });
     }
   }
+  ,
+  {
+    name: '022_add_is_former_to_students',
+    run: (db) => new Promise((resolve) => {
+      db.run("ALTER TABLE students ADD COLUMN is_former INTEGER DEFAULT 0", () => resolve());
+    })
+  }
 ];
 
 /**

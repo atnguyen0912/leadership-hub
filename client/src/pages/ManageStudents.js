@@ -24,6 +24,14 @@ function ManageStudents() {
   // CSV save/download state
   const [savingCSV, setSavingCSV] = useState(false);
 
+  // Edit student state
+  const [editingStudentId, setEditingStudentId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editStudentId, setEditStudentId] = useState('');
+
+  // Former student filter
+  const [showFormer, setShowFormer] = useState(false);
+
   // Permission groups state
   const [permissionGroups, setPermissionGroups] = useState([]);
   const [availablePermissions, setAvailablePermissions] = useState([]);
@@ -299,6 +307,51 @@ function ManageStudents() {
       setError(err.message);
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const startEditingStudent = (student) => {
+    setEditingStudentId(student.student_id);
+    setEditName(student.name);
+    setEditStudentId(student.student_id);
+  };
+
+  const cancelEditingStudent = () => {
+    setEditingStudentId(null);
+    setEditName('');
+    setEditStudentId('');
+  };
+
+  const handleUpdateStudent = async (originalId) => {
+    if (!editName.trim()) return;
+    setError('');
+    try {
+      const res = await fetch(`/api/students/${originalId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          newStudentId: editStudentId !== originalId ? editStudentId : undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      setSuccess('Student updated');
+      cancelEditingStudent();
+      fetchStudents();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleToggleFormer = async (studentId) => {
+    try {
+      const res = await fetch(`/api/students/${studentId}/toggle-former`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      fetchStudents();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -873,7 +926,15 @@ function ManageStudents() {
 
         {/* Students Table */}
         <div className="card">
-          <h2 style={{ marginBottom: '16px', fontSize: '18px', color: 'var(--color-primary)' }}>All Students ({students.length})</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+            <h2 style={{ fontSize: '18px', color: 'var(--color-primary)', margin: 0 }}>
+              All Students ({students.filter(s => showFormer || !s.is_former).length})
+            </h2>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--color-text-subtle)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showFormer} onChange={(e) => setShowFormer(e.target.checked)} />
+              Show former students
+            </label>
+          </div>
           {students.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>No students registered yet.</p>
           ) : (
@@ -883,31 +944,56 @@ function ManageStudents() {
                   <tr>
                     <th>Student ID</th>
                     <th>Name</th>
+                    <th style={{ width: '100px' }}>Status</th>
                     <th style={{ width: '180px' }}>Lead Role</th>
-                    <th style={{ width: '100px' }}>Actions</th>
+                    <th style={{ width: '150px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => {
+                  {students.filter(s => showFormer || !s.is_former).map((student) => {
                     const leadLabel = getLeadTypeLabel(student);
+                    const isEditing = editingStudentId === student.student_id;
                     return (
-                      <tr key={student.student_id}>
-                        <td>{student.student_id}</td>
+                      <React.Fragment key={student.student_id}>
+                      <tr style={{ opacity: student.is_former ? 0.5 : 1 }}>
+                        <td>{isEditing ? (
+                          <input className="input" value={editStudentId} onChange={(e) => setEditStudentId(e.target.value)} style={{ fontSize: '13px', padding: '4px 6px', width: '130px' }} />
+                        ) : student.student_id}</td>
                         <td>
-                          {student.name}
-                          {leadLabel && (
-                            <span style={{
-                              marginLeft: '8px',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: getLeadTypeColor(student.lead_type),
-                              color: 'var(--color-text)'
-                            }}>
-                              {leadLabel}
-                            </span>
+                          {isEditing ? (
+                            <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateStudent(student.student_id); if (e.key === 'Escape') cancelEditingStudent(); }} style={{ fontSize: '13px', padding: '4px 6px', width: '100%', boxSizing: 'border-box' }} />
+                          ) : (
+                            <>
+                              {student.name}
+                              {leadLabel && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  background: getLeadTypeColor(student.lead_type),
+                                  color: 'var(--color-text)'
+                                }}>
+                                  {leadLabel}
+                                </span>
+                              )}
+                            </>
                           )}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-small"
+                            onClick={() => handleToggleFormer(student.student_id)}
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              background: student.is_former ? '#94a3b8' : '#22c55e',
+                              color: 'white'
+                            }}
+                          >
+                            {student.is_former ? 'Former' : 'Active'}
+                          </button>
                         </td>
                         <td>
                           <select
@@ -929,14 +1015,22 @@ function ManageStudents() {
                           </select>
                         </td>
                         <td>
-                          <button
-                            className="btn btn-danger btn-small"
-                            onClick={() => handleDeleteStudent(student.student_id)}
-                          >
-                            Remove
-                          </button>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {isEditing ? (
+                              <>
+                                <button className="btn btn-primary btn-small" onClick={() => handleUpdateStudent(student.student_id)} style={{ fontSize: '11px', padding: '2px 8px' }}>Save</button>
+                                <button className="btn btn-small" onClick={cancelEditingStudent} style={{ fontSize: '11px', padding: '2px 8px' }}>Cancel</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn btn-small" onClick={() => startEditingStudent(student)} style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--color-primary)', color: 'white' }}>Edit</button>
+                                <button className="btn btn-danger btn-small" onClick={() => handleDeleteStudent(student.student_id)} style={{ fontSize: '11px', padding: '2px 8px' }}>Remove</button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

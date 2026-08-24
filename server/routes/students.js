@@ -248,6 +248,83 @@ router.get('/search', (req, res) => {
   );
 });
 
+// PUT /api/students/:studentId - Update student info (name, student_id)
+router.put('/:studentId', (req, res) => {
+  const { studentId } = req.params;
+  const { name, newStudentId } = req.body;
+  const db = getDb();
+
+  if (!name && !newStudentId) {
+    return res.status(400).json({ error: 'Nothing to update' });
+  }
+
+  // If changing student_id, validate format
+  if (newStudentId && !validateStudentId(newStudentId)) {
+    return res.status(400).json({ error: 'Invalid Student ID format. Must be 6 digits + M/F/X + 3 digits' });
+  }
+
+  const updates = [];
+  const params = [];
+
+  if (name) {
+    updates.push('name = ?');
+    params.push(name.trim());
+  }
+  if (newStudentId && newStudentId !== studentId) {
+    updates.push('student_id = ?');
+    params.push(newStudentId);
+  }
+
+  params.push(studentId);
+
+  db.run(
+    `UPDATE students SET ${updates.join(', ')} WHERE student_id = ?`,
+    params,
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'That Student ID already exists' });
+        }
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+
+      // If student_id changed, update related tables
+      if (newStudentId && newStudentId !== studentId) {
+        db.run('UPDATE hours SET student_id = ? WHERE student_id = ?', [newStudentId, studentId]);
+        db.run('UPDATE student_groups SET student_id = ? WHERE student_id = ?', [newStudentId, studentId]);
+        db.run('UPDATE event_attendees SET student_id = ? WHERE student_id = ?', [newStudentId, studentId]);
+      }
+
+      res.json({ success: true });
+    }
+  );
+});
+
+// POST /api/students/:studentId/toggle-former - Mark/unmark as former student
+router.post('/:studentId/toggle-former', (req, res) => {
+  const { studentId } = req.params;
+  const db = getDb();
+
+  db.run(
+    'UPDATE students SET is_former = CASE WHEN is_former = 1 THEN 0 ELSE 1 END WHERE student_id = ?',
+    [studentId],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Student not found' });
+      }
+      db.get('SELECT is_former FROM students WHERE student_id = ?', [studentId], (err2, row) => {
+        res.json({ success: true, is_former: row ? row.is_former : 0 });
+      });
+    }
+  );
+});
+
 // Delete a student
 router.delete('/:studentId', (req, res) => {
   const { studentId } = req.params;
