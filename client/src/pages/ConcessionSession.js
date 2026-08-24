@@ -1728,72 +1728,52 @@ function ConcessionSession() {
               Enter Starting Cash
             </h2>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '16px', fontSize: '14px' }}>
-              Enter the cash you are taking from the main cashbox to start this session.
+              Count the cash you are starting this session with.
             </p>
-
-            {cashbox && (
-              <div style={{
-                background: 'var(--color-bg-input)',
-                padding: '12px',
-                borderRadius: '8px',
-                marginBottom: '16px',
-                fontSize: '14px',
-                color: 'var(--color-text-subtle)'
-              }}>
-                Main Cashbox Available: {formatCurrency(cashbox.totalValue)}
-              </div>
-            )}
 
             <form onSubmit={handleStartSession}>
               <div className="denomination-inputs">
                 <div className="form-group">
                   <label htmlFor="quarters">Quarters</label>
                   <input type="number" id="quarters" className="input" min="0"
-                    max={cashbox?.quarters || 0} value={quarters}
+                    value={quarters}
                     onChange={(e) => setQuarters(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.quarters || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills1">$1 Bills</label>
                   <input type="number" id="bills1" className="input" min="0"
-                    max={cashbox?.bills_1 || 0} value={bills1}
+                    value={bills1}
                     onChange={(e) => setBills1(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_1 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills5">$5 Bills</label>
                   <input type="number" id="bills5" className="input" min="0"
-                    max={cashbox?.bills_5 || 0} value={bills5}
+                    value={bills5}
                     onChange={(e) => setBills5(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_5 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills10">$10 Bills</label>
                   <input type="number" id="bills10" className="input" min="0"
-                    max={cashbox?.bills_10 || 0} value={bills10}
+                    value={bills10}
                     onChange={(e) => setBills10(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_10 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills20">$20 Bills</label>
                   <input type="number" id="bills20" className="input" min="0"
-                    max={cashbox?.bills_20 || 0} value={bills20}
+                    value={bills20}
                     onChange={(e) => setBills20(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_20 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills50">$50 Bills</label>
                   <input type="number" id="bills50" className="input" min="0"
-                    max={cashbox?.bills_50 || 0} value={bills50}
+                    value={bills50}
                     onChange={(e) => setBills50(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_50 || 0}</small>
                 </div>
                 <div className="form-group">
                   <label htmlFor="bills100">$100 Bills</label>
                   <input type="number" id="bills100" className="input" min="0"
-                    max={cashbox?.bills_100 || 0} value={bills100}
+                    value={bills100}
                     onChange={(e) => setBills100(parseInt(e.target.value) || 0)} />
-                  <small style={{ color: 'var(--color-text-subtle)' }}>Available: {cashbox?.bills_100 || 0}</small>
                 </div>
               </div>
 
