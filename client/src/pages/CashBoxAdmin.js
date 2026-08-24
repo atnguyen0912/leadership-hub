@@ -2896,7 +2896,6 @@ function CashBoxAdmin() {
       label: 'Financials',
       icon: '💰',
       subItems: [
-        { id: 'cashbox', label: 'Main Cashbox' },
         { id: 'cashapp', label: 'CashApp' },
         { id: 'reimbursement', label: 'Reimbursement' },
         { id: 'losses', label: 'Losses' }

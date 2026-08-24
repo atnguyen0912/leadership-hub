@@ -441,57 +441,23 @@ router.post('/sessions/:id/start', requirePermission('sessions.start'), async (r
       return res.json({ success: true, status: 'active', startTotal, isTest: true });
     }
 
-    // For real sessions, verify and deduct from main cashbox atomically
-    const cashbox = await get('SELECT * FROM cashbox WHERE id = 1', []);
-
-    // Verify sufficient funds in main cashbox
-    if (
-      cashbox.quarters < quarters ||
-      cashbox.bills_1 < bills_1 ||
-      cashbox.bills_5 < bills_5 ||
-      cashbox.bills_10 < bills_10 ||
-      cashbox.bills_20 < bills_20 ||
-      cashbox.bills_50 < bills_50 ||
-      cashbox.bills_100 < bills_100
-    ) {
-      return res.status(400).json({ error: 'Insufficient funds in main cashbox' });
-    }
-
-    // Use transaction to ensure atomicity
-    await transaction(async ({ run: txRun }) => {
-      // Subtract from main cashbox
-      await txRun(
-        `UPDATE cashbox SET
-         quarters = quarters - ?,
-         bills_1 = bills_1 - ?,
-         bills_5 = bills_5 - ?,
-         bills_10 = bills_10 - ?,
-         bills_20 = bills_20 - ?,
-         bills_50 = bills_50 - ?,
-         bills_100 = bills_100 - ?,
-         updated_at = CURRENT_TIMESTAMP
-         WHERE id = 1`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100]
-      );
-
-      // Update session with starting cash
-      await txRun(
-        `UPDATE concession_sessions SET
-         status = 'active',
-         start_quarters = ?,
-         start_bills_1 = ?,
-         start_bills_5 = ?,
-         start_bills_10 = ?,
-         start_bills_20 = ?,
-         start_bills_50 = ?,
-         start_bills_100 = ?,
-         start_total = ?,
-         started_by = ?,
-         started_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id]
-      );
-    });
+    // Update session with starting cash (no main cashbox deduction)
+    await run(
+      `UPDATE concession_sessions SET
+       status = 'active',
+       start_quarters = ?,
+       start_bills_1 = ?,
+       start_bills_5 = ?,
+       start_bills_10 = ?,
+       start_bills_20 = ?,
+       start_bills_50 = ?,
+       start_bills_100 = ?,
+       start_total = ?,
+       started_by = ?,
+       started_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, startTotal, startedBy || null, id]
+    );
 
     res.json({ success: true, status: 'active', startTotal });
   } catch (err) {
@@ -534,47 +500,30 @@ router.post('/sessions/:id/close', requirePermission('sessions.close'), async (r
     const profit = endTotal - session.start_total;
 
     // Use transaction to ensure atomicity
-    await transaction(async ({ run: txRun }) => {
-      // Add ending cash back to main cashbox
-      await txRun(
-        `UPDATE cashbox SET
-         quarters = quarters + ?,
-         bills_1 = bills_1 + ?,
-         bills_5 = bills_5 + ?,
-         bills_10 = bills_10 + ?,
-         bills_20 = bills_20 + ?,
-         bills_50 = bills_50 + ?,
-         bills_100 = bills_100 + ?,
-         updated_at = CURRENT_TIMESTAMP
-         WHERE id = 1`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100]
-      );
+    // Update session with ending cash (no main cashbox update)
+    await run(
+      `UPDATE concession_sessions SET
+       status = 'closed',
+       end_quarters = ?,
+       end_bills_1 = ?,
+       end_bills_5 = ?,
+       end_bills_10 = ?,
+       end_bills_20 = ?,
+       end_bills_50 = ?,
+       end_bills_100 = ?,
+       end_total = ?,
+       profit = ?,
+       closed_by = ?,
+       closed_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, endTotal, profit, closedBy || null, id]
+    );
 
-      // Update session with ending cash
-      await txRun(
-        `UPDATE concession_sessions SET
-         status = 'closed',
-         end_quarters = ?,
-         end_bills_1 = ?,
-         end_bills_5 = ?,
-         end_bills_10 = ?,
-         end_bills_20 = ?,
-         end_bills_50 = ?,
-         end_bills_100 = ?,
-         end_total = ?,
-         profit = ?,
-         closed_by = ?,
-         closed_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, endTotal, profit, closedBy || null, id]
-      );
-
-      // Record profit to program earnings
-      await txRun(
-        'INSERT INTO program_earnings (program_id, session_id, amount) VALUES (?, ?, ?)',
-        [session.program_id, id, profit]
-      );
-    });
+    // Record profit to program earnings
+    await run(
+      'INSERT INTO program_earnings (program_id, session_id, amount) VALUES (?, ?, ?)',
+      [session.program_id, id, profit]
+    );
 
     res.json({ success: true, status: 'closed', endTotal, profit });
   } catch (err) {
@@ -599,51 +548,17 @@ router.post('/sessions/:id/cancel', (req, res) => {
       return res.status(400).json({ error: 'Session is already closed or cancelled' });
     }
 
-    // If session was active, return starting cash to main cashbox
-    if (session.status === 'active') {
-      db.run(
-        `UPDATE cashbox SET
-         quarters = quarters + ?,
-         bills_1 = bills_1 + ?,
-         bills_5 = bills_5 + ?,
-         bills_10 = bills_10 + ?,
-         bills_20 = bills_20 + ?,
-         bills_50 = bills_50 + ?,
-         bills_100 = bills_100 + ?,
-         updated_at = CURRENT_TIMESTAMP
-         WHERE id = 1`,
-        [
-          session.start_quarters,
-          session.start_bills_1,
-          session.start_bills_5,
-          session.start_bills_10,
-          session.start_bills_20,
-          session.start_bills_50,
-          session.start_bills_100
-        ],
-        (err) => {
-          if (err) {
-            return res.status(500).json({ error: 'Database error' });
-          }
-          updateSessionToCancelled();
+    // Cancel the session (no main cashbox interaction)
+    db.run(
+      "UPDATE concession_sessions SET status = 'cancelled' WHERE id = ?",
+      [id],
+      (err) => {
+        if (err) {
+          return res.status(500).json({ error: 'Database error' });
         }
-      );
-    } else {
-      updateSessionToCancelled();
-    }
-
-    function updateSessionToCancelled() {
-      db.run(
-        "UPDATE concession_sessions SET status = 'cancelled' WHERE id = ?",
-        [id],
-        (err) => {
-          if (err) {
-            return res.status(500).json({ error: 'Database error' });
-          }
-          res.json({ success: true, status: 'cancelled' });
-        }
-      );
-    }
+        res.json({ success: true, status: 'cancelled' });
+      }
+    );
   });
 });
 
