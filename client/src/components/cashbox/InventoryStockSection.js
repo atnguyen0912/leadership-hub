@@ -12,10 +12,23 @@ function InventoryStockSection({
   onOpenVerification
 }) {
   const activeItems = inventoryItems.filter(item => item.active);
-  const totalValue = activeItems.reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0);
+  // Exclude composite items from stock display — their stock depends on components
+  const stockItems = activeItems.filter(item => item.item_type !== 'composite' && item.is_composite !== 1);
+  const totalValue = stockItems.reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0);
+
+  const isBulk = (item) => item.item_type === 'bulk_ingredient' || item.is_supply === 1;
+  const getLowThreshold = (item) => isBulk(item) ? 1 : 5;
+  const isLow = (item) => item.quantity_on_hand > 0 && item.quantity_on_hand <= getLowThreshold(item);
+  const isOut = (item) => item.quantity_on_hand <= 0;
+
+  const filteredStockItems = stockItems.filter(item => {
+    if (stockFilter === 'in') return !isOut(item) && !isLow(item);
+    if (stockFilter === 'out') return isOut(item) || isLow(item);
+    return true;
+  });
 
   // Calculate verification summary
-  const verificationSummary = activeItems.reduce((acc, item) => {
+  const verificationSummary = stockItems.reduce((acc, item) => {
     const status = item.inventory_confidence || 'never';
     acc[status] = (acc[status] || 0) + 1;
     return acc;
@@ -24,6 +37,7 @@ function InventoryStockSection({
   // State for usage marking modal
   const [markingItem, setMarkingItem] = useState(null);
   const [usagePercent, setUsagePercent] = useState('');
+  const [stockFilter, setStockFilter] = useState('all'); // 'all', 'in', 'out'
 
   // Get verification badge for item
   const getVerificationBadge = (item) => {
@@ -132,11 +146,33 @@ function InventoryStockSection({
           ⚠️ {verificationSummary.stale + verificationSummary.never} item{(verificationSummary.stale + verificationSummary.never) !== 1 ? 's' : ''} need{(verificationSummary.stale + verificationSummary.never) === 1 ? 's' : ''} verification
         </div>
       )}
-      <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', marginBottom: '16px' }}>
-        View current inventory levels, FIFO lots, and make adjustments. Liquid items show fill percentage.
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+        <p style={{ color: 'var(--color-text-subtle)', fontSize: '13px', margin: 0 }}>
+          {stockFilter === 'all' ? stockItems.length : filteredStockItems.length} items shown
+        </p>
+        <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '6px', overflow: 'hidden' }}>
+          {[
+            { value: 'all', label: 'All' },
+            { value: 'in', label: 'In Stock' },
+            { value: 'out', label: 'Out/Low' }
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setStockFilter(opt.value)}
+              style={{
+                padding: '4px 12px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                borderLeft: opt.value !== 'all' ? '1px solid var(--color-border)' : 'none',
+                background: stockFilter === opt.value ? 'var(--color-primary)' : 'var(--color-bg-input)',
+                color: stockFilter === opt.value ? 'white' : 'var(--color-text-subtle)'
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {activeItems.length === 0 ? (
+      {stockItems.length === 0 ? (
         <p style={{ textAlign: 'center', color: 'var(--color-text-subtle)' }}>No inventory items found.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -153,15 +189,16 @@ function InventoryStockSection({
               </tr>
             </thead>
             <tbody>
-              {activeItems.map((item) => {
+              {filteredStockItems.map((item) => {
                 const fillPercent = item.fill_percentage ?? 100;
                 const isLiquid = item.is_liquid === 1;
+                const itemIsBulk = isBulk(item);
 
                 return (
-                  <tr key={item.id} style={{ background: item.quantity_on_hand <= 0 ? 'rgba(239, 68, 68, 0.1)' : 'transparent' }}>
+                  <tr key={item.id} style={{ background: isOut(item) ? 'rgba(239, 68, 68, 0.1)' : 'transparent' }}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: item.quantity_on_hand <= 5 ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
+                        <span style={{ color: isLow(item) || isOut(item) ? 'var(--color-danger)' : 'var(--color-text-muted)' }}>
                           {item.name}
                         </span>
                         {isLiquid && (
@@ -169,10 +206,15 @@ function InventoryStockSection({
                             JAR
                           </span>
                         )}
-                        {item.quantity_on_hand <= 5 && item.quantity_on_hand > 0 && (
+                        {itemIsBulk && (
+                          <span style={{ fontSize: '10px', color: '#3b82f6', background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>
+                            {item.container_name || 'BULK'}
+                          </span>
+                        )}
+                        {isLow(item) && (
                           <span style={{ color: 'var(--color-warning)', fontSize: '11px' }}>LOW</span>
                         )}
-                        {item.quantity_on_hand <= 0 && (
+                        {isOut(item) && (
                           <span style={{ color: 'var(--color-danger)', fontSize: '11px' }}>OUT</span>
                         )}
                       </div>
@@ -189,8 +231,8 @@ function InventoryStockSection({
                         </div>
                       )}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 'bold', color: item.quantity_on_hand <= 0 ? 'var(--color-danger)' : 'var(--color-primary)' }}>
-                      {item.quantity_on_hand || 0}
+                    <td style={{ textAlign: 'center', fontWeight: 'bold', color: isOut(item) ? 'var(--color-danger)' : 'var(--color-primary)' }}>
+                      {item.quantity_on_hand || 0}{itemIsBulk && item.container_name ? ` ${item.container_name}s` : ''}
                     </td>
                     <td style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-subtle)' }}>
                       {formatLastCheck(item.last_inventory_check)}

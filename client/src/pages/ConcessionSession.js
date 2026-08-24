@@ -449,8 +449,8 @@ function ConcessionSession() {
 
   // Get stock status for inventory display
   const getStockStatus = (item) => {
-    // Don't show stock for categories (no price), composite items, or items that don't track inventory
-    if (item.price === null || item.is_composite || item.track_inventory === 0) return 'none';
+    // Don't show stock for categories, composite items, bulk ingredients, or untracked items
+    if (item.price === null || item.is_composite || item.item_type === 'composite' || item.item_type === 'bulk_ingredient' || item.is_supply || item.track_inventory === 0) return 'none';
     const qty = item.quantity_on_hand || 0;
     if (qty <= 0) return 'out';
     if (qty <= 5) return 'low';
