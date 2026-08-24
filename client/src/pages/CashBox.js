@@ -30,9 +30,8 @@ function CashBox() {
     try {
       const fetchPromises = [fetch('/api/cashbox/sessions/active')];
 
-      // Only fetch cashbox balance for concession leads
+      // Only fetch programs for concession leads
       if (isConcessionLead) {
-        fetchPromises.push(fetch('/api/cashbox'));
         fetchPromises.push(fetch('/api/cashbox/programs'));
       }
 
@@ -43,13 +42,10 @@ function CashBox() {
       setActiveSessions(sessionsData);
 
       if (isConcessionLead) {
-        const cashboxData = await responses[1].json();
-        const programsData = await responses[2].json();
+        const programsData = await responses[1].json();
 
-        if (!responses[1].ok) throw new Error(cashboxData.error);
-        if (!responses[2].ok) throw new Error(programsData.error);
+        if (!responses[1].ok) throw new Error(programsData.error);
 
-        setCashbox(cashboxData);
         setPrograms(programsData);
 
         if (programsData.length > 0 && !sessionProgramId) {

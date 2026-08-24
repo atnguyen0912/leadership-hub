@@ -89,24 +89,20 @@ function ConcessionSession() {
 
   const fetchData = async () => {
     try {
-      const [sessionRes, cashboxRes, menuRes, programsRes] = await Promise.all([
+      const [sessionRes, menuRes, programsRes] = await Promise.all([
         fetch(`/api/cashbox/sessions/${id}`),
-        fetch('/api/cashbox'),
         fetch('/api/menu'),
         fetch('/api/cashbox/programs')
       ]);
 
       const sessionData = await sessionRes.json();
-      const cashboxData = await cashboxRes.json();
       const menuData = await menuRes.json();
       const programsData = await programsRes.json();
 
       if (!sessionRes.ok) throw new Error(sessionData.error);
-      if (!cashboxRes.ok) throw new Error(cashboxData.error);
       if (!menuRes.ok) throw new Error(menuData.error);
 
       setSession(sessionData);
-      setCashbox(cashboxData);
       setMenuItems(menuData);
       setPrograms(programsData || []);
 
