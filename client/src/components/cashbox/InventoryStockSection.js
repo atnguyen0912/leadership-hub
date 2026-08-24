@@ -14,7 +14,14 @@ function InventoryStockSection({
   const activeItems = inventoryItems.filter(item => item.active);
   // Exclude composite items from stock display — their stock depends on components
   const stockItems = activeItems.filter(item => item.item_type !== 'composite' && item.is_composite !== 1);
-  const totalValue = stockItems.reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0);
+  const totalCostValue = stockItems.reduce((sum, item) => sum + ((item.quantity_on_hand || 0) * (item.unit_cost || 0)), 0);
+  const totalRevenueValue = stockItems.reduce((sum, item) => {
+    if (item.price && item.quantity_on_hand > 0) {
+      return sum + (item.quantity_on_hand * item.price);
+    }
+    return sum;
+  }, 0);
+  const estimatedProfit = totalRevenueValue - totalCostValue;
 
   const isBulk = (item) => item.item_type === 'bulk_ingredient' || item.is_supply === 1;
   const getLowThreshold = (item) => isBulk(item) ? 1 : 5;
@@ -184,7 +191,9 @@ function InventoryStockSection({
                 <th style={{ textAlign: 'center' }}>Last Check</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'right' }}>Unit Cost</th>
-                <th style={{ textAlign: 'right' }}>Value</th>
+                <th style={{ textAlign: 'right' }}>Cost Value</th>
+                <th style={{ textAlign: 'right' }}>Sell Price</th>
+                <th style={{ textAlign: 'right' }}>Revenue</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -268,6 +277,12 @@ function InventoryStockSection({
                     <td style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>
                       {formatCurrency((item.quantity_on_hand || 0) * (item.unit_cost || 0))}
                     </td>
+                    <td style={{ textAlign: 'right', color: item.price ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                      {item.price ? formatCurrency(item.price) : '-'}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: item.price ? '600' : 'normal', color: item.price && item.quantity_on_hand > 0 ? '#22c55e' : 'var(--color-text-muted)' }}>
+                      {item.price && item.quantity_on_hand > 0 ? formatCurrency(item.quantity_on_hand * item.price) : '-'}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                         <button
@@ -318,14 +333,42 @@ function InventoryStockSection({
               })}
             </tbody>
             <tfoot>
+              <tr style={{ borderTop: '2px solid var(--color-border)' }}>
+                <td style={{ fontWeight: '600', color: 'var(--color-text-subtle)' }}>Total Cost</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                  {formatCurrency(totalCostValue)}
+                </td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: '600', color: 'var(--color-text-subtle)' }}>Potential Revenue</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right', fontWeight: '600', color: '#22c55e' }}>
+                  {formatCurrency(totalRevenueValue)}
+                </td>
+                <td></td>
+              </tr>
               <tr style={{ borderTop: '2px solid var(--color-primary)' }}>
-                <td style={{ fontWeight: 'bold', color: 'var(--color-primary)' }}>Total Value</td>
+                <td style={{ fontWeight: 'bold', color: 'var(--color-primary)', fontSize: '15px' }}>Estimated Profit</td>
                 <td></td>
                 <td></td>
                 <td></td>
                 <td></td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--color-primary)' }}>
-                  {formatCurrency(totalValue)}
+                <td></td>
+                <td></td>
+                <td style={{ textAlign: 'right', fontWeight: 'bold', color: estimatedProfit >= 0 ? 'var(--color-primary)' : 'var(--color-danger)', fontSize: '15px' }}>
+                  {formatCurrency(estimatedProfit)}
                 </td>
                 <td></td>
               </tr>
