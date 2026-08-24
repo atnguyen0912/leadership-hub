@@ -2234,12 +2234,21 @@ function CashBoxAdmin() {
     return purchaseFormData.items.reduce((sum, item) => sum + (parseFloat(item.lineTotal) || 0), 0);
   };
 
+  const calculatePurchaseCrv = () => {
+    return purchaseFormData.items.reduce((sum, item) => {
+      const qty = parseInt(item.quantity) || 0;
+      const crv = parseFloat(item.crvPerUnit) || 0;
+      return sum + (crv * qty);
+    }, 0);
+  };
+
   const calculatePurchaseTotal = () => {
     const subtotal = calculatePurchaseSubtotal();
+    const crv = calculatePurchaseCrv();
     const tax = parseFloat(purchaseFormData.tax) || 0;
     const deliveryFee = parseFloat(purchaseFormData.deliveryFee) || 0;
     const otherFees = parseFloat(purchaseFormData.otherFees) || 0;
-    return subtotal + tax + deliveryFee + otherFees;
+    return subtotal + crv + tax + deliveryFee + otherFees;
   };
 
   // Profit distribution handlers
@@ -4577,7 +4586,7 @@ function CashBoxAdmin() {
                         <th>Item</th>
                         <th style={{ textAlign: 'center' }}>Qty</th>
                         <th style={{ textAlign: 'right' }}>Line $</th>
-                        <th style={{ textAlign: 'right' }}>CRV/ea</th>
+                        <th style={{ textAlign: 'center', width: '50px' }}>CRV</th>
                         <th style={{ textAlign: 'right' }}>Total</th>
                         <th style={{ textAlign: 'center' }}>Actions</th>
                       </tr>
@@ -4788,17 +4797,25 @@ function CashBoxAdmin() {
                               />
                             </td>
 
-                            {/* CRV Cell */}
-                            <td className="currency-cell">
-                              <input
-                                type="number"
-                                className="spreadsheet-input"
-                                step="0.01"
-                                min="0"
-                                value={item.crvPerUnit}
-                                onChange={(e) => handlePurchaseItemChange(index, 'crvPerUnit', e.target.value)}
-                                placeholder="0.00"
-                              />
+                            {/* CRV Toggle */}
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handlePurchaseItemChange(index, 'crvPerUnit', item.crvPerUnit ? '' : '0.05')}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  border: '1px solid',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  background: item.crvPerUnit ? '#dcfce7' : 'var(--color-bg-input)',
+                                  color: item.crvPerUnit ? '#16a34a' : 'var(--color-text-muted)',
+                                  borderColor: item.crvPerUnit ? '#22c55e' : 'var(--color-border)'
+                                }}
+                              >
+                                {item.crvPerUnit ? 'CRV' : 'No'}
+                              </button>
                             </td>
 
                             {/* Total Cell (readonly) */}
@@ -4917,6 +4934,12 @@ function CashBoxAdmin() {
                     <span style={{ color: 'var(--color-text-subtle)' }}>Subtotal:</span>
                     <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(calculatePurchaseSubtotal())}</span>
                   </div>
+                  {calculatePurchaseCrv() > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--color-text-subtle)' }}>CRV:</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(calculatePurchaseCrv())}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <span style={{ color: 'var(--color-text-subtle)' }}>Overhead:</span>
                     <span style={{ color: 'var(--color-text-muted)' }}>
@@ -5020,17 +5043,25 @@ function CashBoxAdmin() {
                           required
                         />
                       </div>
-                      <div className="form-group" style={{ flex: 1, minWidth: '70px', marginBottom: 0 }}>
-                        <label>CRV/ea</label>
-                        <input
-                          type="number"
-                          className="input"
-                          step="0.01"
-                          min="0"
-                          value={item.crvPerUnit}
-                          onChange={(e) => handleEditPurchaseItemChange(index, 'crvPerUnit', e.target.value)}
-                          placeholder="0.05"
-                        />
+                      <div className="form-group" style={{ flex: 0, minWidth: '50px', marginBottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <label>CRV</label>
+                        <button
+                          type="button"
+                          onClick={() => handleEditPurchaseItemChange(index, 'crvPerUnit', item.crvPerUnit ? '' : '0.05')}
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            border: '1px solid',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            background: item.crvPerUnit ? '#dcfce7' : 'var(--color-bg-input)',
+                            color: item.crvPerUnit ? '#16a34a' : 'var(--color-text-muted)',
+                            borderColor: item.crvPerUnit ? '#22c55e' : 'var(--color-border)'
+                          }}
+                        >
+                          {item.crvPerUnit ? 'Yes' : 'No'}
+                        </button>
                       </div>
                       {editingPurchaseData.items.length > 1 && (
                         <button
