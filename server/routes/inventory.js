@@ -213,7 +213,7 @@ router.get('/:id/lots', (req, res) => {
         return res.status(500).json({ error: err.message });
       }
 
-      // Also fetch recent transactions for this item
+      // Fetch recent transactions for this item
       db.all(
         `SELECT it.*, cs.name as session_name
          FROM inventory_transactions it
@@ -223,10 +223,45 @@ router.get('/:id/lots', (req, res) => {
          LIMIT 30`,
         [id],
         (err2, transactions) => {
-          if (err2) {
-            return res.json({ lots, transactions: [] });
-          }
-          res.json({ lots, transactions: transactions || [] });
+          // Fetch sales per session (direct sales of this item)
+          db.all(
+            `SELECT cs.id as session_id, cs.name as session_name, cs.created_at as session_date,
+               SUM(oi.quantity) as total_sold, SUM(oi.line_total) as total_revenue
+             FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             JOIN concession_sessions cs ON o.session_id = cs.id
+             WHERE oi.menu_item_id = ?
+             GROUP BY cs.id
+             ORDER BY cs.created_at DESC`,
+            [id],
+            (err3, sessionSales) => {
+              // Also check if this item is a component — get sales of parent composites
+              db.all(
+                `SELECT cs.id as session_id, cs.name as session_name, cs.created_at as session_date,
+                   mc.menu_item_id as composite_id, mi_parent.name as composite_name,
+                   mc.quantity as qty_per_composite,
+                   SUM(oi.quantity) as composites_sold,
+                   SUM(oi.quantity) * mc.quantity as total_used
+                 FROM menu_item_components mc
+                 JOIN order_items oi ON oi.menu_item_id = mc.menu_item_id
+                 JOIN orders o ON oi.order_id = o.id
+                 JOIN concession_sessions cs ON o.session_id = cs.id
+                 JOIN menu_items mi_parent ON mc.menu_item_id = mi_parent.id
+                 WHERE mc.component_item_id = ?
+                 GROUP BY cs.id, mc.menu_item_id
+                 ORDER BY cs.created_at DESC`,
+                [id],
+                (err4, componentUsage) => {
+                  res.json({
+                    lots,
+                    transactions: transactions || [],
+                    sessionSales: sessionSales || [],
+                    componentUsage: componentUsage || []
+                  });
+                }
+              );
+            }
+          );
         }
       );
     }

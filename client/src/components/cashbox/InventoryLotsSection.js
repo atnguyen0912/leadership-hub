@@ -7,6 +7,8 @@ function InventoryLotsSection({
   setSelectedInventoryItem,
   inventoryLots,
   inventoryTransactions = [],
+  sessionSales = [],
+  componentUsage = [],
   onFetchLots
 }) {
   return (
@@ -64,6 +66,64 @@ function InventoryLotsSection({
                         {lot.is_reimbursable ? 'Yes' : 'No'}
                       </span>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Session Sales - direct sales */}
+      {selectedInventoryItem && sessionSales.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '15px', color: 'var(--color-text)', marginBottom: '8px' }}>Sales by Session</h3>
+          <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Date</th>
+                  <th style={{ textAlign: 'center' }}>Qty Sold</th>
+                  <th style={{ textAlign: 'right' }}>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessionSales.map(s => (
+                  <tr key={s.session_id}>
+                    <td style={{ color: 'var(--color-text-muted)' }}>{s.session_name}</td>
+                    <td style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{new Date(s.session_date).toLocaleDateString()}</td>
+                    <td style={{ textAlign: 'center', fontWeight: '600', color: '#ef4444' }}>-{s.total_sold}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--color-primary)', fontWeight: '500' }}>{formatCurrency(s.total_revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Component Usage - used as ingredient in composites */}
+      {selectedInventoryItem && componentUsage.length > 0 && (
+        <>
+          <h3 style={{ fontSize: '15px', color: 'var(--color-text)', marginBottom: '8px' }}>Used as Ingredient</h3>
+          <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>In</th>
+                  <th style={{ textAlign: 'center' }}>Composites Sold</th>
+                  <th style={{ textAlign: 'center' }}>Units Used</th>
+                </tr>
+              </thead>
+              <tbody>
+                {componentUsage.map((u, idx) => (
+                  <tr key={idx}>
+                    <td style={{ color: 'var(--color-text-muted)' }}>{u.session_name}</td>
+                    <td style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{u.composite_name}</td>
+                    <td style={{ textAlign: 'center', color: 'var(--color-text-muted)' }}>{u.composites_sold}</td>
+                    <td style={{ textAlign: 'center', fontWeight: '600', color: '#ef4444' }}>-{u.total_used}</td>
                   </tr>
                 ))}
               </tbody>

@@ -240,6 +240,8 @@ function CashBoxAdmin() {
 
   // Inventory movements state
   const [inventoryTransactions, setInventoryTransactions] = useState([]);
+  const [inventorySessionSales, setInventorySessionSales] = useState([]);
+  const [inventoryComponentUsage, setInventoryComponentUsage] = useState([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   // Program charges state
@@ -435,9 +437,13 @@ function CashBoxAdmin() {
         if (Array.isArray(data)) {
           setInventoryLots(data);
           setInventoryTransactions([]);
+          setInventorySessionSales([]);
+          setInventoryComponentUsage([]);
         } else {
           setInventoryLots(data.lots || []);
           setInventoryTransactions(data.transactions || []);
+          setInventorySessionSales(data.sessionSales || []);
+          setInventoryComponentUsage(data.componentUsage || []);
         }
       }
     } catch (err) {
@@ -5567,6 +5573,8 @@ function CashBoxAdmin() {
               setSelectedInventoryItem={setSelectedInventoryItem}
               inventoryLots={inventoryLots}
               inventoryTransactions={inventoryTransactions}
+              sessionSales={inventorySessionSales}
+              componentUsage={inventoryComponentUsage}
               onFetchLots={fetchInventoryLots}
             />
           )}
