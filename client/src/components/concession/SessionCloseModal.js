@@ -15,6 +15,7 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
   const [inventoryReconciled, setInventoryReconciled] = useState(false);
   // Items sold summary
   const [itemsSold, setItemsSold] = useState([]);
+  const [inventorySnapshot, setInventorySnapshot] = useState([]);
 
   // Fetch preview data when modal opens
   useEffect(() => {
@@ -44,12 +45,19 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
       setPreview(data);
       // Pre-fill with expected cash amount
       setActualCashCount(String(data.expectedCashInDrawer || 0));
-      // Fetch items sold summary
+      // Fetch items sold summary and current inventory
       try {
-        const summaryRes = await fetch(`/api/orders/session/${sessionId}/summary`);
+        const [summaryRes, invRes] = await Promise.all([
+          fetch(`/api/orders/session/${sessionId}/summary`),
+          fetch('/api/inventory')
+        ]);
         if (summaryRes.ok) {
           const summaryData = await summaryRes.json();
           setItemsSold(summaryData.itemBreakdown || []);
+        }
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          setInventorySnapshot(invData.filter(i => i.active && i.item_type !== 'composite' && i.is_composite !== 1));
         }
       } catch (e) {
         // Non-critical, don't block close modal
@@ -234,6 +242,62 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
                         <td style={{ padding: '6px 8px', color: 'var(--color-primary)', textAlign: 'right', fontWeight: '500' }}>{formatCurrency(item.total_revenue)}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Estimated Remaining Inventory */}
+            {inventorySnapshot.length > 0 && (
+              <div style={{
+                background: 'var(--color-bg-input)',
+                padding: '14px',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                border: '1px solid var(--color-border)'
+              }}>
+                <h4 style={{
+                  color: 'var(--color-primary)',
+                  marginBottom: '4px',
+                  fontSize: '15px',
+                  fontWeight: '600'
+                }}>
+                  ESTIMATED REMAINING INVENTORY
+                </h4>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>
+                  These counts carry over to the next session. Verify via Inventory Check.
+                </p>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--color-text-subtle)', fontWeight: '500' }}>Item</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--color-text-subtle)', fontWeight: '500' }}>On Hand</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventorySnapshot
+                      .filter(item => item.quantity_on_hand !== 0 || itemsSold.some(s => s.name === item.name))
+                      .map((item, idx) => {
+                        const isBulk = item.item_type === 'bulk_ingredient' || item.is_supply === 1;
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                            <td style={{ padding: '5px 8px', color: 'var(--color-text-muted)' }}>
+                              {item.name}
+                              {isBulk && item.container_name && (
+                                <span style={{ fontSize: '10px', color: '#3b82f6', marginLeft: '4px' }}>({item.container_name})</span>
+                              )}
+                            </td>
+                            <td style={{
+                              padding: '5px 8px',
+                              textAlign: 'right',
+                              fontWeight: '600',
+                              color: item.quantity_on_hand <= 0 ? 'var(--color-danger)' : 'var(--color-primary)'
+                            }}>
+                              {item.quantity_on_hand}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>

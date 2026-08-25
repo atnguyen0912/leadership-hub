@@ -16,6 +16,7 @@ import CashBox from './pages/CashBox';
 import CashBoxAdmin from './pages/CashBoxAdmin';
 import ConcessionSession from './pages/ConcessionSession';
 import LossesManagement from './pages/LossesManagement';
+import InventoryCheck from './pages/InventoryCheck';
 
 // Session expired notification component
 function SessionExpiredBanner({ onDismiss }) {
@@ -103,6 +104,7 @@ function AppRoutes() {
           <Route path="/events" element={<Events />} />
           <Route path="/cashbox" element={<CashBox />} />
           <Route path="/concession-session/:id" element={<ConcessionSession />} />
+          <Route path="/inventory-check" element={<InventoryCheck />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       ) : (
@@ -117,6 +119,7 @@ function AppRoutes() {
           <Route path="/cashbox-admin" element={<CashBoxAdmin />} />
           <Route path="/concession-session/:id" element={<ConcessionSession />} />
           <Route path="/losses" element={<LossesManagement />} />
+          <Route path="/inventory-check" element={<InventoryCheck />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </>
       )}

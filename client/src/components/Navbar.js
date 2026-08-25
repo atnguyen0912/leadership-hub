@@ -52,6 +52,9 @@ function Navbar() {
             <Link to="/cashbox" className={`nav-link ${location.pathname === '/cashbox' || location.pathname.startsWith('/concession-session') ? 'active' : ''}`}>
               Concessions
             </Link>
+            <Link to="/inventory-check" className={`nav-link ${location.pathname === '/inventory-check' ? 'active' : ''}`}>
+              Inventory Check
+            </Link>
           </>
         ) : (
           <>
