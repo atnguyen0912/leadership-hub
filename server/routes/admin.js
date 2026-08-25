@@ -168,6 +168,77 @@ router.post('/sync-inventory', (req, res) => {
   );
 });
 
+// POST /api/admin/deduct-session-sales - Deduct sold items from inventory for a specific date
+router.post('/deduct-session-sales', (req, res) => {
+  const { date } = req.body;
+  if (!date) {
+    return res.status(400).json({ error: 'Date required (YYYY-MM-DD)' });
+  }
+
+  const db = getDb();
+
+  // Get all order items from orders on that date
+  db.all(
+    `SELECT oi.menu_item_id, SUM(oi.quantity) as total_sold, mi.name, mi.item_type, mi.is_composite
+     FROM order_items oi
+     JOIN orders o ON oi.order_id = o.id
+     JOIN menu_items mi ON oi.menu_item_id = mi.id
+     WHERE DATE(o.created_at) = ?
+     GROUP BY oi.menu_item_id`,
+    [date],
+    (err, soldItems) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      if (!soldItems || soldItems.length === 0) {
+        return res.json({ success: true, message: 'No sales found for that date', deductions: [] });
+      }
+
+      const deductions = [];
+      let pending = 0;
+
+      // For each sold item, get its components if composite, otherwise deduct directly
+      soldItems.forEach(sold => {
+        pending++;
+        const itemType = sold.item_type || 'sellable';
+
+        if (itemType === 'composite' || sold.is_composite === 1) {
+          // Get components and deduct them
+          db.all(
+            'SELECT component_item_id, quantity, is_bulk FROM menu_item_components WHERE menu_item_id = ?',
+            [sold.menu_item_id],
+            (err2, components) => {
+              if (!err2 && components && components.length > 0) {
+                components.forEach(comp => {
+                  if (comp.is_bulk) return; // Skip bulk
+                  const deductQty = (comp.quantity || 1) * sold.total_sold;
+                  db.run(
+                    'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
+                    [deductQty, comp.component_item_id]
+                  );
+                  deductions.push({ itemId: comp.component_item_id, quantity: deductQty, reason: `component of ${sold.name}` });
+                });
+              }
+              pending--;
+              if (pending === 0) res.json({ success: true, deductions });
+            }
+          );
+        } else {
+          // Direct deduction for sellable items
+          db.run(
+            'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
+            [sold.total_sold, sold.menu_item_id]
+          );
+          deductions.push({ itemId: sold.menu_item_id, name: sold.name, quantity: sold.total_sold });
+          pending--;
+          if (pending === 0) res.json({ success: true, deductions });
+        }
+      });
+    }
+  );
+});
+
 // POST /api/admin/reset-inventory - One-time reset of all inventory counts
 router.post('/reset-inventory', (req, res) => {
   const db = getDb();
