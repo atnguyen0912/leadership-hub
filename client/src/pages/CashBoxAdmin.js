@@ -426,8 +426,6 @@ function CashBoxAdmin() {
     }
   };
 
-  const [inventoryTransactions, setInventoryTransactions] = useState([]);
-
   const fetchInventoryLots = async (itemId) => {
     try {
       const response = await fetch(`/api/inventory/${itemId}/lots`);
