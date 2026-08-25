@@ -168,24 +168,27 @@ router.post('/sync-inventory', (req, res) => {
   );
 });
 
-// POST /api/admin/deduct-session-sales - Deduct sold items from inventory for a specific date
+// POST /api/admin/deduct-session-sales - Deduct sold items from inventory for a session or date
 router.post('/deduct-session-sales', (req, res) => {
-  const { date } = req.body;
-  if (!date) {
-    return res.status(400).json({ error: 'Date required (YYYY-MM-DD)' });
+  const { date, sessionId } = req.body;
+  if (!date && !sessionId) {
+    return res.status(400).json({ error: 'Date (YYYY-MM-DD) or sessionId required' });
   }
 
   const db = getDb();
 
-  // Get all order items from orders on that date
+  const whereClause = sessionId ? 'o.session_id = ?' : 'DATE(o.created_at) = ?';
+  const whereParam = sessionId || date;
+
+  // Get all order items from orders matching the filter
   db.all(
     `SELECT oi.menu_item_id, SUM(oi.quantity) as total_sold, mi.name, mi.item_type, mi.is_composite
      FROM order_items oi
      JOIN orders o ON oi.order_id = o.id
      JOIN menu_items mi ON oi.menu_item_id = mi.id
-     WHERE DATE(o.created_at) = ?
+     WHERE ${whereClause}
      GROUP BY oi.menu_item_id`,
-    [date],
+    [whereParam],
     (err, soldItems) => {
       if (err) {
         return res.status(500).json({ error: err.message });
