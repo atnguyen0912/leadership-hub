@@ -521,6 +521,13 @@ const migrations = [
       db.run("ALTER TABLE students ADD COLUMN is_former INTEGER DEFAULT 0", () => resolve());
     })
   }
+  ,
+  {
+    name: '023_add_session_id_to_inventory_transactions',
+    run: (db) => new Promise((resolve) => {
+      db.run("ALTER TABLE inventory_transactions ADD COLUMN session_id INTEGER", () => resolve());
+    })
+  }
 ];
 
 /**

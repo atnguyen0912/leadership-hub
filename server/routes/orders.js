@@ -64,7 +64,7 @@ async function deductFromLots(menuItemId, quantity) {
 }
 
 // Helper to process a single inventory item
-async function processInventoryItem(itemId, quantity, isComponent) {
+async function processInventoryItem(itemId, quantity, isComponent, sessionId) {
   // Deduct from inventory
   await run(
     'UPDATE menu_items SET quantity_on_hand = quantity_on_hand - ? WHERE id = ?',
@@ -74,12 +74,12 @@ async function processInventoryItem(itemId, quantity, isComponent) {
   // Deduct from FIFO lots and get COGS
   const costInfo = await deductFromLots(itemId, quantity);
 
-  // Create inventory transaction
+  // Create inventory transaction with session reference
   const notes = isComponent ? 'Order sale (component)' : 'Order sale';
   await run(
-    `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by)
-     VALUES (?, 'sale', ?, ?, ?, ?, ?)`,
-    [itemId, -quantity, costInfo.totalCost / quantity || 0, 1, notes, '']
+    `INSERT INTO inventory_transactions (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by, session_id)
+     VALUES (?, 'sale', ?, ?, ?, ?, ?, ?)`,
+    [itemId, -quantity, costInfo.totalCost / quantity || 0, 1, notes, '', sessionId || null]
   );
 
   return costInfo;
@@ -158,28 +158,28 @@ router.post('/', async (req, res) => {
                 // This doesn't deduct inventory but logs the usage
                 await run(
                   `INSERT INTO inventory_transactions
-                   (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by)
-                   VALUES (?, 'bulk_usage', ?, 0, 0, ?, ?)`,
-                  [comp.component_item_id, item.quantity, `Bulk usage for composite item (session ${sessionId})`, '']
+                   (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by, session_id)
+                   VALUES (?, 'bulk_usage', ?, 0, 0, ?, ?, ?)`,
+                  [comp.component_item_id, item.quantity, `Bulk usage for composite item`, '', sessionId]
                 );
                 continue;
               }
 
               // Precise ingredient - deduct per sale
               const componentQuantity = (comp.quantity || 1) * item.quantity;
-              const costInfo = await processInventoryItem(comp.component_item_id, componentQuantity, true);
+              const costInfo = await processInventoryItem(comp.component_item_id, componentQuantity, true, sessionId);
               totalCogs += costInfo.totalCost;
               reimbursableCogs += costInfo.reimbursableCost;
             }
           } else {
             // Fallback to direct deduction if no components found
-            const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false);
+            const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false, sessionId);
             totalCogs += costInfo.totalCost;
             reimbursableCogs += costInfo.reimbursableCost;
           }
         } else {
           // Sellable item - direct 1:1 inventory deduction
-          const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false);
+          const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false, sessionId);
           totalCogs += costInfo.totalCost;
           reimbursableCogs += costInfo.reimbursableCost;
         }

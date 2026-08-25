@@ -212,7 +212,23 @@ router.get('/:id/lots', (req, res) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
-      res.json(lots);
+
+      // Also fetch recent transactions for this item
+      db.all(
+        `SELECT it.*, cs.name as session_name
+         FROM inventory_transactions it
+         LEFT JOIN concession_sessions cs ON it.session_id = cs.id
+         WHERE it.menu_item_id = ?
+         ORDER BY it.created_at DESC
+         LIMIT 30`,
+        [id],
+        (err2, transactions) => {
+          if (err2) {
+            return res.json({ lots, transactions: [] });
+          }
+          res.json({ lots, transactions: transactions || [] });
+        }
+      );
     }
   );
 });

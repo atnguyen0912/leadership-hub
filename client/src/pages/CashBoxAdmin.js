@@ -426,12 +426,21 @@ function CashBoxAdmin() {
     }
   };
 
+  const [inventoryTransactions, setInventoryTransactions] = useState([]);
+
   const fetchInventoryLots = async (itemId) => {
     try {
       const response = await fetch(`/api/inventory/${itemId}/lots`);
       const data = await response.json();
       if (response.ok) {
-        setInventoryLots(data);
+        // Handle both old format (array) and new format ({lots, transactions})
+        if (Array.isArray(data)) {
+          setInventoryLots(data);
+          setInventoryTransactions([]);
+        } else {
+          setInventoryLots(data.lots || []);
+          setInventoryTransactions(data.transactions || []);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch inventory lots:', err);
@@ -5559,6 +5568,7 @@ function CashBoxAdmin() {
               selectedInventoryItem={selectedInventoryItem}
               setSelectedInventoryItem={setSelectedInventoryItem}
               inventoryLots={inventoryLots}
+              inventoryTransactions={inventoryTransactions}
               onFetchLots={fetchInventoryLots}
             />
           )}
