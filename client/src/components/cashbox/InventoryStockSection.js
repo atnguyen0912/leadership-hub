@@ -11,6 +11,11 @@ function InventoryStockSection({
   onToggleLiquid,
   onOpenVerification
 }) {
+  // State
+  const [markingItem, setMarkingItem] = useState(null);
+  const [usagePercent, setUsagePercent] = useState('');
+  const [stockFilter, setStockFilter] = useState('all'); // 'all', 'in', 'out'
+
   const activeItems = inventoryItems.filter(item => item.active);
   // Exclude composite items from stock display — their stock depends on components
   const stockItems = activeItems.filter(item => item.item_type !== 'composite' && item.is_composite !== 1);
@@ -40,11 +45,6 @@ function InventoryStockSection({
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, { verified: 0, estimated: 0, stale: 0, never: 0 });
-
-  // State for usage marking modal
-  const [markingItem, setMarkingItem] = useState(null);
-  const [usagePercent, setUsagePercent] = useState('');
-  const [stockFilter, setStockFilter] = useState('all'); // 'all', 'in', 'out'
 
   // Get verification badge for item
   const getVerificationBadge = (item) => {
