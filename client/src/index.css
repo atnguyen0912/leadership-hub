@@ -3402,39 +3402,46 @@ textarea.input {
     display: none;
   }
 
+  /* Break out of the nav's horizontal padding so the dropdown spans the full
+     width of the screen, and sit flush with the nav's bottom edge. */
   .nav-links {
     display: none;
     flex-direction: column;
-    width: 100%;
+    align-items: stretch;
+    width: calc(100% + (var(--spacing-md) * 2));
     gap: var(--spacing-xs);
-    margin-top: var(--spacing-sm);
-    padding-top: var(--spacing-sm);
+    margin: var(--spacing-sm) calc(var(--spacing-md) * -1) calc(var(--spacing-sm) * -1);
+    padding: var(--spacing-sm) 0;
     border-top: var(--border-subtle);
     background: var(--gradient-dark);
   }
 
   .nav-links.open {
     display: flex;
+    /* Long menus scroll instead of running off the bottom of the screen */
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
+  /* Full-bleed rows, so the hover/active highlight reaches both edges */
   .nav-link {
     padding: var(--spacing-sm) var(--spacing-md);
     font-size: var(--font-size-sm);
     width: 100%;
     text-align: center;
+    border-radius: 0;
   }
 
   .nav-link::after {
     display: none;
   }
 
-  .theme-toggle-btn {
-    width: 100%;
-    text-align: center;
-  }
-
+  /* Buttons stay inset so they still read as buttons, not rows */
+  .theme-toggle-btn,
   .logout-btn {
-    width: 100%;
+    width: auto;
+    margin: 0 var(--spacing-md);
     text-align: center;
   }
 
@@ -3557,6 +3564,13 @@ textarea.input {
     padding: 2px;
   }
 
+  /* `.calendar-grid.compact .calendar-day` outranks the rule above, so the compact
+     calendar needs its own override. Cells stay square - the grid is full-width on
+     mobile - and only the floor drops, so narrow phones don't overflow. */
+  .calendar-grid.compact .calendar-day {
+    min-height: 36px;
+  }
+
   .calendar-day-name {
     font-size: 10px;
     padding: 2px;
@@ -3616,6 +3630,9 @@ textarea.input {
   .log-hours-layout-v2 {
     display: flex;
     flex-direction: column;
+    /* Reset the desktop grid's align-items: start - in a column flex container it
+       sizes the panels to max-content and leaves a dead gutter on the right. */
+    align-items: stretch;
     flex: 1;
     min-height: 0; /* Important: allows children to shrink */
     overflow: hidden;
@@ -3624,6 +3641,9 @@ textarea.input {
 
   /* Calendar panel - fixed, no shrink */
   .calendar-panel {
+    /* Not sticky here: the desktop `top: 80px` offset pushes the panel down inside
+       this scroll container and hides its last week behind the entry list. */
+    position: static;
     flex-shrink: 0;
     overflow: hidden;
   }
@@ -3736,6 +3756,16 @@ textarea.input {
     font-weight: 600;
     font-size: 15px;
     color: var(--color-primary);
+  }
+
+  /* .btn-remove-row is sized for a desktop table cell (width/height 100%); inside
+     these flex cards that stretches it across the whole row. */
+  .mobile-hours-card .btn-remove-row {
+    width: auto;
+    height: auto;
+    min-width: 44px;
+    flex-shrink: 0;
+    border-radius: 6px;
   }
 
   .mobile-card-fields {
@@ -4170,6 +4200,10 @@ textarea.input {
   .calendar-day {
     min-height: 32px;
     border-radius: 4px;
+  }
+
+  .calendar-grid.compact .calendar-day {
+    min-height: 32px;
   }
 
   .calendar-header .btn {
