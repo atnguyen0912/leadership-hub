@@ -553,6 +553,140 @@ router.get('/session-sales', (req, res) => {
   );
 });
 
+// menu_item_components exists with two different column namings depending on when
+// the database was created (see server/database.js vs. the queries in routes/).
+// Detect once so the cost rollup below works against either.
+let componentColumns = null;
+function getComponentColumns(db, callback) {
+  if (componentColumns) return callback(null, componentColumns);
+  db.all('PRAGMA table_info(menu_item_components)', [], (err, cols) => {
+    if (err) return callback(err);
+    const names = (cols || []).map(c => c.name);
+    componentColumns = {
+      parent: names.includes('menu_item_id') ? 'menu_item_id' : 'composite_item_id',
+      quantity: names.includes('quantity') ? 'quantity' : 'quantity_required'
+    };
+    callback(null, componentColumns);
+  });
+}
+
+// GET /api/reports/top-items - Item popularity aggregated across sessions
+//
+// Ranks every item sold in the date range by units, revenue or estimated profit,
+// so you can see what actually moves rather than reading one session at a time.
+//
+// Notes on the numbers:
+//  - Practice sessions are excluded (they record no inventory or COGS).
+//  - Comped units still count toward Units and Est. Cost (the stock was consumed)
+//    but contribute no revenue.
+//  - Per-line COGS is not stored historically, so Est. Cost uses each item's
+//    current unit cost, rolled up through components for composite items.
+router.get('/top-items', (req, res) => {
+  const { startDate, endDate, programId, sortBy = 'units', format = 'json' } = req.query;
+  const db = getDb();
+
+  const SORT_COLUMNS = { units: 'units_sold', revenue: 'revenue', profit: 'est_profit' };
+  const orderBy = SORT_COLUMNS[sortBy] || SORT_COLUMNS.units;
+
+  let filter = '';
+  const params = [];
+
+  if (programId) {
+    filter += ' AND cs.program_id = ?';
+    params.push(programId);
+  }
+  if (startDate) {
+    filter += ' AND DATE(cs.started_at) >= ?';
+    params.push(startDate);
+  }
+  if (endDate) {
+    filter += ' AND DATE(cs.started_at) <= ?';
+    params.push(endDate);
+  }
+
+  getComponentColumns(db, (colErr, cols) => {
+    if (colErr) {
+      return res.status(500).json({ error: 'Database error: ' + colErr.message });
+    }
+
+    // How many sessions the range covers, so a row can show "sold in 3 of 5 sessions"
+    db.get(
+      `SELECT COUNT(*) as total
+       FROM concession_sessions cs
+       WHERE cs.status = 'closed' AND COALESCE(cs.is_test, 0) = 0 ${filter}`,
+      params,
+      (err, sessionCount) => {
+        if (err) {
+          return res.status(500).json({ error: 'Database error: ' + err.message });
+        }
+
+        const totalSessions = sessionCount ? sessionCount.total : 0;
+
+        db.all(
+          `WITH item_cost AS (
+             SELECT mi.id,
+                    CASE
+                      WHEN COALESCE(mi.is_composite, 0) = 1 OR mi.item_type = 'composite'
+                      THEN COALESCE((
+                        SELECT SUM(mc.${cols.quantity} * COALESCE(ci.unit_cost, 0))
+                        FROM menu_item_components mc
+                        JOIN menu_items ci ON ci.id = mc.component_item_id
+                        WHERE mc.${cols.parent} = mi.id
+                      ), 0)
+                      ELSE COALESCE(mi.unit_cost, 0)
+                    END AS unit_cost
+             FROM menu_items mi
+           )
+           SELECT
+             mi.name as item_name,
+             SUM(oi.quantity) as units_sold,
+             SUM(CASE WHEN o.is_comp = 1 THEN oi.quantity ELSE 0 END) as comp_units,
+             ROUND(SUM(CASE WHEN o.is_comp = 1 THEN 0 ELSE oi.line_total END), 2) as revenue,
+             ROUND(SUM(oi.quantity * ic.unit_cost), 2) as est_cost,
+             ROUND(SUM(CASE WHEN o.is_comp = 1 THEN 0 ELSE oi.line_total END)
+                   - SUM(oi.quantity * ic.unit_cost), 2) as est_profit,
+             COUNT(DISTINCT cs.id) as sessions_sold_in,
+             ${totalSessions} as total_sessions,
+             ROUND(1.0 * SUM(oi.quantity) / COUNT(DISTINCT cs.id), 1) as avg_per_session
+           FROM order_items oi
+           JOIN orders o ON oi.order_id = o.id
+           JOIN concession_sessions cs ON o.session_id = cs.id
+           JOIN menu_items mi ON oi.menu_item_id = mi.id
+           JOIN item_cost ic ON ic.id = mi.id
+           WHERE cs.status = 'closed' AND COALESCE(cs.is_test, 0) = 0 ${filter}
+           GROUP BY mi.id
+           ORDER BY ${orderBy} DESC, mi.name ASC`,
+          params,
+          (err2, rows) => {
+            if (err2) {
+              return res.status(500).json({ error: 'Database error: ' + err2.message });
+            }
+
+            if (format === 'csv') {
+              const csv = toCSV(rows, [
+                { key: 'item_name', label: 'Item' },
+                { key: 'units_sold', label: 'Units Sold' },
+                { key: 'comp_units', label: 'Comped Units' },
+                { key: 'revenue', label: 'Revenue' },
+                { key: 'est_cost', label: 'Est. Cost' },
+                { key: 'est_profit', label: 'Est. Profit' },
+                { key: 'sessions_sold_in', label: 'Sessions Sold In' },
+                { key: 'total_sessions', label: 'Sessions In Range' },
+                { key: 'avg_per_session', label: 'Avg Units / Session' }
+              ]);
+              res.setHeader('Content-Type', 'text/csv');
+              res.setHeader('Content-Disposition', 'attachment; filename=top-items.csv');
+              return res.send(csv);
+            }
+
+            res.json(rows);
+          }
+        );
+      }
+    );
+  });
+});
+
 // GET /api/reports/summary - Overall summary dashboard
 router.get('/summary', (req, res) => {
   const { startDate, endDate } = req.query;

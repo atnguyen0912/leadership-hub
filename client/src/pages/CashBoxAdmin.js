@@ -223,6 +223,7 @@ function CashBoxAdmin() {
 
   // Reports state
   const [reportStartDate, setReportStartDate] = useState('');
+  const [reportSortBy, setReportSortBy] = useState('units');
   const [reportEndDate, setReportEndDate] = useState('');
   const [reportSummary, setReportSummary] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
@@ -2477,6 +2478,13 @@ function CashBoxAdmin() {
     }
   };
 
+  const handleReportSortChange = (value) => {
+    setReportSortBy(value);
+    if (selectedReport === 'top-items') {
+      fetchReportData('top-items', value);
+    }
+  };
+
   const downloadReport = (reportType) => {
     const token = localStorage.getItem('token');
     let url = `/api/reports/${reportType}?format=csv`;
@@ -2486,13 +2494,16 @@ function CashBoxAdmin() {
     if (reportSessionFilter && ['sessions', 'orders', 'session-sales', 'reimbursement'].includes(reportType)) {
       url += `&sessionId=${reportSessionFilter}`;
     }
-    if (reportProgramFilter && ['programs', 'losses'].includes(reportType)) {
+    if (reportProgramFilter && ['programs', 'losses', 'top-items'].includes(reportType)) {
       url += `&programId=${reportProgramFilter}`;
+    }
+    if (reportType === 'top-items') {
+      url += `&sortBy=${reportSortBy}`;
     }
     window.open(url, '_blank');
   };
 
-  const fetchReportData = async (reportType) => {
+  const fetchReportData = async (reportType, sortOverride) => {
     if (!reportType) return;
     setLoadingReportData(true);
     try {
@@ -2502,8 +2513,11 @@ function CashBoxAdmin() {
       if (reportSessionFilter && ['sessions', 'orders', 'session-sales', 'reimbursement'].includes(reportType)) {
         params.append('sessionId', reportSessionFilter);
       }
-      if (reportProgramFilter && ['programs', 'losses'].includes(reportType)) {
+      if (reportProgramFilter && ['programs', 'losses', 'top-items'].includes(reportType)) {
         params.append('programId', reportProgramFilter);
+      }
+      if (reportType === 'top-items') {
+        params.append('sortBy', sortOverride || reportSortBy);
       }
       let url = `/api/reports/${reportType}`;
       if (params.toString()) url += '?' + params.toString();
@@ -5822,6 +5836,8 @@ function CashBoxAdmin() {
               programs={programs}
               reportSessionFilter={reportSessionFilter}
               setReportSessionFilter={setReportSessionFilter}
+              reportSortBy={reportSortBy}
+              setReportSortBy={handleReportSortChange}
               reportProgramFilter={reportProgramFilter}
               setReportProgramFilter={setReportProgramFilter}
             />

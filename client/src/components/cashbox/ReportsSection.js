@@ -5,6 +5,7 @@ const VIEWER_REPORTS = [
   { value: 'sessions', label: 'Sessions' },
   { value: 'orders', label: 'Orders' },
   { value: 'session-sales', label: 'Session Sales' },
+  { value: 'top-items', label: 'Top Items' },
   { value: 'losses', label: 'Losses' },
   { value: 'programs', label: 'Programs' },
   { value: 'reimbursement', label: 'Reimbursement' },
@@ -40,6 +41,15 @@ const REPORT_COLUMNS = {
     { key: 'item_name', label: 'Item' },
     { key: 'quantity_sold', label: 'Qty Sold' },
     { key: 'item_revenue', label: 'Revenue', format: 'currency' },
+  ],
+  'top-items': [
+    { key: 'item_name', label: 'Item' },
+    { key: 'units_sold', label: 'Units' },
+    { key: 'revenue', label: 'Revenue', format: 'currency' },
+    { key: 'est_cost', label: 'Est. Cost', format: 'currency' },
+    { key: 'est_profit', label: 'Est. Profit', format: 'currency' },
+    { key: 'sessions_sold_in', label: 'Sessions' },
+    { key: 'avg_per_session', label: 'Avg / Session' },
   ],
   losses: [
     { key: 'loss_type', label: 'Type' },
@@ -89,7 +99,7 @@ function formatDuration(start, end) {
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 }
 
-function ReportPreview({ reportType, data }) {
+function ReportPreview({ reportType, data, sortBy }) {
   if (!data || data.length === 0) return null;
 
   if (reportType === 'sessions') {
@@ -388,6 +398,116 @@ function ReportPreview({ reportType, data }) {
     );
   }
 
+  if (reportType === 'top-items') {
+    const METRICS = {
+      units: { key: 'units_sold', label: 'units', currency: false },
+      revenue: { key: 'revenue', label: 'revenue', currency: true },
+      profit: { key: 'est_profit', label: 'profit', currency: true },
+    };
+    const metric = METRICS[sortBy] || METRICS.units;
+
+    const totalUnits = data.reduce((s, r) => s + (r.units_sold || 0), 0);
+    const totalRev = data.reduce((s, r) => s + (r.revenue || 0), 0);
+    const totalProfit = data.reduce((s, r) => s + (r.est_profit || 0), 0);
+    const totalSessions = data[0]?.total_sessions || 0;
+    const hasCostData = data.some(r => (r.est_cost || 0) > 0);
+
+    // Bars scale to the largest value of whichever metric is being ranked
+    const maxVal = Math.max(...data.map(r => Math.abs(r[metric.key] || 0)), 1);
+    const fmt = (v) => (metric.currency ? formatCurrency(v) : `${v}`);
+
+    return (
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+          <div style={card}><p style={label}>Sessions</p><p style={bigVal('var(--color-text-subtle)')}>{totalSessions}</p></div>
+          <div style={card}><p style={label}>Distinct Items</p><p style={bigVal('var(--color-text-subtle)')}>{data.length}</p></div>
+          <div style={card}><p style={label}>Units Sold</p><p style={bigVal('var(--color-primary)')}>{totalUnits}</p></div>
+          <div style={card}><p style={label}>Revenue</p><p style={bigVal('var(--color-primary)')}>{formatCurrency(totalRev)}</p></div>
+          <div style={card}>
+            <p style={label}>Est. Profit</p>
+            <p style={bigVal(totalProfit >= 0 ? 'var(--color-primary)' : 'var(--color-danger)')}>{formatCurrency(totalProfit)}</p>
+          </div>
+        </div>
+
+        <div style={{ ...card, padding: '12px' }}>
+          <p style={{ ...label, marginBottom: '8px' }}>Ranked by {metric.label}</p>
+          {data.map((r, idx) => {
+            const value = r[metric.key] || 0;
+            const isTop = idx === 0;
+            const everySession = totalSessions > 0 && r.sessions_sold_in === totalSessions;
+            return (
+              <div key={r.item_name} style={{
+                display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', padding: '3px 6px',
+                borderRadius: '4px',
+                background: isTop ? 'rgba(34,197,94,0.08)' : 'transparent',
+              }}>
+                <span style={{
+                  width: '20px', fontSize: '11px', textAlign: 'right', flexShrink: 0,
+                  color: isTop ? 'var(--color-primary)' : 'var(--color-text-subtle)',
+                  fontWeight: isTop ? 'bold' : 'normal',
+                }}>
+                  {idx + 1}
+                </span>
+                <span style={{
+                  width: '110px', fontSize: '13px', flexShrink: 0, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isTop ? '700' : '400',
+                }}>
+                  {r.item_name}
+                </span>
+                <div style={{ flex: 1, background: 'var(--color-bg)', borderRadius: '3px', height: '20px' }}>
+                  <div style={{
+                    width: `${(Math.abs(value) / maxVal) * 100}%`, height: '100%',
+                    background: value < 0
+                      ? 'rgba(239,68,68,0.3)'
+                      : isTop ? 'rgba(34,197,94,0.3)' : 'rgba(34,197,94,0.15)',
+                    borderRadius: '3px', display: 'flex', alignItems: 'center', paddingLeft: '6px',
+                  }}>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-subtle)', whiteSpace: 'nowrap' }}>
+                      {fmt(value)}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  title={`Sold in ${r.sessions_sold_in} of ${totalSessions} sessions`}
+                  style={{
+                    fontSize: '11px', width: '46px', textAlign: 'right', flexShrink: 0,
+                    color: everySession ? 'var(--color-primary)' : 'var(--color-text-subtle)',
+                    fontWeight: everySession ? '600' : '400',
+                  }}
+                >
+                  {r.sessions_sold_in}/{totalSessions}
+                </span>
+                <span
+                  title="Average units sold per session it appeared in"
+                  style={{ fontSize: '12px', color: 'var(--color-text-subtle)', width: '58px', textAlign: 'right', flexShrink: 0 }}
+                >
+                  {r.avg_per_session}/sess
+                </span>
+                {r.comp_units > 0 && (
+                  <span
+                    title={`${r.comp_units} comped (counted in units, not revenue)`}
+                    style={{ fontSize: '10px', color: 'var(--color-warning)', width: '46px', textAlign: 'right', flexShrink: 0 }}
+                  >
+                    {r.comp_units} comp
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {!hasCostData && (
+          <p style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginTop: '8px' }}>
+            Est. Cost is $0 because no unit costs are recorded for these items — add purchases so cost flows into inventory, and profit here will fill in.
+          </p>
+        )}
+        <p style={{ fontSize: '11px', color: 'var(--color-text-subtle)', marginTop: '6px' }}>
+          Practice sessions excluded. Est. Cost uses each item&apos;s current unit cost, so profit is an estimate rather than the COGS booked at sale time.
+        </p>
+      </div>
+    );
+  }
+
   if (reportType === 'losses') {
     const totalLoss = data.reduce((s, r) => s + (r.amount || 0), 0);
     // Group by type
@@ -590,7 +710,9 @@ function ReportsSection({
   reportSessionFilter,
   setReportSessionFilter,
   reportProgramFilter,
-  setReportProgramFilter
+  setReportProgramFilter,
+  reportSortBy,
+  setReportSortBy
 }) {
   const columns = selectedReport ? REPORT_COLUMNS[selectedReport] : [];
 
@@ -718,7 +840,7 @@ function ReportsSection({
                 ))}
             </select>
           )}
-          {['programs', 'losses'].includes(selectedReport) && (
+          {['programs', 'losses', 'top-items'].includes(selectedReport) && (
             <select
               className="input"
               value={reportProgramFilter}
@@ -730,6 +852,25 @@ function ReportsSection({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
+          )}
+          {selectedReport === 'top-items' && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>Rank by</span>
+              {[
+                { value: 'units', label: 'Units' },
+                { value: 'revenue', label: 'Revenue' },
+                { value: 'profit', label: 'Profit' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  className={`btn btn-small ${reportSortBy === opt.value ? 'btn-primary' : ''}`}
+                  onClick={() => setReportSortBy(opt.value)}
+                  style={{ fontSize: '12px', padding: '4px 10px' }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           )}
           <button
             className="btn btn-primary"
@@ -754,7 +895,7 @@ function ReportsSection({
         </div>
 
         {/* Report Preview */}
-        <ReportPreview reportType={selectedReport} data={reportData} />
+        <ReportPreview reportType={selectedReport} data={reportData} sortBy={reportSortBy} />
 
         {/* Data Table */}
         {selectedReport && reportData.length > 0 && (
