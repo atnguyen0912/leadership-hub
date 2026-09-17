@@ -1,15 +1,32 @@
 const express = require('express');
 const router = express.Router();
-const { run, get, all } = require('../db-utils');
+const { run, get, all, transaction } = require('../db-utils');
+
+// menu_item_components exists in two shapes in the wild:
+// (menu_item_id, quantity) and (composite_item_id, quantity_required).
+// Detect once and alias to the names the callers below expect.
+// reports.js carries the same detection - keep them in sync.
+let componentColumns = null;
+async function getComponentColumns() {
+  if (componentColumns) return componentColumns;
+  const cols = await all('PRAGMA table_info(menu_item_components)');
+  const names = (cols || []).map(c => c.name);
+  componentColumns = {
+    parent: names.includes('menu_item_id') ? 'menu_item_id' : 'composite_item_id',
+    quantity: names.includes('quantity') ? 'quantity' : 'quantity_required'
+  };
+  return componentColumns;
+}
 
 // Helper function to get components for a composite item
 // Returns components with is_bulk flag to differentiate precise vs bulk ingredients
 async function getComponents(menuItemId) {
+  const cols = await getComponentColumns();
   return await all(
-    `SELECT mc.*, mi.name as component_name, mi.item_type as component_item_type
+    `SELECT mc.*, mc.${cols.quantity} as quantity, mi.name as component_name, mi.item_type as component_item_type
      FROM menu_item_components mc
      JOIN menu_items mi ON mc.component_item_id = mi.id
-     WHERE mc.menu_item_id = ?`,
+     WHERE mc.${cols.parent} = ?`,
     [menuItemId]
   );
 }
@@ -131,10 +148,10 @@ router.post('/', async (req, res) => {
       }
     }
 
-    let totalCogs = 0;
-    let reimbursableCogs = 0;
-
-    // Process inventory (skip for test sessions)
+    // Resolve item types up front - reads only, no writes.
+    // This validation used to run inside the deduction loop, so rejecting item 2
+    // left item 1's inventory already deducted. It has to happen before any write.
+    const itemInfos = new Map();
     if (!isTestSession) {
       for (const item of items) {
         const itemInfo = await getItemTypeInfo(item.menuItemId);
@@ -147,100 +164,120 @@ router.post('/', async (req, res) => {
           });
         }
 
-        if (itemType === 'composite' || itemInfo.is_composite === 1) {
-          // Composite item - deduct from precise ingredients only
-          const components = await getComponents(item.menuItemId);
-          if (components.length > 0) {
-            for (const comp of components) {
-              // Skip bulk ingredients - they're reconciled at session close, not per-sale
-              if (comp.is_bulk === 1 || comp.component_item_type === 'bulk_ingredient') {
-                // Track servings sold for bulk ingredients (for estimates/reporting)
-                // This doesn't deduct inventory but logs the usage
-                await run(
-                  `INSERT INTO inventory_transactions
-                   (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by, session_id)
-                   VALUES (?, 'bulk_usage', ?, 0, 0, ?, ?, ?)`,
-                  [comp.component_item_id, item.quantity, `Bulk usage for composite item`, '', sessionId]
-                );
-                continue;
-              }
+        itemInfos.set(item.menuItemId, itemInfo);
+      }
+    }
 
-              // Precise ingredient - deduct per sale
-              const componentQuantity = (comp.quantity || 1) * item.quantity;
-              const costInfo = await processInventoryItem(comp.component_item_id, componentQuantity, true, sessionId);
+    let totalCogs = 0;
+    let reimbursableCogs = 0;
+    let orderId;
+
+    // All writes below commit together or not at all. Previously each statement
+    // auto-committed, so a failure part-way through (e.g. the CashApp update)
+    // returned a 500 while leaving a complete order row with inventory already
+    // deducted - the operator would re-ring the sale and it would double-count.
+    await transaction(async () => {
+      // Process inventory (skip for test sessions)
+      if (!isTestSession) {
+        for (const item of items) {
+          const itemInfo = itemInfos.get(item.menuItemId);
+          const itemType = itemInfo.item_type || 'sellable';
+
+          if (itemType === 'composite' || itemInfo.is_composite === 1) {
+            // Composite item - deduct from precise ingredients only
+            const components = await getComponents(item.menuItemId);
+            if (components.length > 0) {
+              for (const comp of components) {
+                // Skip bulk ingredients - they're reconciled at session close, not per-sale
+                if (comp.is_bulk === 1 || comp.component_item_type === 'bulk_ingredient') {
+                  // Track servings sold for bulk ingredients (for estimates/reporting)
+                  // This doesn't deduct inventory but logs the usage
+                  await run(
+                    `INSERT INTO inventory_transactions
+                     (menu_item_id, transaction_type, quantity_change, unit_cost_at_time, is_reimbursable, notes, created_by, session_id)
+                     VALUES (?, 'bulk_usage', ?, 0, 0, ?, ?, ?)`,
+                    [comp.component_item_id, item.quantity, `Bulk usage for composite item`, '', sessionId]
+                  );
+                  continue;
+                }
+
+                // Precise ingredient - deduct per sale
+                const componentQuantity = (comp.quantity || 1) * item.quantity;
+                const costInfo = await processInventoryItem(comp.component_item_id, componentQuantity, true, sessionId);
+                totalCogs += costInfo.totalCost;
+                reimbursableCogs += costInfo.reimbursableCost;
+              }
+            } else {
+              // Fallback to direct deduction if no components found
+              const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false, sessionId);
               totalCogs += costInfo.totalCost;
               reimbursableCogs += costInfo.reimbursableCost;
             }
           } else {
-            // Fallback to direct deduction if no components found
+            // Sellable item - direct 1:1 inventory deduction
             const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false, sessionId);
             totalCogs += costInfo.totalCost;
             reimbursableCogs += costInfo.reimbursableCost;
           }
-        } else {
-          // Sellable item - direct 1:1 inventory deduction
-          const costInfo = await processInventoryItem(item.menuItemId, item.quantity, false, sessionId);
-          totalCogs += costInfo.totalCost;
-          reimbursableCogs += costInfo.reimbursableCost;
         }
       }
-    }
 
-    // Flag as cogs_pending if we sold items but had no inventory lots to calculate cost from
-    const cogsPending = (!isTestSession && totalCogs === 0 && finalTotal > 0 && !isComp) ? 1 : 0;
+      // Flag as cogs_pending if we sold items but had no inventory lots to calculate cost from
+      const cogsPending = (!isTestSession && totalCogs === 0 && finalTotal > 0 && !isComp) ? 1 : 0;
 
-    // Insert the order
-    const orderResult = await run(
-      `INSERT INTO orders (session_id, subtotal, amount_tendered, change_given, discount_amount, discount_charged_to, discount_reason, final_total, is_comp, payment_method, cogs_total, cogs_reimbursable, cogs_pending)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, subtotal, amountTendered || finalTotal, changeGiven, discount, discountChargedTo || null, discountReason || null, finalTotal, isComp ? 1 : 0, paymentMethod, totalCogs, reimbursableCogs, cogsPending]
-    );
-
-    const orderId = orderResult.lastID;
-
-    // Insert order items
-    for (const item of items) {
-      const lineTotal = item.unitPrice * item.quantity;
-      await run(
-        'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?)',
-        [orderId, item.menuItemId, item.quantity, item.unitPrice, lineTotal]
+      // Insert the order
+      const orderResult = await run(
+        `INSERT INTO orders (session_id, subtotal, amount_tendered, change_given, discount_amount, discount_charged_to, discount_reason, final_total, is_comp, payment_method, cogs_total, cogs_reimbursable, cogs_pending)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sessionId, subtotal, amountTendered || finalTotal, changeGiven, discount, discountChargedTo || null, discountReason || null, finalTotal, isComp ? 1 : 0, paymentMethod, totalCogs, reimbursableCogs, cogsPending]
       );
-    }
 
-    // Skip side effects for test sessions
-    if (!isTestSession) {
-      // Handle CashApp payment
-      if (paymentMethod === 'cashapp') {
-        await run('UPDATE cashapp_account SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [finalTotal]);
+      orderId = orderResult.lastID;
+
+      // Insert order items
+      for (const item of items) {
+        const lineTotal = item.unitPrice * item.quantity;
         await run(
-          `INSERT INTO cashapp_transactions (transaction_type, amount, order_id, session_id)
-           VALUES ('sale', ?, ?, ?)`,
-          [finalTotal, orderId, sessionId]
+          'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?)',
+          [orderId, item.menuItemId, item.quantity, item.unitPrice, lineTotal]
         );
       }
 
-      // Handle Zelle payment
-      if (paymentMethod === 'zelle') {
-        await run(
-          `INSERT INTO zelle_payments (order_id, session_id, amount) VALUES (?, ?, ?)`,
-          [orderId, sessionId, finalTotal]
-        );
-        await run(
-          `INSERT INTO reimbursement_ledger (entry_type, amount, session_id, reference_id, notes)
-           VALUES ('zelle_received', ?, ?, ?, 'Zelle payment auto-applied')`,
-          [finalTotal, sessionId, orderId]
-        );
-      }
+      // Skip side effects for test sessions
+      if (!isTestSession) {
+        // Handle CashApp payment
+        if (paymentMethod === 'cashapp') {
+          await run('UPDATE cashapp_account SET balance = balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1', [finalTotal]);
+          await run(
+            `INSERT INTO cashapp_transactions (transaction_type, amount, order_id, session_id)
+             VALUES ('sale', ?, ?, ?)`,
+            [finalTotal, orderId, sessionId]
+          );
+        }
 
-      // Record program charge if discount charged to another program
-      if (discount > 0 && discountChargedTo && discountChargedTo !== session.program_id) {
-        await run(
-          `INSERT INTO program_charges (from_program_id, session_id, order_id, amount, charge_type, reason)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [discountChargedTo, sessionId, orderId, discount, isComp ? 'comp' : 'discount', discountReason || '']
-        );
+        // Handle Zelle payment
+        if (paymentMethod === 'zelle') {
+          await run(
+            `INSERT INTO zelle_payments (order_id, session_id, amount) VALUES (?, ?, ?)`,
+            [orderId, sessionId, finalTotal]
+          );
+          await run(
+            `INSERT INTO reimbursement_ledger (entry_type, amount, session_id, reference_id, notes)
+             VALUES ('zelle_received', ?, ?, ?, 'Zelle payment auto-applied')`,
+            [finalTotal, sessionId, orderId]
+          );
+        }
+
+        // Record program charge if discount charged to another program
+        if (discount > 0 && discountChargedTo && discountChargedTo !== session.program_id) {
+          await run(
+            `INSERT INTO program_charges (from_program_id, session_id, order_id, amount, charge_type, reason)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [discountChargedTo, sessionId, orderId, discount, isComp ? 'comp' : 'discount', discountReason || '']
+          );
+        }
       }
-    }
+    });
 
     res.json({
       success: true,
@@ -299,7 +336,8 @@ router.get('/session/:sessionId/summary', async (req, res) => {
          COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as cash_total,
          COALESCE(SUM(CASE WHEN payment_method = 'cashapp' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as cashapp_total,
          COALESCE(SUM(CASE WHEN payment_method = 'zelle' THEN COALESCE(final_total, subtotal) ELSE 0 END), 0) as zelle_total,
-         SUM(CASE WHEN is_comp = 1 THEN 1 ELSE 0 END) as comp_count
+         SUM(CASE WHEN is_comp = 1 THEN 1 ELSE 0 END) as comp_count,
+         COALESCE(SUM(CASE WHEN is_comp = 1 THEN COALESCE(discount_amount, 0) ELSE 0 END), 0) as comp_value
        FROM orders
        WHERE session_id = ?`,
       [sessionId]
@@ -429,21 +467,67 @@ router.post('/recalculate-cogs/:sessionId', async (req, res) => {
       totalCogsAdded += orderCogs;
     }
 
-    // Recalculate session profit if session is closed
-    const session = await get('SELECT status FROM concession_sessions WHERE id = ?', [sessionId]);
+    // Recalculate session profit if session is closed.
+    // The program balance was already credited the old profit at close, so it has
+    // to move by the delta - otherwise it drifts from the sum of session profits.
+    let profitAdjustment = null;
+    const session = await get(
+      'SELECT status, profit, program_id, bulk_cogs FROM concession_sessions WHERE id = ?',
+      [sessionId]
+    );
     if (session && session.status === 'closed') {
       const totals = await get(
-        'SELECT COALESCE(SUM(final_total), 0) as revenue, COALESCE(SUM(cogs_total), 0) as cogs FROM orders WHERE session_id = ?',
+        `SELECT COALESCE(SUM(COALESCE(final_total, subtotal)), 0) as revenue,
+                COALESCE(SUM(COALESCE(cogs_total, 0)), 0) as cogs
+         FROM orders WHERE session_id = ?`,
         [sessionId]
       );
-      const newProfit = totals.revenue - totals.cogs;
-      await run('UPDATE concession_sessions SET profit = ? WHERE id = ?', [newProfit, sessionId]);
+      const oldProfit = session.profit || 0;
+      const newProfit = totals.revenue - (totals.cogs + (session.bulk_cogs || 0));
+      const delta = newProfit - oldProfit;
+
+      // The cogs_owed entry posted at close reflects the COGS known at that time.
+      // Backfilling COGS means more was actually owed, so post the difference as a
+      // further cogs_owed entry - reports sum this entry_type, so it reconciles.
+      const ledger = await get(
+        `SELECT COALESCE(SUM(amount), 0) as owed
+         FROM reimbursement_ledger
+         WHERE session_id = ? AND entry_type = 'cogs_owed'`,
+        [sessionId]
+      );
+      const cogsOwedDelta = totals.cogs - (ledger.owed || 0);
+      const postLedgerAdjustment = Math.abs(cogsOwedDelta) > 0.005;
+
+      await transaction(async ({ run: txRun }) => {
+        await txRun('UPDATE concession_sessions SET profit = ? WHERE id = ?', [newProfit, sessionId]);
+        if (delta !== 0 && session.program_id) {
+          await txRun(
+            'UPDATE cashbox_programs SET balance = balance + ? WHERE id = ?',
+            [delta, session.program_id]
+          );
+        }
+        if (postLedgerAdjustment) {
+          await txRun(
+            `INSERT INTO reimbursement_ledger (entry_type, amount, session_id, notes)
+             VALUES ('cogs_owed', ?, ?, 'COGS recalculation adjustment')`,
+            [cogsOwedDelta, sessionId]
+          );
+        }
+      });
+
+      profitAdjustment = {
+        oldProfit: Math.round(oldProfit * 100) / 100,
+        newProfit: Math.round(newProfit * 100) / 100,
+        delta: Math.round(delta * 100) / 100,
+        reimbursementAdjustment: postLedgerAdjustment ? Math.round(cogsOwedDelta * 100) / 100 : 0
+      };
     }
 
     res.json({
       success: true,
       updated: totalUpdated,
       totalCogsAdded: Math.round(totalCogsAdded * 100) / 100,
+      profitAdjustment,
       message: `Recalculated COGS for ${totalUpdated} orders`
     });
   } catch (err) {

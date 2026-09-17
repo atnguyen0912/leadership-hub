@@ -59,13 +59,21 @@ router.post('/:id/close', requirePermission('sessions.close'), async (req, res) 
       [id]
     );
 
-    const totalCogs = cogsResult.total_cogs || 0;
+    const orderCogs = cogsResult.total_cogs || 0;
+
+    // Bulk-ingredient cost, booked from end-of-session container counts.
+    // Bulk items are skipped during per-sale FIFO deduction, so without this
+    // their cost never reaches COGS and profit is overstated.
+    const bulkCogs = session.bulk_cogs || 0;
+    const totalCogs = orderCogs + bulkCogs;
 
     // Calculate profit
     const profit = revenueBreakdown.total - totalCogs;
 
-    // Calculate reimbursement details
-    const totalOwed = totalCogs;
+    // Calculate reimbursement details.
+    // Only order-level COGS is claimed: bulk container cost carries no
+    // is_reimbursable flag, so it reduces profit but is not treated as owed.
+    const totalOwed = orderCogs;
 
     // Get CashApp transactions for this session (auto-reimburse)
     const cashappReimbursement = await get(
@@ -112,7 +120,7 @@ router.post('/:id/close', requirePermission('sessions.close'), async (req, res) 
       await txRun(
         `INSERT INTO reimbursement_ledger (entry_type, amount, session_id, notes)
          VALUES ('cogs_owed', ?, ?, ?)`,
-        [totalCogs, id, `Session close - ${session.name}`]
+        [orderCogs, id, `Session close - ${session.name}`]
       );
 
       // 5. Update program balance with profit
@@ -149,6 +157,9 @@ router.post('/:id/close', requirePermission('sessions.close'), async (req, res) 
           orderCount: revenueBreakdown.order_count || 0
         },
         costs: {
+          orderCogs: orderCogs,
+          bulkCogs: bulkCogs,
+          bulkCogsSource: session.bulk_cogs_source || null,
           totalCogs: totalCogs
         },
         profit: profit,
@@ -266,6 +277,35 @@ router.post('/:id/start-inventory', requirePermission('sessions.run'), async (re
   }
 });
 
+// Estimate bulk-ingredient cost when no end-of-session container count was taken.
+//
+// A bulk container is consumed by the day it is opened - a jar of nacho cheese
+// opened for one game does not go back on the shelf - so cost is charged in WHOLE
+// containers, never per serving. Any usage at all costs at least one container.
+// With servings_per_container set, heavy days that get through more than one
+// container are charged for each. Without it, a day of use costs exactly one.
+async function estimateBulkCogs(sessionId) {
+  const rows = await all(
+    `SELECT mi.id,
+            COALESCE(mi.cost_per_container, mi.unit_cost, 0) as cost_per_container,
+            COALESCE(mi.servings_per_container, 0) as servings_per_container,
+            COALESCE(SUM(ABS(it.quantity_change)), 0) as servings_used
+     FROM inventory_transactions it
+     JOIN menu_items mi ON it.menu_item_id = mi.id
+     WHERE it.session_id = ? AND it.transaction_type = 'bulk_usage'
+     GROUP BY mi.id
+     HAVING servings_used > 0`,
+    [sessionId]
+  );
+
+  return rows.reduce((total, r) => {
+    const containers = r.servings_per_container > 0
+      ? Math.max(1, Math.ceil(r.servings_used / r.servings_per_container))
+      : 1;
+    return total + containers * r.cost_per_container;
+  }, 0);
+}
+
 // POST /api/sessions/:id/end-inventory - Record ending inventory for session close
 router.post('/:id/end-inventory', requirePermission('sessions.close'), async (req, res) => {
   try {
@@ -284,16 +324,25 @@ router.post('/:id/end-inventory', requirePermission('sessions.close'), async (re
     }
 
     if (skipVerification) {
-      // Quick close - just mark as not verified
+      // Quick close - no container counts, so fall back to per-serving usage.
+      // Without this the session books zero bulk cost and overstates profit.
+      const estimatedBulkCogs = await estimateBulkCogs(id);
+
       await run(
-        `UPDATE concession_sessions SET inventory_verified_at_end = 0 WHERE id = ?`,
-        [id]
+        `UPDATE concession_sessions SET
+         inventory_verified_at_end = 0,
+         bulk_cogs = ?,
+         bulk_cogs_source = 'estimated'
+         WHERE id = ?`,
+        [estimatedBulkCogs, id]
       );
 
       return res.json({
         success: true,
         skipped: true,
-        message: 'Inventory verification skipped'
+        bulkCogs: estimatedBulkCogs,
+        bulkCogsSource: 'estimated',
+        message: 'Inventory verification skipped - bulk cost estimated from servings sold'
       });
     }
 
@@ -375,13 +424,32 @@ router.post('/:id/end-inventory', requirePermission('sessions.close'), async (re
       }
     }
 
+    // Book bulk-ingredient cost for the session.
+    // Bulk items are skipped during per-sale FIFO deduction (they carry no lot cost),
+    // so this container-count reconciliation is the only place their cost enters COGS.
+    // Charged in whole containers: an opened jar is consumed by the day, so a
+    // count showing 1.5 used means two were opened and two are paid for.
+    const bulkCountRows = await all(
+      `SELECT sbi.containers_used, COALESCE(mi.cost_per_container, mi.unit_cost, 0) as cost_per_container
+       FROM session_bulk_inventory sbi
+       JOIN menu_items mi ON sbi.menu_item_id = mi.id
+       WHERE sbi.session_id = ? AND sbi.containers_used > 0`,
+      [id]
+    );
+    const bulkCogs = bulkCountRows.reduce(
+      (total, r) => total + Math.ceil(r.containers_used) * r.cost_per_container,
+      0
+    );
+
     // Mark session as verified at end
     await run(
       `UPDATE concession_sessions SET
        inventory_verified_at_end = 1,
-       end_verified_by = ?
+       end_verified_by = ?,
+       bulk_cogs = ?,
+       bulk_cogs_source = 'counted'
        WHERE id = ?`,
-      [verifiedBy || '', id]
+      [verifiedBy || '', bulkCogs, id]
     );
 
     res.json({
@@ -391,7 +459,9 @@ router.post('/:id/end-inventory', requirePermission('sessions.close'), async (re
       bulkItemsCount: bulkItems?.length || 0,
       discrepancies,
       discrepancyCount: discrepancies.length,
-      totalDiscrepancyCost: discrepancies.reduce((sum, d) => sum + d.costImpact, 0)
+      totalDiscrepancyCost: discrepancies.reduce((sum, d) => sum + d.costImpact, 0),
+      bulkCogs,
+      bulkCogsSource: 'counted'
     });
   } catch (err) {
     console.error('End inventory error:', err);

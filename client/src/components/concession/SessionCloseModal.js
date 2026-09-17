@@ -239,7 +239,7 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
                       <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
                         <td style={{ padding: '6px 8px', color: 'var(--color-text-muted)' }}>{item.name}</td>
                         <td style={{ padding: '6px 8px', color: 'var(--color-text-muted)', textAlign: 'right' }}>{item.total_quantity}</td>
-                        <td style={{ padding: '6px 8px', color: 'var(--color-primary)', textAlign: 'right', fontWeight: '500' }}>{formatCurrency(item.total_revenue)}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--color-primary)', textAlign: 'right', fontWeight: '500' }}>{formatCurrency(item.total_sales)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -417,6 +417,31 @@ function SessionCloseModal({ isOpen, onClose, sessionId, onSessionClosed }) {
                 COSTS & PROFIT
               </h4>
               <div style={{ paddingLeft: '4px' }}>
+                {preview.costs.bulkCogs > 0 && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                        Item COGS
+                      </span>
+                      <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: '500' }}>
+                        {formatCurrency(preview.costs.orderCogs)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
+                        Bulk Ingredients
+                        {preview.costs.bulkCogsSource === 'estimated' && (
+                          <span style={{ color: 'var(--color-warning)', fontSize: '11px', marginLeft: '6px' }}>
+                            (estimated)
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: '500' }}>
+                        {formatCurrency(preview.costs.bulkCogs)}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>
                     Total COGS

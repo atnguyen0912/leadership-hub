@@ -289,13 +289,18 @@ router.get('/sessions/:id/close-preview', requirePermission('sessions.run'), asy
       [id]
     );
 
-    const totalCogs = cogsResult.total_cogs || 0;
+    const orderCogs = cogsResult.total_cogs || 0;
+
+    // Bulk-ingredient cost booked at end-inventory. Mirrors POST /api/sessions/:id/close
+    // so the preview shows the same profit the close will book.
+    const bulkCogs = session.bulk_cogs || 0;
+    const totalCogs = orderCogs + bulkCogs;
 
     // 4. Calculate profit
     const profit = revenueBreakdown.total - totalCogs;
 
-    // 5. Calculate reimbursement details
-    const totalOwed = totalCogs;
+    // 5. Calculate reimbursement details (order-level COGS only; see close handler)
+    const totalOwed = orderCogs;
 
     // Get CashApp transactions for this session (auto-reimburse)
     const cashappReimbursement = await get(
@@ -346,6 +351,9 @@ router.get('/sessions/:id/close-preview', requirePermission('sessions.run'), asy
         orderCount: revenueBreakdown.order_count || 0
       },
       costs: {
+        orderCogs: orderCogs,
+        bulkCogs: bulkCogs,
+        bulkCogsSource: session.bulk_cogs_source || null,
         totalCogs: totalCogs
       },
       profit: profit,
@@ -466,71 +474,9 @@ router.post('/sessions/:id/start', requirePermission('sessions.start'), async (r
   }
 });
 
-// POST /api/cashbox/sessions/:id/close - Close session with ending cash (requires sessions.close)
-router.post('/sessions/:id/close', requirePermission('sessions.close'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      quarters = 0,
-      bills_1 = 0,
-      bills_5 = 0,
-      bills_10 = 0,
-      bills_20 = 0,
-      bills_50 = 0,
-      bills_100 = 0,
-      closedBy
-    } = req.body;
-
-    // Use shared validation function
-    if (!validateDenominations({ quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100 })) {
-      return res.status(400).json({ error: 'Denomination counts cannot be negative' });
-    }
-
-    // Get the session
-    const session = await get('SELECT * FROM concession_sessions WHERE id = ?', [id]);
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    if (session.status !== 'active') {
-      return res.status(400).json({ error: 'Session is not active' });
-    }
-
-    // Use shared calculateTotal function
-    const endTotal = calculateTotal({ quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100 });
-    const profit = endTotal - session.start_total;
-
-    // Use transaction to ensure atomicity
-    // Update session with ending cash (no main cashbox update)
-    await run(
-      `UPDATE concession_sessions SET
-       status = 'closed',
-       end_quarters = ?,
-       end_bills_1 = ?,
-       end_bills_5 = ?,
-       end_bills_10 = ?,
-       end_bills_20 = ?,
-       end_bills_50 = ?,
-       end_bills_100 = ?,
-       end_total = ?,
-       profit = ?,
-       closed_by = ?,
-       closed_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [quarters, bills_1, bills_5, bills_10, bills_20, bills_50, bills_100, endTotal, profit, closedBy || null, id]
-    );
-
-    // Record profit to program earnings
-    await run(
-      'INSERT INTO program_earnings (program_id, session_id, amount) VALUES (?, ?, ?)',
-      [session.program_id, id, profit]
-    );
-
-    res.json({ success: true, status: 'closed', endTotal, profit });
-  } catch (err) {
-    console.error('Session close error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
+// NOTE: the legacy cash-delta close (profit = endTotal - start_total) lived here.
+// Session close is now owned by POST /api/sessions/:id/close, which books
+// profit as revenue - COGS and reconciles the drawer count separately.
 
 // POST /api/cashbox/sessions/:id/cancel - Cancel session (Admin)
 router.post('/sessions/:id/cancel', (req, res) => {

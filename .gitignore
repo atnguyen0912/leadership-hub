@@ -9,3 +9,6 @@ client/build/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Local Claude Code settings
+.claude/settings.local.json

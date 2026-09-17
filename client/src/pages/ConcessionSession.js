@@ -37,6 +37,7 @@ function ConcessionSession() {
   const [amountTendered, setAmountTendered] = useState('');
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [sessionSales, setSessionSales] = useState(0);
+  const [sessionCashSales, setSessionCashSales] = useState(0);
 
   // Sub-menu modal
   const [showSubMenu, setShowSubMenu] = useState(false);
@@ -57,6 +58,7 @@ function ConcessionSession() {
   const [isComp, setIsComp] = useState(false);
   const [programs, setPrograms] = useState([]);
   const [sessionDiscountsTotal, setSessionDiscountsTotal] = useState(0);
+  const [sessionCompValue, setSessionCompValue] = useState(0);
 
   // Order history
   const [showOrderHistory, setShowOrderHistory] = useState(false);
@@ -112,7 +114,9 @@ function ConcessionSession() {
         if (salesRes.ok) {
           const salesData = await salesRes.json();
           setSessionSales(salesData.totalSales || 0);
+          setSessionCashSales(salesData.cash_total || 0);
           setSessionDiscountsTotal(salesData.totalDiscounts || 0);
+          setSessionCompValue(salesData.comp_value || 0);
         }
       }
     } catch (err) {
@@ -191,48 +195,6 @@ function ConcessionSession() {
     }
   };
 
-  const handleCloseSession = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (!window.confirm('Are you sure you want to close this session? This cannot be undone.')) {
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      const response = await fetch(`/api/cashbox/sessions/${id}/close`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quarters,
-          bills_1: bills1,
-          bills_5: bills5,
-          bills_10: bills10,
-          bills_20: bills20,
-          bills_50: bills50,
-          bills_100: bills100,
-          closedBy: user.studentId || 'admin'
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to close session');
-      }
-
-      setSuccess(`Session closed! Ending cash: ${formatCurrency(data.endTotal)}, Profit: ${formatCurrency(data.profit)}`);
-      setShowCheckout(false);
-      setTimeout(() => navigate('/cashbox'), 2000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // POS Functions
   const handleItemClick = (item) => {
@@ -807,8 +769,11 @@ function ConcessionSession() {
     return Math.min(4, maxCols);
   };
 
-  // Calculate expected cash in box
-  const expectedCashInBox = (session?.start_total || 0) + sessionSales;
+  // Calculate expected cash in box.
+  // Cash payments only, net of discounts/comps - CashApp and Zelle never enter the drawer.
+  const expectedCashInBox = (session?.start_total || 0) + sessionCashSales;
+  // Discounts excluding comps, so the two are reported separately
+  const sessionDiscountsOnly = Math.max(0, sessionDiscountsTotal - sessionCompValue);
 
   if (loading) {
     return (
@@ -940,11 +905,19 @@ function ConcessionSession() {
                 {formatCurrency(expectedCashInBox)}
               </div>
             </div>
-            {sessionDiscountsTotal > 0 && (
+            {sessionDiscountsOnly > 0 && (
               <div style={{ textAlign: 'right' }}>
-                <div style={{ color: 'var(--color-warning)', fontSize: '10px' }}>Given:</div>
+                <div style={{ color: 'var(--color-warning)', fontSize: '10px' }}>Discounts:</div>
                 <div style={{ color: 'var(--color-warning)', fontSize: '13px', fontWeight: 'bold' }}>
-                  {formatCurrency(sessionDiscountsTotal)}
+                  {formatCurrency(sessionDiscountsOnly)}
+                </div>
+              </div>
+            )}
+            {sessionCompValue > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ color: '#9333ea', fontSize: '10px' }}>Comps:</div>
+                <div style={{ color: '#9333ea', fontSize: '13px', fontWeight: 'bold' }}>
+                  {formatCurrency(sessionCompValue)}
                 </div>
               </div>
             )}
@@ -1509,109 +1482,7 @@ function ConcessionSession() {
                     </button>
                   </div>
                 </>
-              ) : (
-                /* Real Session - Full close flow */
-                <>
-              <h3 style={{ color: 'var(--color-primary)', marginBottom: '16px' }}>Close Session</h3>
-
-              <div style={{ background: 'var(--color-bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: 'var(--color-text-subtle)' }}>Starting Cash:</span>
-                  <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(session.start_total)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: 'var(--color-text-subtle)' }}>Total Sales:</span>
-                  <span style={{ color: 'var(--color-text-muted)' }}>{formatCurrency(sessionSales)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
-                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Expected in Box:</span>
-                  <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>{formatCurrency(expectedCashInBox)}</span>
-                </div>
-              </div>
-
-              <p style={{ color: 'var(--color-text-muted)', marginBottom: '12px', fontSize: '14px' }}>
-                Count all cash and enter the amounts below:
-              </p>
-
-              <form onSubmit={handleCloseSession}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>Quarters</label>
-                    <input type="number" className="input" min="0" value={quarters}
-                      onChange={(e) => setQuarters(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$1 Bills</label>
-                    <input type="number" className="input" min="0" value={bills1}
-                      onChange={(e) => setBills1(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$5 Bills</label>
-                    <input type="number" className="input" min="0" value={bills5}
-                      onChange={(e) => setBills5(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$10 Bills</label>
-                    <input type="number" className="input" min="0" value={bills10}
-                      onChange={(e) => setBills10(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$20 Bills</label>
-                    <input type="number" className="input" min="0" value={bills20}
-                      onChange={(e) => setBills20(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$50 Bills</label>
-                    <input type="number" className="input" min="0" value={bills50}
-                      onChange={(e) => setBills50(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '12px' }}>$100 Bills</label>
-                    <input type="number" className="input" min="0" value={bills100}
-                      onChange={(e) => setBills100(parseInt(e.target.value) || 0)} />
-                  </div>
-                </div>
-
-                <div style={{ background: 'var(--color-bg-input)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: 'var(--color-text-subtle)' }}>Counted Total:</span>
-                    <span style={{ color: 'var(--color-text-muted)', fontWeight: 'bold' }}>{formatCurrency(calculateFormTotal())}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
-                    <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Profit:</span>
-                    <span style={{
-                      color: calculateFormTotal() - session.start_total >= 0 ? 'var(--color-primary)' : 'var(--color-danger)',
-                      fontWeight: 'bold',
-                      fontSize: '18px'
-                    }}>
-                      {formatCurrency(calculateFormTotal() - session.start_total)}
-                    </span>
-                  </div>
-                </div>
-
-                {error && <div className="error-message" style={{ marginBottom: '12px' }}>{error}</div>}
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setShowCheckout(false)}
-                    style={{ flex: 1 }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-danger"
-                    disabled={submitting}
-                    style={{ flex: 1 }}
-                  >
-                    {submitting ? 'Closing...' : 'Close Session'}
-                  </button>
-                </div>
-              </form>
-                </>
-              )}
+              ) : null}
             </div>
           </div>
         )}

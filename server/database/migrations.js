@@ -528,6 +528,77 @@ const migrations = [
       db.run("ALTER TABLE inventory_transactions ADD COLUMN session_id INTEGER", () => resolve());
     })
   }
+  ,
+  {
+    // Bulk ingredients are not deducted per-sale (they carry no lot cost), so their
+    // cost never reached COGS. End-of-session container counts now book it here.
+    name: '024_add_bulk_cogs_to_sessions',
+    run: (db) => new Promise((resolve) => {
+      db.run("ALTER TABLE concession_sessions ADD COLUMN bulk_cogs REAL DEFAULT 0", () => resolve());
+    })
+  }
+  ,
+  {
+    // These three tables were referenced by the order and session-close paths but
+    // created nowhere, so CashApp orders, cross-program discount charges and
+    // session close all failed with "no such table". Columns are taken from the
+    // INSERT/SELECT statements that use them.
+    name: '025_create_missing_cashapp_and_charge_tables',
+    run: async (db) => {
+      await new Promise((resolve) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS cashapp_account (
+            id INTEGER PRIMARY KEY,
+            balance REAL NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `, () => resolve());
+      });
+      // Singleton row - every caller addresses id = 1
+      await new Promise((resolve) => {
+        db.run("INSERT OR IGNORE INTO cashapp_account (id, balance) VALUES (1, 0)", () => resolve());
+      });
+      await new Promise((resolve) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS cashapp_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            order_id INTEGER,
+            session_id INTEGER,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES concession_sessions(id)
+          )
+        `, () => resolve());
+      });
+      await new Promise((resolve) => {
+        db.run(`
+          CREATE TABLE IF NOT EXISTS program_charges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_program_id TEXT NOT NULL,
+            session_id INTEGER,
+            order_id INTEGER,
+            amount REAL NOT NULL,
+            charge_type TEXT,
+            reason TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES concession_sessions(id)
+          )
+        `, () => resolve());
+      });
+    }
+  }
+  ,
+  {
+    // Distinguishes bulk COGS taken from a real end-of-session container count
+    // ('counted') from one derived from per-serving usage when the operator
+    // skipped verification ('estimated').
+    name: '026_add_bulk_cogs_source_to_sessions',
+    run: (db) => new Promise((resolve) => {
+      db.run("ALTER TABLE concession_sessions ADD COLUMN bulk_cogs_source TEXT", () => resolve());
+    })
+  }
 ];
 
 /**
