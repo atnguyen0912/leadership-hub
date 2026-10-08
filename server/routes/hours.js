@@ -2,6 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const { parse } = require('csv-parse');
 const { getDb } = require('../database');
+const { requireAdmin } = require('../middleware/auth');
+const { fetchReport, summaryCSV, detailCSV } = require('../utils/hoursReport');
+const { fetchGroups, groupsCSV, GROUP_MODES, SORTS } = require('../utils/hoursGroups');
+const { HOUR_TYPES } = require('../config/hourTypes');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -152,6 +156,101 @@ router.get('/stats', (req, res) => {
       });
     }
   );
+});
+
+// GET /api/hours/report - Per-student hours report for certificates and forms
+//
+// The dashboard leaderboard shows only active students and has no year
+// dimension, so past school years are invisible there. This is the way to pull
+// one back out, with every field needed to print a certificate or fill a form.
+//
+// Query params:
+//   year=2025-26    school year to report on, or "all"; omitted picks the year
+//                   in progress, falling back to the newest year with hours
+//   includeFormer=0 drop students marked former (default: they are included,
+//                   since a past year's roster has usually graduated)
+//   includeZero=1   list students with no hours in range (default: off)
+//   hourType=       restrict to one category (poster_making, concessions, ...)
+//   format=csv      per-student summary CSV; add detail=1 for one row per entry
+router.get('/report', requireAdmin, async (req, res) => {
+  const { year, hourType = '', format = 'json', detail } = req.query;
+  const isOff = (value) => value === '0' || value === 'false';
+  const isOn = (value) => value === '1' || value === 'true';
+
+  try {
+    const { report, entries, availableYears } = await fetchReport({
+      year,
+      hourType,
+      includeFormer: !isOff(req.query.includeFormer),
+      includeZero: isOn(req.query.includeZero)
+    });
+
+    if (format === 'csv') {
+      const wantsDetail = isOn(detail);
+      const suffix = report.year === 'all' ? 'all-years' : report.year;
+      const filename = `leadership-hours-${wantsDetail ? 'entries' : 'summary'}-${suffix}.csv`;
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(wantsDetail ? detailCSV(report, entries) : summaryCSV(report));
+    }
+
+    res.json({ ...report, availableYears, hourTypes: HOUR_TYPES, groupModes: GROUP_MODES });
+  } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('Hours report failed:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /api/hours/groups - Hours cut into certificate-sized blocks
+//
+// A year's hours on one certificate arrives long after the work. This splits a
+// student's entries into the stretches worth recognizing on their own, so a
+// certificate can go out while the activity is still fresh.
+//
+// Query params (year, includeFormer, hourType as /report, plus):
+//   mode=run        how to cut the blocks: run (consecutive days of one
+//                   activity), activity, type, month
+//   maxGapDays=3    largest break a run tolerates before it becomes a second
+//                   certificate; 3 keeps a Fri-Mon stretch together. run only
+//   minHours=       drop blocks shorter than this many hours
+//   minDays=        drop blocks covering fewer than this many days
+//   studentId=      one student only
+//   sort=recent     recent (most recently finished first), student, or hours
+//   format=csv      one row per block, ready to mail-merge
+router.get('/groups', requireAdmin, async (req, res) => {
+  const { year, hourType = '', studentId = '', mode, maxGapDays, minHours, minDays, sort, format = 'json' } = req.query;
+
+  try {
+    const result = await fetchGroups({
+      year,
+      hourType,
+      studentId,
+      mode,
+      maxGapDays,
+      minHours,
+      minDays,
+      sort,
+      includeFormer: req.query.includeFormer !== '0' && req.query.includeFormer !== 'false'
+    });
+
+    if (format === 'csv') {
+      const suffix = result.year === 'all' ? 'all-years' : result.year;
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="leadership-hours-${result.mode}-${suffix}.csv"`);
+      return res.send(groupsCSV(result));
+    }
+
+    res.json({ ...result, hourTypes: HOUR_TYPES, groupModes: GROUP_MODES, sorts: SORTS });
+  } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('Hours groups report failed:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // Get hours for a specific student

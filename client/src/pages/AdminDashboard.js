@@ -98,6 +98,10 @@ function AdminDashboard() {
                   <span className="quick-action-icon">📋</span>
                   <span className="quick-action-label">Hours</span>
                 </Link>
+                <Link to="/hours-report" className="quick-action-card">
+                  <span className="quick-action-icon">🏅</span>
+                  <span className="quick-action-label">Report</span>
+                </Link>
                 {/* Events hidden - not currently in use
                 <Link to="/events-admin" className="quick-action-card">
                   <span className="quick-action-icon">📅</span>

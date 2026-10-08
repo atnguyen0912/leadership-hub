@@ -64,6 +64,9 @@ function Navbar() {
             <Link to="/view-all-hours" className={`nav-link ${location.pathname === '/view-all-hours' ? 'active' : ''}`}>
               View All Hours
             </Link>
+            <Link to="/hours-report" className={`nav-link ${location.pathname === '/hours-report' ? 'active' : ''}`}>
+              Hours Report
+            </Link>
             <Link to="/cashbox-admin" className={`nav-link ${location.pathname === '/cashbox-admin' ? 'active' : ''}`}>
               CashBox
             </Link>

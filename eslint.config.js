@@ -34,6 +34,7 @@ module.exports = [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         FormData: 'readonly',
+        URLSearchParams: 'readonly',
         alert: 'readonly',
         confirm: 'readonly'
       }
@@ -54,6 +55,24 @@ module.exports = [
       'react/react-in-jsx-scope': 'off',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn'
+    }
+  },
+  {
+    // Jest injects these into test files; without them every assertion reads as
+    // an undefined global.
+    files: ['**/__tests__/**/*.js', '**/*.test.js'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        jest: 'readonly',
+        beforeAll: 'readonly',
+        beforeEach: 'readonly',
+        afterAll: 'readonly',
+        afterEach: 'readonly'
+      }
     }
   },
   {

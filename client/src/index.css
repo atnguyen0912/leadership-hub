@@ -4513,6 +4513,249 @@ tbody tr:hover {
   margin-bottom: 0;
 }
 
+
+/* Hours Report (printable per-student records) */
+.report-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-lg);
+}
+
+.report-intro {
+  color: var(--color-text-subtle);
+  margin-bottom: var(--spacing-md);
+  max-width: 70ch;
+}
+
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-md);
+}
+
+.report-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.report-control label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.report-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 14px;
+}
+
+.report-checkbox input {
+  width: auto;
+  margin: 0;
+}
+
+.report-control input[type="number"] {
+  width: 90px;
+  margin: 0;
+}
+
+.report-hint {
+  margin-top: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--color-text-subtle);
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+}
+
+.report-sheet {
+  margin-top: var(--spacing-lg);
+}
+
+.report-header {
+  border-bottom: var(--border-medium);
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.report-header h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.report-header-meta {
+  color: var(--color-text-subtle);
+  font-size: 14px;
+}
+
+.report-note {
+  color: var(--color-text-subtle);
+  font-size: 14px;
+  margin-bottom: var(--spacing-md);
+}
+
+.report-table-wrap {
+  overflow-x: auto;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.report-table th,
+.report-table td {
+  padding: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.report-table th.num,
+.report-table td.num {
+  text-align: right;
+}
+
+.report-table .report-name {
+  font-weight: 600;
+}
+
+.report-footer {
+  margin-top: var(--spacing-lg);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+/* Certificate cards: one printable block per student */
+.cert-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+}
+
+@media (min-width: 760px) {
+  .cert-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cert-card {
+  border: var(--border-subtle);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-lg);
+  background: var(--color-bg-card);
+}
+
+.cert-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-subtle);
+}
+
+.cert-name {
+  margin: var(--spacing-xs) 0 0;
+  font-size: 22px;
+  color: var(--color-primary);
+}
+
+.cert-role {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+/* Names the stretch of work a block certificate is for. */
+.cert-activity-title {
+  margin-top: var(--spacing-md);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.cert-hours {
+  margin-top: var(--spacing-md);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.cert-activity-title + .cert-hours {
+  margin-top: var(--spacing-xs);
+}
+
+.cert-hours-decimal {
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+.cert-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm) var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.cert-fields dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.cert-fields dd {
+  font-size: 14px;
+}
+
+.cert-breakdown {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: 13px;
+}
+
+.cert-breakdown li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.cert-breakdown-value {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cert-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.cert-activities {
+  margin-top: var(--spacing-sm);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
+.cert-signature {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  border-top: 1px dashed var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+
 /* Print Styles */
 @media print {
   body {
@@ -4530,6 +4773,7 @@ tbody tr:hover {
   .tab-nav,
   .cashbox-sidebar,
   .theme-toggle,
+  .no-print,
   [data-tooltip]::after {
     display: none !important;
   }
@@ -4572,6 +4816,53 @@ tbody tr:hover {
   th, td {
     border: 1px solid #ccc;
     padding: 8px;
+  }
+
+  /* Hours Report: fit the page and keep each student's block intact */
+  .report-layout {
+    max-width: none;
+    padding: 0;
+  }
+
+  .report-table {
+    font-size: 9pt;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 4px 6px;
+    white-space: normal;
+  }
+
+  .cert-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12pt;
+  }
+
+  .cert-card {
+    border: 1px solid #000;
+    padding: 12pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .cert-name {
+    font-size: 16pt;
+  }
+
+  .cert-hours {
+    font-size: 22pt;
+  }
+
+  .cert-activity-title {
+    font-size: 11pt;
+  }
+
+  /* Swatches are the only color worth keeping; the blanket rule above would
+     flatten them to invisible. */
+  .cert-swatch {
+    border: 1px solid #000;
   }
 }
 

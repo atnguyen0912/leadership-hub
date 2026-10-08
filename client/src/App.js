@@ -10,6 +10,7 @@ import Events from './pages/Events';
 import AdminDashboard from './pages/AdminDashboard';
 import ManageStudents from './pages/ManageStudents';
 import ViewAllHours from './pages/ViewAllHours';
+import HoursReport from './pages/HoursReport';
 import AdminStudentProfile from './pages/AdminStudentProfile';
 import EventsAdmin from './pages/EventsAdmin';
 import CashBox from './pages/CashBox';
@@ -113,6 +114,7 @@ function AppRoutes() {
           <Route path="/manage-students" element={<ManageStudents />} />
           <Route path="/view-all-hours" element={<ViewAllHours />} />
           <Route path="/admin/hours" element={<ViewAllHours />} />
+          <Route path="/hours-report" element={<HoursReport />} />
           <Route path="/admin/student/:studentId" element={<AdminStudentProfile />} />
           <Route path="/events-admin" element={<EventsAdmin />} />
           <Route path="/cashbox" element={<CashBox />} />
