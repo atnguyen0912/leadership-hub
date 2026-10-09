@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../contexts';
 import { StudentTable, StudentCards, GroupTable, GroupCards } from '../components/report';
 import { formatDate } from '../utils/formatters';
 
@@ -19,6 +20,8 @@ const WHOLE_YEAR = 'year';
  * into the stretches worth their own certificate.
  */
 function HoursReport() {
+  // Students see the same report, scoped server-side to their own hours.
+  const { isStudent } = useAuth();
   const [data, setData] = useState(null);
   const [availableYears, setAvailableYears] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,9 +139,13 @@ function HoursReport() {
         <div className="no-print">
           <h1 className="page-title">Hours Report</h1>
           <p className="report-intro">
+            {isStudent ? (
+              'Your hours for any school year, including past years — print them or export them for certificates and service forms.'
+            ) : (<>
             Every field per student for certificates and service forms, for any school year
             still in the database — including years the dashboard leaderboard hides. Split the
             hours into shorter stretches to hand out a certificate while the work is still fresh.
+            </>)}
           </p>
 
           <div className="card report-controls">
@@ -229,6 +236,7 @@ function HoursReport() {
               </>
             )}
 
+            {!isStudent && (
             <label className="report-checkbox">
               <input
                 type="checkbox"
@@ -237,8 +245,9 @@ function HoursReport() {
               />
               Include former students
             </label>
+            )}
 
-            {!grouped && (
+            {!grouped && !isStudent && (
               <label className="report-checkbox">
                 <input
                   type="checkbox"

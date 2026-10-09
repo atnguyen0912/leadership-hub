@@ -2,12 +2,18 @@ const express = require('express');
 const multer = require('multer');
 const { parse } = require('csv-parse');
 const { getDb } = require('../database');
-const { requireAdmin } = require('../middleware/auth');
 const { fetchReport, summaryCSV, detailCSV } = require('../utils/hoursReport');
 const { fetchGroups, groupsCSV, GROUP_MODES, SORTS } = require('../utils/hoursGroups');
 const { HOUR_TYPES } = require('../config/hourTypes');
 
 const router = express.Router();
+
+// Students may read the hours report, but only their own hours: an admin can
+// ask for anyone (or one student via studentId), a student's own id always wins.
+const reportScope = (req) => (req.user.type === 'admin'
+  ? { studentId: req.query.studentId || '', includeFormer: req.query.includeFormer !== '0' && req.query.includeFormer !== 'false' }
+  : { studentId: req.user.studentId, includeFormer: true });
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Helper function to calculate hours between two times
@@ -172,16 +178,17 @@ router.get('/stats', (req, res) => {
 //   includeZero=1   list students with no hours in range (default: off)
 //   hourType=       restrict to one category (poster_making, concessions, ...)
 //   format=csv      per-student summary CSV; add detail=1 for one row per entry
-router.get('/report', requireAdmin, async (req, res) => {
+//
+// Students get the same report scoped to themselves (see reportScope).
+router.get('/report', async (req, res) => {
   const { year, hourType = '', format = 'json', detail } = req.query;
-  const isOff = (value) => value === '0' || value === 'false';
   const isOn = (value) => value === '1' || value === 'true';
 
   try {
     const { report, entries, availableYears } = await fetchReport({
       year,
       hourType,
-      includeFormer: !isOff(req.query.includeFormer),
+      ...reportScope(req),
       includeZero: isOn(req.query.includeZero)
     });
 
@@ -220,20 +227,21 @@ router.get('/report', requireAdmin, async (req, res) => {
 //   studentId=      one student only
 //   sort=recent     recent (most recently finished first), student, or hours
 //   format=csv      one row per block, ready to mail-merge
-router.get('/groups', requireAdmin, async (req, res) => {
-  const { year, hourType = '', studentId = '', mode, maxGapDays, minHours, minDays, sort, format = 'json' } = req.query;
+//
+// Students get only their own blocks (see reportScope).
+router.get('/groups', async (req, res) => {
+  const { year, hourType = '', mode, maxGapDays, minHours, minDays, sort, format = 'json' } = req.query;
 
   try {
     const result = await fetchGroups({
       year,
       hourType,
-      studentId,
       mode,
       maxGapDays,
       minHours,
       minDays,
       sort,
-      includeFormer: req.query.includeFormer !== '0' && req.query.includeFormer !== 'false'
+      ...reportScope(req)
     });
 
     if (format === 'csv') {

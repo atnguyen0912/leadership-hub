@@ -102,6 +102,7 @@ function AppRoutes() {
           <Route path="/" element={<StudentDashboard />} />
           <Route path="/log-hours" element={<LogHours />} />
           <Route path="/view-hours" element={<ViewHours />} />
+          <Route path="/hours-report" element={<HoursReport />} />
           <Route path="/events" element={<Events />} />
           <Route path="/cashbox" element={<CashBox />} />
           <Route path="/concession-session/:id" element={<ConcessionSession />} />

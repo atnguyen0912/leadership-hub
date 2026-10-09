@@ -49,6 +49,9 @@ function Navbar() {
             <Link to="/view-hours" className={`nav-link ${location.pathname === '/view-hours' ? 'active' : ''}`}>
               View My Hours
             </Link>
+            <Link to="/hours-report" className={`nav-link ${location.pathname === '/hours-report' ? 'active' : ''}`}>
+              Hours Report
+            </Link>
             <Link to="/cashbox" className={`nav-link ${location.pathname === '/cashbox' || location.pathname.startsWith('/concession-session') ? 'active' : ''}`}>
               Concessions
             </Link>
