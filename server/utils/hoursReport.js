@@ -279,6 +279,37 @@ function detailCSV(report, entries) {
 }
 
 /**
+ * The entries behind a report, newest first, for listing on screen
+ *
+ * Same rows and rules as detailCSV, shaped for a page rather than a spreadsheet.
+ * @param {object} report - Report from summarizeHours
+ * @param {Array} entries - The same hour rows the report was built from
+ * @returns {Array} One object per entry
+ */
+function entryList(report, entries) {
+  const ids = new Set(report.students.map(student => student.studentId));
+  return (entries || [])
+    .filter(entry => ids.has(entry.student_id))
+    .map(entry => {
+      const minutes = minutesBetween(entry.time_in, entry.time_out);
+      const type = normalizeHourType(entry.hour_type);
+      return {
+        studentId: entry.student_id,
+        date: entry.date,
+        timeIn: entry.time_in,
+        timeOut: entry.time_out,
+        hours: decimalHours(minutes),
+        formatted: formatMinutes(minutes),
+        type,
+        typeLabel: hourTypeLabel(type),
+        activity: entry.item || ''
+      };
+    })
+    .sort((a, b) => String(b.date).localeCompare(String(a.date))
+      || String(b.timeIn).localeCompare(String(a.timeIn)));
+}
+
+/**
  * Pick which school year to report on when the caller did not name one
  *
  * Prefers the year in progress, but falls back to the newest year that actually
@@ -391,5 +422,6 @@ module.exports = {
   summarizeHours,
   summaryCSV,
   detailCSV,
+  entryList,
   fetchReport
 };

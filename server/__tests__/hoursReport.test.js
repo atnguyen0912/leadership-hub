@@ -4,6 +4,7 @@ const {
   summarizeHours,
   summaryCSV,
   detailCSV,
+  entryList,
   defaultYear
 } = require('../utils/hoursReport');
 
@@ -178,6 +179,22 @@ describe('CSV export', () => {
     expect(lines).toHaveLength(5);
     expect(lines[1]).toContain('Avery Nguyen,1001,Active,Lead — Spirit,2025-26,2025-09-12,15:00,17:30,2.50,Poster Making,Homecoming posters');
     expect(lines.join('\n')).not.toContain('Off-roster');
+  });
+});
+
+describe('entryList', () => {
+  it('lists one student\'s entries newest first, with hours and type labels', () => {
+    const own = entries.filter(entry => entry.student_id === '1001');
+    const report = summarizeHours({ students: students.filter(s => s.student_id === '1001'), entries: own, year: '2025-26' });
+    const list = entryList(report, own);
+
+    expect(list.map(entry => entry.date)).toEqual(['2025-10-03', '2025-09-12']);
+    expect(list[1]).toMatchObject({ hours: 2.5, formatted: '2h 30m', typeLabel: 'Poster Making', activity: 'Homecoming posters' });
+  });
+
+  it('leaves out entries belonging to nobody in the report', () => {
+    const report = summarizeHours({ students, entries, year: '2025-26' });
+    expect(entryList(report, entries).map(entry => entry.activity)).not.toContain('Off-roster');
   });
 });
 

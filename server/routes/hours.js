@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { parse } = require('csv-parse');
 const { getDb } = require('../database');
-const { fetchReport, summaryCSV, detailCSV } = require('../utils/hoursReport');
+const { fetchReport, summaryCSV, detailCSV, entryList } = require('../utils/hoursReport');
 const { fetchGroups, groupsCSV, GROUP_MODES, SORTS } = require('../utils/hoursGroups');
 const { HOUR_TYPES } = require('../config/hourTypes');
 
@@ -178,6 +178,7 @@ router.get('/stats', (req, res) => {
 //   includeZero=1   list students with no hours in range (default: off)
 //   hourType=       restrict to one category (poster_making, concessions, ...)
 //   format=csv      per-student summary CSV; add detail=1 for one row per entry
+//   entries=1       JSON only: also return the entries behind the totals
 //
 // Students get the same report scoped to themselves (see reportScope).
 router.get('/report', async (req, res) => {
@@ -201,7 +202,13 @@ router.get('/report', async (req, res) => {
       return res.send(wantsDetail ? detailCSV(report, entries) : summaryCSV(report));
     }
 
-    res.json({ ...report, availableYears, hourTypes: HOUR_TYPES, groupModes: GROUP_MODES });
+    res.json({
+      ...report,
+      ...(isOn(req.query.entries) && { entries: entryList(report, entries) }),
+      availableYears,
+      hourTypes: HOUR_TYPES,
+      groupModes: GROUP_MODES
+    });
   } catch (err) {
     if (err.status === 400) {
       return res.status(400).json({ error: err.message });

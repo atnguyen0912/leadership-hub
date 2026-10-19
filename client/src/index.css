@@ -4636,6 +4636,95 @@ tbody tr:hover {
   color: var(--color-text-subtle);
 }
 
+/* My Hours Report: a student's own hours as one printable sheet */
+.my-hours-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.my-hours-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.my-hours-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.my-hours-stat-main .my-hours-stat-value {
+  color: var(--color-primary);
+  font-size: 28px;
+}
+
+.my-hours-stat-period {
+  font-size: 15px;
+}
+
+.my-hours-stat-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.my-hours-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.my-hours-section h3 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 15px;
+}
+
+.my-hours-types {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.my-hours-types li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  font-size: 14px;
+}
+
+.my-hours-type-name {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.my-hours-type-bar {
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.my-hours-type-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.my-hours-type-value {
+  width: 64px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Certificate cards: one printable block per student */
 .cert-grid {
   display: grid;
